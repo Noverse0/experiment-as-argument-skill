@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this skill or benchmark, please cite it."
+title: "ML Experiment Rigor Skill"
+type: software
+authors:
+  - name: "ml-experiment-rigor-skill contributors"
+repository-code: "https://github.com/Noverse0/ml-experiment-rigor-skill"
+license: MIT
+references:
+  - type: blog
+    title: "A Recipe for Training Neural Networks"
+    authors:
+      - family-names: Karpathy
+        given-names: Andrej
+    year: 2019
+    url: "https://karpathy.github.io/2019/04/25/recipe/"
+  - type: article
+    title: "Leakage and the Reproducibility Crisis in ML-based Science"
+    authors:
+      - family-names: Kapoor
+        given-names: Sayash
+      - family-names: Narayanan
+        given-names: Arvind
+    year: 2023

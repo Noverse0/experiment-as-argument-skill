@@ -1,0 +1,5 @@
+benchmark/runs/
+__pycache__/
+.pytest_cache/
+*.csv
+.DS_Store

@@ -1,0 +1,19 @@
+{
+  "name": "ml-experiment-rigor-skill",
+  "description": "ML training experiment rigor rules for coding agents: leakage prevention, sanity checks before full training, seed and variance discipline, and claims backed by repeated runs.",
+  "version": "0.1.0",
+  "author": {
+    "name": "ml-experiment-rigor-skill contributors"
+  },
+  "license": "MIT",
+  "keywords": [
+    "machine-learning",
+    "skills",
+    "reproducibility",
+    "data-leakage",
+    "experiment-rigor"
+  ],
+  "skills": [
+    "./skills/ml-experiment-rigor"
+  ]
+}
