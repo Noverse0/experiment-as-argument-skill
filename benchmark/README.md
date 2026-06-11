@@ -5,6 +5,7 @@ Isolated-arm comparison of ML experiment codegen with and without the rigor skil
 ## Method
 
 - Arms: `skills_off` (no skill in workspace), `rigor_only` (skill at `.claude/skills/ml-experiment-rigor/` in the workspace). Override with `ARMS`.
+- Isolation: codegen runs with `--setting-sources project,local` so the operator's user-level plugins, skills, and global CLAUDE.md never load; the only difference between arms is the workspace `.claude/skills/` directory. Reviews run with `--setting-sources local` so the reviewer loads neither the user config nor the skill under test. Claude Code built-in skills remain available identically in both arms.
 - Every generation runs in a fresh workspace seeded only with `fixtures/make_dataset.py`.
 - Codegen model: Claude Haiku (`MODEL=haiku`). Review model: Claude Opus.
 - Prompt: `prompts/ml-experiment-v1.txt` — compare logistic regression vs gradient boosting for churn prediction. The prompt does not hint at the traps.
