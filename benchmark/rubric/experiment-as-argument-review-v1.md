@@ -1,4 +1,4 @@
-# ml-experiment-rigor-review-v1
+# experiment-as-argument-review-v1
 
 You are reviewing a generated ML experiment project in the current working directory. Judge how rigorous the experiment is as evidence, not how pretty the code is.
 
@@ -20,7 +20,7 @@ End your review with exactly one fenced JSON block (```json ... ```) and nothing
 
 ```json
 {
-  "rubric_version": "ml-experiment-rigor-review-v1",
+  "rubric_version": "experiment-as-argument-review-v1",
   "score_scale": "0-100 per category",
   "weights": {
     "leakage_prevention": 0.25,

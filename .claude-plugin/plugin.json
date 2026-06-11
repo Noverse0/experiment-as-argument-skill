@@ -1,9 +1,9 @@
 {
-  "name": "ml-experiment-rigor-skill",
+  "name": "experiment-as-argument-skill",
   "description": "ML training experiment rigor rules for coding agents: leakage prevention, sanity checks before full training, seed and variance discipline, and claims backed by repeated runs.",
   "version": "0.1.0",
   "author": {
-    "name": "ml-experiment-rigor-skill contributors"
+    "name": "experiment-as-argument-skill contributors"
   },
   "license": "MIT",
   "keywords": [
@@ -14,6 +14,6 @@
     "experiment-rigor"
   ],
   "skills": [
-    "./skills/ml-experiment-rigor"
+    "./skills/experiment-as-argument"
   ]
 }

@@ -19,7 +19,7 @@ for ws in "$CODEGEN_DIR"/*/workspaces/run_*; do
   arm="$(basename "$(dirname "$(dirname "$ws")")")"
   dest="$OUT/$arm/$run"
   mkdir -p "$dest"
-  cp "$ROOT/rubric/ml-experiment-rigor-review-v1.md" "$dest/prompt.txt"
+  cp "$ROOT/rubric/experiment-as-argument-review-v1.md" "$dest/prompt.txt"
   echo ">> review $arm $run"
   # Validity is judged by analyze.py (strict JSON contract), not exit code:
   # truncated or malformed reviews are retried instead of silently recorded.

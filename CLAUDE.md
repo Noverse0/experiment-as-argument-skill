@@ -1,4 +1,4 @@
-# ML Experiment Rigor
+# Experiment as Argument
 
 Operating rules distilled from Andrej Karpathy's "A Recipe for Training Neural Networks" and Kapoor & Narayanan's leakage taxonomy. Use these rules to avoid experiments that run but prove nothing: leaked features, single-seed winner claims, and metrics that evaporate on a clean split.
 

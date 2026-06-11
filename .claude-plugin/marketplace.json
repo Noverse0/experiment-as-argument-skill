@@ -1,18 +1,18 @@
 {
-  "name": "ml-experiment-rigor-skill",
-  "description": "Claude Code marketplace for the ML Experiment Rigor skill.",
+  "name": "experiment-as-argument-skill",
+  "description": "Claude Code marketplace for the Experiment as Argument skill.",
   "version": "0.1.0",
   "owner": {
     "name": "Noverse0"
   },
   "plugins": [
     {
-      "name": "ml-experiment-rigor-skill",
+      "name": "experiment-as-argument-skill",
       "source": "./",
       "description": "ML experiment rigor rules: split before transform, kill leaky features, sanity-check before full training, never claim a winner from one seed.",
       "version": "0.1.0",
       "author": {
-        "name": "ml-experiment-rigor-skill contributors"
+        "name": "experiment-as-argument-skill contributors"
       },
       "keywords": [
         "claude-code",

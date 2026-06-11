@@ -1,10 +1,10 @@
 ---
-name: ml-experiment-rigor
+name: experiment-as-argument
 description: "Use when writing, modifying, debugging, or reviewing ML training or evaluation code: experiments, model comparisons, data preprocessing, train/test splits, metrics, or result reports. Enforces leakage prevention, sanity checks before full training, seed and variance discipline, and claims backed by repeated runs."
 license: MIT
 ---
 
-# ML Experiment Rigor
+# Experiment as Argument
 
 Operating rules distilled from Andrej Karpathy's "A Recipe for Training Neural Networks" and Kapoor & Narayanan's leakage taxonomy. Use these rules to avoid experiments that run but prove nothing: leaked features, single-seed winner claims, and metrics that evaporate on a clean split.
 

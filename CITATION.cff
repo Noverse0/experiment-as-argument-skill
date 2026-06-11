@@ -1,10 +1,10 @@
 cff-version: 1.2.0
 message: "If you use this skill or benchmark, please cite it."
-title: "ML Experiment Rigor Skill"
+title: "Experiment as Argument Skill"
 type: software
 authors:
-  - name: "ml-experiment-rigor-skill contributors"
-repository-code: "https://github.com/Noverse0/ml-experiment-rigor-skill"
+  - name: "experiment-as-argument-skill contributors"
+repository-code: "https://github.com/Noverse0/experiment-as-argument-skill"
 license: MIT
 references:
   - type: blog

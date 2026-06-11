@@ -9,7 +9,7 @@ from analyze import REQUIRED_CATEGORIES, extract_review, mann_whitney, recompute
 VALID = """Review prose here.
 ```json
 {
-  "rubric_version": "ml-experiment-rigor-review-v1",
+  "rubric_version": "experiment-as-argument-review-v1",
   "score_scale": "0-100 per category",
   "weights": {"leakage_prevention": 0.25, "methodological_validity": 0.20,
               "reproducibility": 0.15, "claims_discipline": 0.15,

@@ -1,4 +1,4 @@
-# ML Experiment Rigor Skill
+# Experiment as Argument Skill
 
 A Claude Code skill that distills Andrej Karpathy's "A Recipe for Training Neural Networks" and Kapoor & Narayanan's data-leakage taxonomy into operating rules for agents writing ML training and evaluation code.
 
@@ -11,11 +11,11 @@ An ML experiment that runs is not the same as an ML experiment that proves somet
 - **Seed and variance discipline:** logged seeds, ≥3 repeats behind any comparison, mean ± sd reporting.
 - **Claims discipline:** no winner without variance; "no detectable difference" is a valid result; test set touched once.
 
-See [skills/ml-experiment-rigor/SKILL.md](skills/ml-experiment-rigor/SKILL.md) for the full rules.
+See [skills/experiment-as-argument/SKILL.md](skills/experiment-as-argument/SKILL.md) for the full rules.
 
 ## Benchmark
 
-The repo ships a complete isolated-arm benchmark (harness included, unlike most skill repos): a churn-prediction experiment prompt over a dataset with three planted traps — a perfectly target-derived feature, duplicate rows that straddle naive splits, and a temporal column that random splits ignore. Generated projects are reviewed by a stronger model against `ml-experiment-rigor-review-v1`, scoring leakage prevention, methodological validity, reproducibility, claims discipline, executability, and code quality.
+The repo ships a complete isolated-arm benchmark (harness included, unlike most skill repos): a churn-prediction experiment prompt over a dataset with three planted traps — a perfectly target-derived feature, duplicate rows that straddle naive splits, and a temporal column that random splits ignore. Generated projects are reviewed by a stronger model against `experiment-as-argument-review-v1`, scoring leakage prevention, methodological validity, reproducibility, claims discipline, executability, and code quality.
 
 Results: pending first full run. See [benchmark/README.md](benchmark/README.md) for method, run-level results with n/sd/significance, and reproduction commands.
 
@@ -24,16 +24,16 @@ Results: pending first full run. See [benchmark/README.md](benchmark/README.md) 
 Option A: Claude Code plugin
 
 ```text
-/plugin marketplace add Noverse0/ml-experiment-rigor-skill
-/plugin install ml-experiment-rigor-skill
+/plugin marketplace add Noverse0/experiment-as-argument-skill
+/plugin install experiment-as-argument-skill
 ```
 
 Option B: copy the skill directly
 
 ```bash
-mkdir -p ~/.claude/skills/ml-experiment-rigor
-curl -fsSL https://raw.githubusercontent.com/Noverse0/ml-experiment-rigor-skill/main/skills/ml-experiment-rigor/SKILL.md \
-  -o ~/.claude/skills/ml-experiment-rigor/SKILL.md
+mkdir -p ~/.claude/skills/experiment-as-argument
+curl -fsSL https://raw.githubusercontent.com/Noverse0/experiment-as-argument-skill/main/skills/experiment-as-argument/SKILL.md \
+  -o ~/.claude/skills/experiment-as-argument/SKILL.md
 ```
 
 ## Reproduce the benchmark

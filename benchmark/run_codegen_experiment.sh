@@ -19,9 +19,9 @@ for arm in $ARMS; do
     mkdir -p "$ws"
     cp "$ROOT/fixtures/make_dataset.py" "$ws/"
     if [ "$arm" = "rigor_only" ]; then
-      mkdir -p "$ws/.claude/skills/ml-experiment-rigor"
-      cp "$ROOT/../skills/ml-experiment-rigor/SKILL.md" \
-         "$ws/.claude/skills/ml-experiment-rigor/SKILL.md"
+      mkdir -p "$ws/.claude/skills/experiment-as-argument"
+      cp "$ROOT/../skills/experiment-as-argument/SKILL.md" \
+         "$ws/.claude/skills/experiment-as-argument/SKILL.md"
     fi
     cp "$ROOT/prompts/ml-experiment-v1.txt" "$OUT/$arm/prompt_$i.txt"
     echo ">> codegen $arm run_$i"
