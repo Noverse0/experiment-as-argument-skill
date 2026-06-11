@@ -1,8 +1,8 @@
 # Experiment as Argument Skill
 
-A Claude Code skill that distills Andrej Karpathy's "A Recipe for Training Neural Networks" and Kapoor & Narayanan's data-leakage taxonomy into operating rules for agents writing ML training and evaluation code.
+**An experiment is an argument, not a script.** This Claude Code skill holds coding agents to that standard when they write ML training and evaluation code, distilling Andrej Karpathy's "A Recipe for Training Neural Networks" and Kapoor & Narayanan's data-leakage taxonomy into operating rules.
 
-An ML experiment that runs is not the same as an ML experiment that proves something. Coding agents reliably produce the former: pipelines that fit scalers on the full dataset, use target-derived features, declare winners from a single seed, and write reports stronger than their evidence. This skill forces the agent to treat the experiment as an argument — leak surface enumerated before coding, sanity checks before full training, repetition and variance before any comparative claim.
+An ML experiment that runs is not the same as one that proves something. Coding agents reliably produce the first kind: pipelines that fit scalers on the full dataset, use target-derived features, declare winners from a single seed, and write reports stronger than their evidence. The code runs, prints a number, and the number is noise. This skill makes the agent treat every experiment as a claim it has to defend — leak surface enumerated before coding, sanity checks before full training, repetition and variance before any comparative claim, and a report that says only what the runs actually measured.
 
 ## What the skill enforces
 
@@ -15,7 +15,9 @@ See [skills/experiment-as-argument/SKILL.md](skills/experiment-as-argument/SKILL
 
 ## Benchmark
 
-The repo ships a complete isolated-arm benchmark (harness included, unlike most skill repos): a churn-prediction experiment prompt over a dataset with three planted traps — a perfectly target-derived feature, duplicate rows that straddle naive splits, and a temporal column that random splits ignore. Generated projects are reviewed by a stronger model against `experiment-as-argument-review-v1`, scoring leakage prevention, methodological validity, reproducibility, claims discipline, executability, and code quality.
+Does the skill actually make the argument stronger? The repo ships a complete isolated-arm benchmark to find out (harness included, unlike most skill repos): a churn-prediction experiment prompt over a dataset with three planted traps — a perfectly target-derived feature, duplicate rows that straddle naive splits, and a temporal column that random splits ignore. The prompt never mentions the traps; a rigorous agent has to catch them on its own. Generated projects are reviewed by a stronger model against `experiment-as-argument-review-v1`, scoring leakage prevention, methodological validity, reproducibility, claims discipline, executability, and code quality.
+
+In keeping with its own claims discipline, the benchmark reports per-arm n, standard deviation, and significance, and declares a winner only when the difference clears the noise.
 
 Results: pending first full run. See [benchmark/README.md](benchmark/README.md) for method, run-level results with n/sd/significance, and reproduction commands.
 

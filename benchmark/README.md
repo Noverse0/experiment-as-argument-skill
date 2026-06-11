@@ -1,6 +1,6 @@
 # Benchmark Notes
 
-Isolated-arm comparison of ML experiment codegen with and without the skill.
+Isolated-arm comparison of ML experiment codegen with and without the experiment-as-argument skill. The question: does the skill make a generated experiment a stronger argument — fewer leaks, honest claims, repeatable results — not just prettier code?
 
 ## Method
 
