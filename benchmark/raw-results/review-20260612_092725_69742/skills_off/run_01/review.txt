@@ -1,0 +1,73 @@
+All checks complete. The experiment runs cleanly, tests pass (22/22), and the re-run is bit-identical to the committed metrics. Here is my review.
+
+## Summary
+
+This is a rigorous experiment. All three planted traps are correctly defused, results are bit-for-bit reproducible, and the report is honest about what it can and cannot conclude.
+
+**Leakage (strong).** `account_status` is dropped in `clean_data` (`src/data.py:6,19`) and a dedicated test asserts it never survives prep. Deduplication runs *before* the split (`prepare` order: clean → dedup → feature_engineer → time_split), and the run confirms "removed 200 exact duplicates (4200 → 4000)" — so the planted duplicates can't straddle the split. The temporal column is handled deliberately via a sort-by-`signup_day` time split rather than a random one. Critically, the `StandardScaler` lives *inside* the sklearn `Pipeline`, so `cross_validate` refits it per fold and `final_eval` fits it on train only — no transform leakage. A label-shuffle sanity test (AUC 0.519) and a leakage-ceiling guard back this up.
+
+**Methodology (good).** Trivial majority-class baseline present (AUC 0.5000). Metrics are appropriate for the ~27.6% churn rate — ROC-AUC primary, plus F1/precision/recall, not accuracy alone. Both models share the same (untuned) budget, honestly disclosed. One real defect: in `run_experiment.py:61-64`, `pipelines_per_seed` is dead code, and `cv_metrics` reuses a single pipeline built with `seed=SEEDS[0]` — so across the "3 seeds" only the `StratifiedKFold` shuffle varies; the model's `random_state` stays fixed at 42. The 15 observations measure fold variance, not seed-of-model variance, so the "[42, 7, 123] seeds" framing slightly overstates the diversity (immaterial for deterministic LR, real for GB).
+
+**Reproducibility (excellent).** Seeds fixed and logged, config + per-fold values written to `results/metrics.json`, a determinism unit test exists, and I verified a fresh run is byte-identical to the committed metrics.
+
+**Claims (strong).** The report claims "no detectable difference," not a winner — backed by n=15 folds with std and an overlap check. Limitations are unusually honest (untuned, single synthetic dataset whose DGP is logistic and structurally favors LR, no formal significance test, temporal-cohort caveat). Minor gap: GB's hold-out AUC (0.607) collapses versus its CV AUC (0.723), a notable train/test shift that's only implicitly covered by the "most recent cohort" note rather than flagged directly; and the ±1-std overlap rule is statistically weak (though disclosed).
+
+**Executability (excellent).** `pytest` → 22 passed; `python3 run_experiment.py` completes in seconds and writes both artifacts.
+
+**Code quality (good).** Clean module separation; requirements declared and used. Dead code (`pipelines_per_seed`) and misleading comments at `run_experiment.py:61-64`; no README documenting commands (REPORT.md and a usage docstring partially compensate).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 78,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 88,
+  "executability_score": 95,
+  "code_quality_score": 80,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted traps defused: account_status dropped, duplicates removed before splitting (200 removed, verified at runtime), and a deliberate time-based split on signup_day.",
+    "StandardScaler is inside the sklearn Pipeline, so it is refit per CV fold and fit on train-only at final eval — no transform leakage.",
+    "Fully reproducible: a fresh run produced metrics byte-identical to the committed results/metrics.json; seeds fixed and logged; determinism unit test present.",
+    "Report is disciplined — claims 'no detectable difference' (not a winner), backed by n=15 folds with std, and lists honest limitations (untuned, synthetic logistic DGP favors LR, no formal significance test).",
+    "Methodology defect: cv_metrics reuses one pipeline with random_state fixed at SEEDS[0]; only the fold-shuffle seed varies across the '3 seeds', so model-seed diversity is overstated. pipelines_per_seed is dead code.",
+    "Sanity suite present and passing: majority-class baseline AUC 0.5000, label-shuffle AUC 0.5188, leakage-ceiling guard.",
+    "Tests pass 22/22; entrypoint runs in seconds, well under the 120s budget."
+  ],
+  "leakage_findings": [
+    "account_status (derived from target) is in LEAK_COLS and dropped in clean_data (src/data.py:6,19); test_account_status_not_in_features enforces it.",
+    "Deduplication (dedup_data) runs before time_split in prepare(); runtime log confirms 200 exact duplicates removed before the split, so duplicates cannot straddle train/test.",
+    "Temporal column handled deliberately: time_split sorts by signup_day and takes the last 20% as test (src/data.py:40-56), not a random split.",
+    "StandardScaler wrapped in Pipeline (src/pipeline.py:8-9) — cross_validate refits per fold and final_eval fits on train only; no scaler/imputer leakage.",
+    "Minor: dedup drops duplicates after customer_id removal using all remaining columns incl. target; genuinely-distinct customers with identical features+label would be dropped, but negligible given continuous monthly_spend.",
+    "No data leak found in the final hold-out path; GB's hold-out AUC (0.607) is lower than its CV AUC (0.723), consistent with temporal distribution shift rather than leakage."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -m pytest -q  (22 passed)",
+    "python3 run_experiment.py  (ran to completion, wrote results/metrics.json and REPORT.md)",
+    "diff of original vs re-run metrics.json — IDENTICAL (fully reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Leak/ID columns dropped, dedup before time-based split, deliberate temporal split with disjoint-index assertion."},
+    {"path": "src/pipeline.py", "note": "StandardScaler inside Pipeline ensures fold-local fitting; LR and GB factories with seeded random_state."},
+    {"path": "src/evaluate.py", "note": "cv_metrics uses StratifiedKFold + cross_validate (no leakage); final_eval fits on train and touches test once."},
+    {"path": "src/sanity.py", "note": "Majority-class baseline, leakage-ceiling check, and label-shuffle test implemented."},
+    {"path": "run_experiment.py", "note": "Dead code pipelines_per_seed (line 61) and misleading comments; model random_state effectively fixed at SEEDS[0] across the 3 'seeds', so only fold-shuffle varies."},
+    {"path": "results/metrics.json", "note": "Full per-fold values, config, and conclusion logged; reproduced byte-identical on re-run."},
+    {"path": "REPORT.md", "note": "Claims 'no detectable difference' with n=15 and std; honest limitations; does not explicitly flag GB CV-vs-holdout AUC collapse; uses weak ±1-std overlap rule (disclosed)."},
+    {"path": "make_dataset.py", "note": "Confirms planted traps: account_status leak, 200 appended duplicates, temporal signup_date."},
+    {"path": "tests/", "note": "22 tests covering leak-drop, dedup, time split, determinism, cv/final-eval shapes, sanity checks — all pass."}
+  ]
+}
+```

@@ -19,7 +19,7 @@ Does the skill actually make the argument stronger? The repo ships a complete is
 
 In keeping with its own claims discipline, the benchmark reports per-arm n, standard deviation, and significance, and declares a winner only when the difference clears the noise.
 
-Results: pending first full run. See [benchmark/README.md](benchmark/README.md) for method, run-level results with n/sd/significance, and reproduction commands.
+First run (10 repeats per arm, codegen Haiku, review Opus): **no detectable difference** — `skills_off` 81.6 ± 4.6 vs `rigor_only` 78.9 ± 12.2, Mann-Whitney p=0.94. The Haiku baseline already caught the headline target-leak trap in almost every run, leaving little headroom, and one skill-arm run leaked anyway. Reported here as the null result it is, per the skill's own claims discipline; a weaker model or less obvious traps are needed to separate the arms. See [benchmark/README.md](benchmark/README.md) for the full table, per-run analysis, and reproduction commands.
 
 ## Install
 

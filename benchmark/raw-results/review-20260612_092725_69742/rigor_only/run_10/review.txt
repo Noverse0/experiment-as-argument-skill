@@ -1,0 +1,69 @@
+Re-running produced byte-identical outputs (clean git status), confirming determinism. I have enough to score.
+
+## Review
+
+**Leakage prevention — strong.** The headline trap (`account_status`, which is `"closed"` iff churned) is explicitly excluded with a documented rationale. The 200 planted exact duplicates are dropped *before* the split (4200→4000, verified independently), so they cannot straddle train/test. `StandardScaler` is fit on train only and applied to test — verified by `test_scaler_fitted_on_train_only`. The one soft spot: `signup_date` is temporal but a random stratified split is used. This is acknowledged as a deliberate trade-off in the limitations, so it meets the "explicit justification" bar, though a time-based split would have been more rigorous.
+
+**Methodology — adequate.** ROC-AUC is the primary metric with F1/precision/recall/accuracy reported — not accuracy alone, appropriate for the 27% churn rate. A majority-class baseline is computed (0.729) and both models clear it (barely, on accuracy; clearly on AUC). Tuning budget is symmetric: both models use fixed defaults, no search for either. Weaknesses: only 3 random splits (not real CV folds, though the report calls them "folds"), and the `label_shuffle_test` is largely theater — it trains on random `X` with shuffled `y`, which doesn't exercise the real pipeline and proves little about leakage.
+
+**Reproducibility — good.** Seeds fixed (0,1,2), metrics written to `results/metrics.json`, re-run is byte-identical. Minor gap: the config (hyperparameters, num_seeds, seeds) is not logged alongside the metrics — only the aggregate numbers are persisted.
+
+**Claims discipline — strong.** The report self-reports **LOW** confidence, states the −0.0026 AUC difference is "within noise margins," and refuses to crown a winner. Variance (±std over 3 runs) is reported for every metric. Limitations are honest and specific. The CI logic (1.96·std with n=3) is statistically loose, but it errs conservative, which is the right direction.
+
+**Executability — excellent.** `pytest` → 14 passed in ~2s; `python run_experiment.py` completes in seconds and regenerates artifacts.
+
+**Code quality — solid.** Typed, documented, clean structure. Minor: unused imports (`json`, `Path`) in `run_experiment.py`; `roc_curve`+`auc` used where `roc_auc_score` would be direct; the dead-weight `label_shuffle_test`. All declared dependencies are used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 90,
+  "methodological_validity_score": 74,
+  "reproducibility_score": 82,
+  "claims_discipline_score": 87,
+  "executability_score": 95,
+  "code_quality_score": 80,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted traps handled: account_status excluded as leak, 200 duplicates dropped before split, signup_date temporal issue acknowledged in limitations.",
+    "Both declared commands work from clean state: pytest -> 14 passed in ~2s; python run_experiment.py completes in seconds and regenerates artifacts.",
+    "Re-running produces byte-identical metrics.json and REPORT.md (clean git status), confirming determinism with fixed seeds.",
+    "REPORT.md honestly reports LOW confidence and declines to declare a winner; the GB-vs-LR AUC gap (-0.0026) is correctly framed as within noise, with std reported over 3 runs.",
+    "Metrics appropriate for 27% class imbalance (ROC-AUC primary plus F1/precision/recall), and tuning budget is symmetric (fixed defaults, no search for either model).",
+    "Weaknesses: only 3 random splits (mislabeled 'folds', no true CV), label_shuffle_test is non-functional theater, and signup_date is excluded rather than used in a time-based split."
+  ],
+  "leakage_findings": [
+    "account_status (derived from target, 'closed' iff churned) is explicitly excluded from feature_cols with documented rationale — no target leak.",
+    "Deduplication via drop_duplicates() runs in load_and_clean BEFORE prepare_data splits, so the 200 planted exact duplicates cannot straddle train/test (verified: 4200->4000, 200 dup rows).",
+    "StandardScaler.fit_transform on X_train and .transform on X_test only — fit confined to train, verified by test_scaler_fitted_on_train_only.",
+    "Temporal column signup_date is excluded and a random stratified split is used; this is acknowledged as a deliberate trade-off in limitations (point 4), meeting the explicit-justification bar but weaker than a time-based split.",
+    "customer_id correctly dropped as non-informative."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "head -5 churn.csv && wc -l churn.csv",
+    "python -m pytest -q  (14 passed in 1.69s)",
+    "python run_experiment.py  (completed, regenerated results/metrics.json and REPORT.md)",
+    "git status --short  (clean after re-run -> deterministic)",
+    "python -c dup-check  (total 4200, unique 4000, 200 duplicate rows)"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "prepare_data L45-58: account_status excluded, scaler fit on train only; load_and_clean L29 dedup before split."},
+    {"path": "make_dataset.py", "note": "Documents the three planted traps: account_status leak, 200 appended duplicates, temporal signup_date."},
+    {"path": "REPORT.md", "note": "Reports LOW confidence, no winner declared, std over 3 runs, honest limitations; minor mislabel of '3 folds'."},
+    {"path": "results/metrics.json", "note": "Mean/std/n per metric for both models; matches re-run output. No config/seed logged alongside."},
+    {"path": "tests/test_experiment.py", "note": "14 tests covering dedup, split sizes, scaler-on-train, feature exclusion, determinism; all pass."},
+    {"path": "run_experiment.py", "note": "Unused imports (json, Path); confidence CI uses 1.96*std with n=3 (loose but conservative)."},
+    {"path": "pyproject.toml", "note": "Dependencies (scikit-learn, pandas, numpy, pytest-dev) declared and all used."}
+  ]
+}
+```

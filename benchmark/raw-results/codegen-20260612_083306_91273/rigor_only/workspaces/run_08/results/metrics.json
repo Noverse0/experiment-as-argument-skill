@@ -1,0 +1,146 @@
+{
+  "claim": "Does gradient boosting outperform logistic regression for customer churn prediction?",
+  "design": {
+    "split_strategy": "time-based (train on earlier dates, test on later)",
+    "feature_selection": "tenure_months, monthly_spend, support_tickets (dropped account_status: leak)",
+    "preprocessing": "StandardScaler fit on train, applied to test",
+    "num_seeds": 5,
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      999
+    ],
+    "lr_params": {
+      "max_iter": 1000
+    },
+    "gb_params": {
+      "n_estimators": 100,
+      "learning_rate": 0.1,
+      "max_depth": 5
+    }
+  },
+  "prep_info": "Removed 202 duplicate rows (out of 4200). LEAK DETECTED: account_status is deterministically derived from churned. Dropping.",
+  "train_size": 3198,
+  "test_size": 800,
+  "sanity_checks": {
+    "baseline_accuracy": 0.75,
+    "train_churn_rate": 0.275797373358349,
+    "test_churn_rate": 0.25,
+    "tiny_overfit_accuracy": 1.0,
+    "label_shuffle_baseline_accuracy": 0.75
+  },
+  "results_by_model": {
+    "LogisticRegression": [
+      {
+        "accuracy": 0.755,
+        "precision": 0.5196078431372549,
+        "recall": 0.265,
+        "f1": 0.3509933774834437,
+        "roc_auc": 0.7313249999999999
+      },
+      {
+        "accuracy": 0.755,
+        "precision": 0.5196078431372549,
+        "recall": 0.265,
+        "f1": 0.3509933774834437,
+        "roc_auc": 0.7313249999999999
+      },
+      {
+        "accuracy": 0.755,
+        "precision": 0.5196078431372549,
+        "recall": 0.265,
+        "f1": 0.3509933774834437,
+        "roc_auc": 0.7313249999999999
+      },
+      {
+        "accuracy": 0.755,
+        "precision": 0.5196078431372549,
+        "recall": 0.265,
+        "f1": 0.3509933774834437,
+        "roc_auc": 0.7313249999999999
+      },
+      {
+        "accuracy": 0.755,
+        "precision": 0.5196078431372549,
+        "recall": 0.265,
+        "f1": 0.3509933774834437,
+        "roc_auc": 0.7313249999999999
+      }
+    ],
+    "GradientBoostingClassifier": [
+      {
+        "accuracy": 0.73,
+        "precision": 0.4420289855072464,
+        "recall": 0.305,
+        "f1": 0.3609467455621302,
+        "roc_auc": 0.7002708333333333
+      },
+      {
+        "accuracy": 0.73125,
+        "precision": 0.44525547445255476,
+        "recall": 0.305,
+        "f1": 0.3620178041543027,
+        "roc_auc": 0.7010208333333334
+      },
+      {
+        "accuracy": 0.73,
+        "precision": 0.4420289855072464,
+        "recall": 0.305,
+        "f1": 0.3609467455621302,
+        "roc_auc": 0.7007041666666667
+      },
+      {
+        "accuracy": 0.73125,
+        "precision": 0.44525547445255476,
+        "recall": 0.305,
+        "f1": 0.3620178041543027,
+        "roc_auc": 0.7003291666666666
+      },
+      {
+        "accuracy": 0.73,
+        "precision": 0.4420289855072464,
+        "recall": 0.305,
+        "f1": 0.3609467455621302,
+        "roc_auc": 0.7008041666666667
+      }
+    ]
+  },
+  "summary": {
+    "LogisticRegression": {
+      "accuracy_mean": 0.755,
+      "accuracy_std": 0.0,
+      "accuracy_n": 5,
+      "precision_mean": 0.5196078431372549,
+      "precision_std": 0.0,
+      "precision_n": 5,
+      "recall_mean": 0.265,
+      "recall_std": 0.0,
+      "recall_n": 5,
+      "f1_mean": 0.3509933774834437,
+      "f1_std": 0.0,
+      "f1_n": 5,
+      "roc_auc_mean": 0.7313249999999999,
+      "roc_auc_std": 0.0,
+      "roc_auc_n": 5
+    },
+    "GradientBoostingClassifier": {
+      "accuracy_mean": 0.7305,
+      "accuracy_std": 0.0006123724356957815,
+      "accuracy_n": 5,
+      "precision_mean": 0.44331958108536973,
+      "precision_std": 0.001580650315347228,
+      "precision_n": 5,
+      "recall_mean": 0.305,
+      "recall_std": 0.0,
+      "recall_n": 5,
+      "f1_mean": 0.3613751689989992,
+      "f1_std": 0.0005247094070892618,
+      "f1_n": 5,
+      "roc_auc_mean": 0.7006258333333333,
+      "roc_auc_std": 0.00028565713714177545,
+      "roc_auc_n": 5
+    }
+  }
+}

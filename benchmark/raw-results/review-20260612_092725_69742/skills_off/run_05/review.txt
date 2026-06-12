@@ -1,0 +1,72 @@
+I have enough to complete the review.
+
+## Review
+
+**Inventory & execution.** The project is a clean churn-prediction comparison (LogisticRegression vs GradientBoosting). `python3 -m pytest -q` → 8 passed. `python3 run_experiment.py` runs end-to-end in ~30s and reproduces `results/metrics.json` exactly (LR AUC 0.7332±0.0252, GB AUC 0.7308±0.0250).
+
+**Leakage.**
+- ✅ The *critical* leak is caught: `account_status` (literally `"closed" iff churned`) is dropped (`experiment.py:43`), and so is `customer_id`. This is the planted trap that matters most, and it's handled correctly and explained.
+- ✅ `StandardScaler` is fit on train only, applied to test (`experiment.py:80-87`), and a test asserts this.
+- ⚠️ **Duplicates straddle the split.** 200 exact duplicate rows exist. The code *detects* them (`check_duplicates`) and the report *discloses* the risk — but it never calls `drop_duplicates`. A stratified split does NOT prevent the same row landing in both train and test; the report's claim that stratification "minimizes" this risk is wrong (it has no effect on it). So the reported AUCs carry a real, unremoved optimistic bias. Disclosure earns partial credit; failing to fix it does not.
+- ⚠️ **Temporal column not handled deliberately.** `signup_date` is turned into an ordinal `days_since_signup` feature and split randomly. A time-based split was acknowledged as "more principled" but not performed.
+
+**Methodology.** Trivial majority-class baseline present (0.7302). AUC-ROC is the primary metric with F1/accuracy alongside — appropriate for the 27% churn imbalance, not accuracy-alone. Both models use library defaults — equal (zero) tuning budget, fair. 5 seeds give a variance estimate. Weakness: the "no difference" verdict rests on a hard `abs(diff) < 0.02` threshold rather than a paired significance test, and the 5 "independent runs" are really 5 re-splits of one dataset.
+
+**Reproducibility.** Seeds fixed (42–46) and logged in the report; `results/metrics.json` is machine-readable; a determinism unit test exists; rerun reproduced the numbers bit-for-bit. No standalone config file, but params are captured in metrics + report.
+
+**Claims discipline.** Honest and restrained — declares "no detectable difference," declines to crown a winner, and the limitations section is genuinely candid (duplicates, temporal, defaults-only tuning, small N). The label-shuffle sanity check is slightly misframed (shuffle is global, pre-split) but the conclusion drawn from it is reasonable. No claim exceeds what was measured.
+
+**Code quality.** Readable, typed, dataclass-structured. Deductions: unused imports (`json`, `asdict`, `StratifiedKFold` in `experiment.py`; `sys` in `run_experiment.py`); `overfit_train_loss` field actually stores accuracy (misleading name); the `if hasattr(model, 'init'): model.init = 'zero'` block (`experiment.py:112-113`) is hacky and applies only to GBM as a side effect; `run_single_seed`'s `LogisticRegression` omits `max_iter` (relies on default 100, fine only because data is scaled); a cosmetic report bug renders the conclusion as "no detectable difference:.".
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 68,
+  "methodological_validity_score": 78,
+  "reproducibility_score": 86,
+  "claims_discipline_score": 82,
+  "executability_score": 93,
+  "code_quality_score": 70,
+  "verdict": "good",
+  "key_findings": [
+    "Critical leak handled correctly: account_status (derived from target) and customer_id are dropped before any fitting.",
+    "Scaler is fit on train only and applied to test; a unit test asserts this behavior.",
+    "Both declared commands work from a clean state: 8/8 tests pass and the entrypoint reproduces results/metrics.json exactly in ~30s.",
+    "Trivial majority-class baseline present; AUC-ROC is the primary metric (appropriate for 27% churn imbalance), with F1/accuracy reported alongside.",
+    "Equal (default, untuned) hyperparameter budget for both models — a fair comparison.",
+    "Report is honest and restrained: declares 'no detectable difference', declines a winner, and lists real limitations.",
+    "Verdict rests on a hard abs(diff)<0.02 heuristic rather than a paired significance test; the 5 'runs' are re-splits of a single dataset."
+  ],
+  "leakage_findings": [
+    "account_status (perfect target leak) correctly dropped — the most important trap was caught.",
+    "200 exact duplicate rows are DETECTED and disclosed but never removed; results retain an unremoved optimistic bias. Report wrongly claims a stratified split 'minimizes' duplicate straddling — stratification has no effect on this.",
+    "Temporal column signup_date converted to an ordinal feature and split randomly; a time-based split was acknowledged but not implemented.",
+    "StandardScaler correctly fit on train only (experiment.py:80-87); no fit-on-full-data leak.",
+    "Label-shuffle sanity check is shuffled globally before the split rather than within the pipeline, but the conclusion drawn is reasonable."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -m pytest -q",
+    "timeout 115 python3 run_experiment.py",
+    "grep -n 'drop_duplicates|duplicated|dedup' src/experiment.py",
+    "python3 -c \"import pandas as pd; d=pd.read_csv('churn.csv'); print(len(d), d.churned.mean(), d.duplicated().sum())\""
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "Lines 41-43 drop account_status/customer_id/signup_date; lines 80-87 fit scaler on train only; line 50 detects duplicates but no drop_duplicates anywhere; lines 112-113 hacky model.init mutation; unused imports json/asdict/StratifiedKFold."},
+    {"path": "make_dataset.py", "note": "Documents the three planted traps: account_status leak, 200 appended duplicates, temporal signup_date. Confirms churn ~27%, 4200 rows incl. 200 dups."},
+    {"path": "run_experiment.py", "note": "Entrypoint generates data, runs 5 seeds, writes results/metrics.json and REPORT.md; conclusion f-string renders awkwardly as 'no detectable difference:.'"},
+    {"path": "REPORT.md", "note": "Claims no detectable difference (LR 0.7332 vs GB 0.7308); honest limitations on duplicates/temporal/tuning/sample size; overstates that stratification mitigates duplicate straddling."},
+    {"path": "results/metrics.json", "note": "Machine-readable metrics with means+std over 5 seeds and sanity checks (baseline 0.7302, label-shuffle 0.7298, duplicate_rows 200); reproduced exactly on rerun."},
+    {"path": "tests/test_experiment.py", "note": "8 tests covering column drops, stratification, train-only scaling, determinism with fixed seed; all pass."}
+  ]
+}
+```

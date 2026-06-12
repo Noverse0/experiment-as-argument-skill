@@ -1,0 +1,30 @@
+{
+  "experiment": "churn_prediction_comparison",
+  "claim": "For predicting customer churn, does gradient boosting outperform logistic regression?",
+  "seeds": [
+    42,
+    123,
+    456,
+    789,
+    999
+  ],
+  "n_seeds": 5,
+  "summary": {
+    "LogisticRegression": {
+      "test_auc_mean": 0.7329825246945617,
+      "test_auc_std": 0.009946669578720093,
+      "test_auc_runs": 5,
+      "test_precision_mean": 0.4219942492020968,
+      "test_recall_mean": 0.6940348182283665,
+      "test_f1_mean": 0.5234851014995499
+    },
+    "GradientBoosting": {
+      "test_auc_mean": 0.7167400463702125,
+      "test_auc_std": 0.013678927723202136,
+      "test_auc_runs": 5,
+      "test_precision_mean": 0.3917206841660529,
+      "test_recall_mean": 0.7356588154975252,
+      "test_f1_mean": 0.5092521125070862
+    }
+  }
+}

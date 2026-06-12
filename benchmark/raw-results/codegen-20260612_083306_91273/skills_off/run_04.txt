@@ -1,0 +1,26 @@
+Excellent! The experiment is complete and runs in ~2.3 seconds. Here's a summary of what was built:
+
+## Experiment Summary
+
+**Claim:** Does gradient boosting outperform logistic regression for churn prediction?
+
+**Design:**
+- Split: Stratified 80/20 train/test with deduplication before split
+- Features: tenure_months, monthly_spend, support_tickets (excluded: customer_id, signup_date, account_status which is perfect leakage)
+- Seeds: 3 random states [42, 123, 456] for variance estimation
+- Metrics: ROC-AUC, accuracy, precision, recall, F1
+
+**Key Findings:**
+- **LogisticRegression:** AUC 0.724 ± 0.019
+- **GradientBoosting:** AUC 0.711 ± 0.029
+- **Conclusion:** No detectable difference; logistic regression slightly better but within noise
+
+**Verification:**
+- ✓ Sanity checks passed (baseline < trained model, label shuffle causes AUC drop from 0.740 → 0.575)
+- ✓ 200 exact duplicates removed before split
+- ✓ All 7 tests pass
+- ✓ Completes in 2.3 seconds (well under 5-minute requirement)
+
+```json
+{"files_created": ["pyproject.toml", "src/__init__.py", "src/dataset.py", "src/experiment.py", "run_experiment.py", "tests/__init__.py", "tests/test_experiment.py", "REPORT.md", "results/metrics.json"], "entrypoint": "python run_experiment.py", "test_command": "python -m pytest tests/ -v"}
+```

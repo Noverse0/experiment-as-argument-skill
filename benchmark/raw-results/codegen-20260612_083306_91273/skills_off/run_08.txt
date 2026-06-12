@@ -1,0 +1,24 @@
+Perfect! The experiment is complete and working correctly. Here's a summary of what was built:
+
+## Experiment Summary
+
+**Claim:** For predicting customer churn on this dataset, does gradient boosting outperform logistic regression?
+
+**Result:** No statistically significant difference detected. Confidence intervals overlap; the 0.0162 AUC gap (LR: 0.7330 ± 0.0099 vs GB: 0.7167 ± 0.0137) is within noise across 5 seeds.
+
+## Key Integrity Features
+
+1. **Leak Detection:** Identified and removed `account_status` (perfect leak derived from target)
+2. **Deduplication:** Removed 200 duplicate rows **before split** to prevent cross-boundary leakage
+3. **Proper Preprocessing:** StandardScaler fit on train only, applied to val/test
+4. **Multiple Seeds:** 5 independent runs with variance reporting
+5. **Honest Conclusion:** Reports no winner when confidence intervals overlap
+
+## Performance
+
+- Full experiment (5 seeds): **2.4 seconds** on CPU (well under 5-minute requirement)
+- All 5 tests pass ✓
+
+```json
+{"files_created": ["src/__init__.py", "src/experiment.py", "run_experiment.py", "tests/__init__.py", "tests/test_experiment.py", "requirements.txt"], "entrypoint": "python3 run_experiment.py", "test_command": "python -m pytest tests/ -v"}
+```

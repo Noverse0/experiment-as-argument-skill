@@ -1,0 +1,88 @@
+All checks complete. Here's my assessment.
+
+## Review
+
+**Files inventoried:** `make_dataset.py` (trap documentation), `src/data.py` (load/split/preprocess), `src/experiment.py` (training, sanity checks, aggregation), `run_experiment.py` (entrypoint), `tests/` (12 tests), `results/REPORT.md` + `results.json`.
+
+**Commands run:**
+- `python3 -m pytest -q` → 12 passed in 1.48s
+- `python3 run_experiment.py --data churn.csv --output ...` → ~4s, reproduces committed report exactly
+- Re-ran twice → `results.json` byte-identical across runs and matches the committed copy
+- Verified raw=4200 rows, 4000 unique after dropping id/status → exactly 200 dups removed
+
+### Leakage (strong, one gap)
+- **`account_status` dropped** (`data.py:14`) — the critical target-derived leak is avoided, and explicitly explained.
+- **Duplicates removed before the split** (`data.py:28`) — the 200 planted dups cannot straddle train/test. Confirmed empirically (4200→4000).
+- **Scaler fit on train only** (`data.py:90-93`) — transform applied to val/test. Correct.
+- **Label-shuffle sanity check** collapses to baseline (0.729 ≈ 0.730), empirically confirming no residual leak.
+- **Gap:** the temporal column is turned into `days_since_signup` but the split stays random/stratified — no time-based split and no explicit justification for ignoring time. Minor secondary issue: `days_since_signup` is anchored to the *global* `max_date` computed on the full frame before splitting (`data.py:22-23`), a mild train/test info bleed (benign here since it's a monotone shift the scaler absorbs).
+
+### Methodology (solid)
+- Trivial **majority-class baseline** present (0.73).
+- Metrics go well beyond accuracy (F1/precision/recall/AUC) — appropriate for the 27% churn imbalance.
+- Equal (zero) tuning budget for both models — fair comparison; defaults only, stated honestly.
+- Bonus rigor: overfit-tiny-subset + label-shuffle canaries. Weakness: the overfit check uses LogisticRegression on near-unlearnable data so it only reaches 0.75 — a tree model would be a more meaningful overfit canary. No formal significance test, but ±std is reported.
+
+### Reproducibility (very good)
+- Seeds `[42,123,456]` fixed and logged; each seed re-splits, capturing split variance, not just model init.
+- `results.json` + `REPORT.md` written to output dir; byte-identical across reruns.
+- Nit: sanity checks call `np.random.permutation` without a local seed, but empirically deterministic here.
+
+### Claims (honest)
+- Despite a `claim` header asserting GB superiority (the hypothesis), the Conclusion correctly states **"No detectable difference"** and notes GB is actually -0.0071 on accuracy. Reports ±std. Limitations section is candid (3 seeds only, no tuning, minimal features). Nothing claimed beyond what was measured.
+
+### Code quality (good)
+- Clean, documented, deps declared and used. The categorical one-hot branch (`data.py:96-118`) is dead code post-`account_status` drop (defensive but unused). `n_jobs=-1` on lbfgs LogisticRegression is a no-op. Both harmless.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 84,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 88,
+  "claims_discipline_score": 90,
+  "executability_score": 95,
+  "code_quality_score": 84,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted traps handled: account_status dropped, 200 duplicates removed BEFORE the split, signup_date converted to a feature.",
+    "Scaler is fit on train only and applied to val/test (no fit-transform leakage).",
+    "Includes majority-class baseline plus overfit and label-shuffle sanity checks; label-shuffle collapses to baseline, empirically ruling out leakage.",
+    "Metrics appropriate for 27% imbalance (F1/precision/recall/AUC, not just accuracy); 3 seeds with mean±std reported.",
+    "Report is honest: states 'no detectable difference' and does not crown a winner despite the GB-superiority hypothesis header.",
+    "Fully executable: 12 tests pass, entrypoint runs in ~4s and reproduces the committed report byte-for-byte across reruns.",
+    "Main weakness: temporal column made into a feature but the split is random/stratified with no time-based split or justification."
+  ],
+  "leakage_findings": [
+    "account_status (target-derived 'closed' iff churned) is explicitly dropped in data.py:14 — critical leak avoided.",
+    "drop_duplicates() runs in load_and_clean (data.py:28) before any split, so the 200 planted duplicates cannot straddle train/test; verified 4200->4000.",
+    "StandardScaler fit on X_train only (data.py:90-93), transform applied to val/test — no preprocessing leakage.",
+    "Temporal NOT handled as a split: random/stratified split used despite signup_date; no time-based split and no written justification.",
+    "Minor: days_since_signup anchored to global max_date computed on full data before split (data.py:22-23) — mild info bleed, benign because the scaler absorbs a constant shift.",
+    "customer_id dropped as a non-predictive identifier (data.py:17)."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  -> 12 passed in 1.48s",
+    "python3 run_experiment.py --data churn.csv --output /tmp/run_out  -> ~4s, completes",
+    "python3 run_experiment.py x2 then diff results.json  -> identical across runs and matches results/results.json",
+    "python3 -c pandas dedup check  -> raw 4200 rows, 4000 unique after dropping id/status (exactly 200 dups)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops account_status & customer_id; dedups before split; scaler fit on train only; signup_date->days_since_signup but split stays random/stratified."},
+    {"path": "src/experiment.py", "note": "Majority baseline + overfit + label-shuffle checks; 3 seeds (42,123,456); train/val/test metrics; writes results.json."},
+    {"path": "results/REPORT.md", "note": "Honest conclusion ('No detectable difference'); GB -0.0071 acc vs LR; reports ±std; candid limitations."},
+    {"path": "results/results.json", "note": "Reproduced byte-for-byte by a clean rerun; seeds and per-split metrics logged."},
+    {"path": "tests/test_data.py", "note": "Asserts leaky-column drop, dedup, stratification, train-only scaling — all pass."},
+    {"path": "make_dataset.py", "note": "Documents the three planted traps; confirms account_status is target-derived and 200 dups appended."}
+  ]
+}
+```

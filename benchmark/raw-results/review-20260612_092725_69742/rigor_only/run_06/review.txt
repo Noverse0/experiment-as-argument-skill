@@ -1,0 +1,77 @@
+Both commands work. I have enough evidence. Let me verify the two factual discrepancies I spotted and the reproducibility concern.
+
+The experiment runs cleanly (8 tests pass, entrypoint completes). I confirmed:
+- **True churn rate is 0.27**, but REPORT claims "50.0% positive class" (line 11) — it's reading `baseline.auc_mean` (0.5) as the class rate.
+- **True post-dedup row count is 4000**, but REPORT claims "4200 rows (after deduplication)" — 4200 is the pre-dedup count, hardcoded.
+- **Label-shuffle AUC is non-deterministic** (0.4676 committed → 0.4003 on my run) because `np.random.permutation` is unseeded.
+
+Here is my assessment.
+
+## Summary
+
+This is a strong experiment on the dimensions that matter most. Every planted trap was avoided:
+- **`account_status` (the perfect leak) is excluded** — `select_features` whitelists only `tenure_months, monthly_spend, support_tickets`, and a test asserts the exclusion.
+- **Scaler is fit on train only**, refit independently per fold inside `preprocess`.
+- **Exact duplicates removed before splitting** (`drop_duplicates(keep="first")`) — verified 200 dups dropped, so they cannot straddle the split.
+- **Temporal column handled deliberately** — data sorted by `signup_date` and split with `TimeSeriesSplit`, so every fold's test set is chronologically after its train set.
+
+The report is also commendably disciplined: it does **not** claim a winner, instead reporting "no detectable difference" with the gap inside the combined fold SD, and lists honest limitations.
+
+The weaknesses are in claims accuracy and reproducibility hygiene, not in the core method:
+- Two **factual misstatements** in the report: "50.0% positive class" (really 27%) and "4200 rows after deduplication" (really 4000). The first is materially misleading — it implies balanced data when the data is imbalanced, which is exactly why AUC was the right primary metric.
+- The label-shuffle sanity check is **unseeded**, so it doesn't reproduce. Main results *are* reproducible (deterministic time split + `random_state=42`), and I verified the printed AUCs match `metrics.json`.
+- Config/seed not logged to `results/` (only metrics).
+- Minor dead/redundant code: `prepare_split`'s `seed` arg is ignored; two parallel split code paths; precision/recall computed but dropped from the summary.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 82,
+  "reproducibility_score": 70,
+  "claims_discipline_score": 68,
+  "executability_score": 88,
+  "code_quality_score": 76,
+  "verdict": "good",
+  "key_findings": [
+    "All planted traps avoided: account_status excluded, scaler fit per-fold on train only, exact duplicates removed before split, time-based TimeSeriesSplit on signup_date.",
+    "Report is honest about the conclusion: no winner claimed; 'no detectable difference' with gap (-0.0114 AUC) inside combined fold SD; thorough limitations section.",
+    "Two factual misstatements in REPORT.md: '50.0% positive class' (true rate is 0.27, value is mistakenly read from baseline AUC=0.5) and '4200 rows after deduplication' (true post-dedup count is 4000; 4200 is the pre-dedup count, hardcoded).",
+    "Label-shuffle sanity check is unseeded (np.random.permutation), so it does not reproduce (0.4676 committed vs 0.4003 on re-run); it is a sanity check only, not a main result.",
+    "Main results are reproducible and verified: deterministic time split + random_state=42; printed AUCs match results/metrics.json exactly.",
+    "Both models use fixed default-ish hyperparameters with zero tuning for either — a fair (equal-budget) comparison; AUC chosen as primary metric, appropriate for the 27% imbalance.",
+    "8/8 pytest tests pass and python run_experiment.py completes cleanly within time budget."
+  ],
+  "leakage_findings": [
+    "account_status (derived from target) is correctly excluded from features; asserted by test_select_features_excludes_leaked_and_index_cols.",
+    "customer_id and signup_date also excluded from features.",
+    "StandardScaler fit on train fold only and applied to test (preprocess), refit independently per TimeSeriesSplit fold — no preprocessing leakage.",
+    "200 exact duplicate rows removed via drop_duplicates before splitting, so duplicates cannot straddle train/test (verified: 4200 -> 4000 rows).",
+    "Temporal handling is deliberate: rows sorted by signup_date and split with TimeSeriesSplit; each fold's test set is chronologically after its train set (verified in fold output).",
+    "No detectable target leakage: label-shuffle AUC drops to ~0.40-0.47 (near/below 0.5), consistent with a model that learns from real labels rather than a leak."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (8 passed)",
+    "python -c \"import pandas as pd; d=pd.read_csv('churn.csv').drop_duplicates(); print(len(d), d['churned'].mean())\"  (4000 rows, churn rate 0.2705)",
+    "timeout 110 python run_experiment.py  (completed; folds 1000/2000/3000 train, target rate ~0.27, baseline AUC 0.5)",
+    "git diff / git status  (working tree clean after re-run)"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "select_features whitelists 3 features (excludes account_status/customer_id/signup_date); preprocess fits scaler on train only; get_time_series_splits sorts by signup_date and uses TimeSeriesSplit; load_and_clean drops exact duplicates before split."},
+    {"path": "src/experiment.py", "note": "majority-class baseline present; models seeded with random_state=42 (reproducible); label_shuffle_test uses unseeded np.random.permutation (non-reproducible sanity check); precision/recall computed but omitted from summarize_results."},
+    {"path": "run_experiment.py", "note": "generate_report hardcodes '4200' rows (pre-dedup count; true post-dedup is 4000) and prints baseline AUC (0.5) as '50.0% positive class' — true churn rate is 0.27."},
+    {"path": "REPORT.md", "note": "No winner claimed ('no detectable difference', gap within fold SD); honest limitations; but contains the 4200-rows and 50%-positive-class misstatements."},
+    {"path": "results/metrics.json", "note": "Per-fold AUC/accuracy/F1 with mean and SD across 3 folds; matches entrypoint output; no seed/config/hyperparameters logged alongside metrics."},
+    {"path": "tests/test_pipeline.py", "note": "8 passing tests covering dedup, feature exclusion (leak), train-only scaling, temporal-order split, and shapes; all green."}
+  ]
+}
+```

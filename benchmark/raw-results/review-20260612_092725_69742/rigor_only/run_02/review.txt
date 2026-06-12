@@ -1,0 +1,72 @@
+Both the test suite (9 passed) and the entrypoint run cleanly and the entrypoint reproduces `results.json` exactly. I have enough to finalize. Let me note one key discrepancy I caught in the run output.
+
+The live run reported **overfit AUC = 0.7953** and **label-shuffle AUC = 0.3410**, but `REPORT.md` states "Overfit check ... ROC-AUC = 0.92" and "Label-shuffle ... ≈ 0.51". Those report numbers are **hardcoded string literals** in `run_experiment.py:98-99`, not the values the code actually computed — and the sanity results are never persisted to `results.json` either.
+
+Here is my review.
+
+## Summary
+
+**Leakage prevention — strong.** The three planted traps are handled well:
+- `account_status` (the perfect leak, "closed" iff churned) is explicitly dropped in `engineer_features` (`experiment.py:76`). Critical leak avoided.
+- The 200 exact duplicates are removed *before* the split via `drop_duplicates(subset=['customer_id'])` (`experiment.py:53`), so duplicates cannot straddle train/test. Confirmed: run log shows "removed 200 duplicates."
+- `StandardScaler` is `fit_transform` on train and `transform` on test only (`experiment.py:183-184`). Correct.
+- Temporal: `signup_date` → `days_since_signup`. This is legitimate feature engineering and introduces no future leak, but the split is still a **random** stratified split, not time-based. The report's claim that this "prevents temporal leakage" is imprecise, and a time-based split is neither done nor justified as unnecessary.
+
+**Methodology — sound.** Trivial majority-class baseline present (AUC 0.5). Metrics are appropriate for the 27% churn imbalance (ROC-AUC primary, plus P/R/F1, not accuracy). Both models use defaults (equal/no tuning budget — fair, and acknowledged as a limitation). 5 seeds vary the split, giving genuine variance; no CV but acknowledged.
+
+**Reproducibility — good.** Seeds fixed and logged `[42,123,456,789,999]`; dataset gen deterministic (seed 7); metrics written to `results/results.json`; re-running reproduced the headline numbers exactly (LR 0.7269, GB 0.7101). Weakness: sanity-check outputs (overfit, shuffle) are computed but never persisted, and there's no separate config artifact.
+
+**Claims discipline — mixed, dragged down by fabricated sanity numbers.** The headline is honest: the report *refutes* its own stated claim (GB does not beat LR; LR 0.7269 ≥ GB 0.7101), reports mean±std over 5 runs, and lists honest limitations. But the "Sanity Checks" section reports **0.92** and **≈0.51** that the code never produced (actual: 0.7953 and 0.3410) — these are hardcoded literals. The report states numbers the code did not measure, which is exactly the failure mode this rubric penalizes. It also asserts "All checks passed; no obvious leakage detected" without the code gating on those values.
+
+**Executability — excellent.** `pytest` → 9 passed; `python3 run_experiment.py` runs end-to-end and regenerates report + results.
+
+**Code quality — decent with smells.** Readable, deps declared and used. Issues: hardcoded report strings; `json` imported but unused in `experiment.py:12`; `engineer_features` re-run inside the seed loop unnecessarily; and a latent `NameError` — `train_auc` is referenced at `experiment.py:128` outside the `if len(idx_combined) >= 4` branch that defines it (would crash on a tiny dataset where the else branch is taken).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 85,
+  "methodological_validity_score": 82,
+  "reproducibility_score": 80,
+  "claims_discipline_score": 58,
+  "executability_score": 95,
+  "code_quality_score": 70,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted leakage traps handled: account_status dropped, 200 duplicates removed before split via customer_id, scaler fit on train only.",
+    "Report HARDCODES sanity-check numbers (overfit 0.92, shuffle ~0.51) that do not match actual computed values (0.7953 and 0.3410 in the live run); these values are also never persisted to results.json.",
+    "Report is honest about the headline result: it refutes its own claim, finding LR (0.7269) >= GB (0.7101), with mean +/- std over 5 seeds and a sensible noise caveat.",
+    "Tests pass (9 passed) and the entrypoint runs end-to-end and reproduces results.json exactly on re-run.",
+    "Split is random/stratified, not time-based; report's claim that days_since_signup 'prevents temporal leakage' is imprecise and a time-based split is neither used nor justified.",
+    "Latent NameError: train_auc referenced at experiment.py:128 outside the branch that defines it; would crash on a very small dataset."
+  ],
+  "leakage_findings": [
+    "account_status (derived from target, 'closed' iff churned) explicitly dropped in engineer_features (experiment.py:76) — critical leak avoided.",
+    "200 exact duplicates removed before the split via drop_duplicates(subset=['customer_id']) (experiment.py:53); duplicates cannot straddle train/test. Confirmed by run log ('removed 200 duplicates').",
+    "StandardScaler fit_transform on train, transform on test only (experiment.py:183-184) — no scaler leakage.",
+    "Temporal column converted to days_since_signup but split remains random/stratified; no actual future-leak introduced, but no time-based split and the 'prevents temporal leakage' claim overstates what was done."
+  ],
+  "commands_run": [
+    "python3 -c 'import pandas, numpy, sklearn, pytest' (deps ok, sklearn 1.7.1)",
+    "python3 -m pytest -q (9 passed, 1 warning)",
+    "python3 run_experiment.py (ran end-to-end; reproduced LR 0.7269+/-0.0165, GB 0.7101+/-0.0209)"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "Lines 76 (drop account_status), 53 (dedup before split), 183-184 (scaler train-only) — core leakage mitigations correct. json imported (line 12) but unused; train_auc latent NameError at line 128."},
+    {"path": "run_experiment.py", "note": "Lines 98-99 hardcode sanity-check numbers (0.92, ~0.51) into REPORT.md instead of using computed sanity_results; conclusion logic (140-160) correctly compares means and hedges within-noise gaps."},
+    {"path": "REPORT.md", "note": "Honest refutation of the claim with mean+/-std over 5 seeds and honest limitations, but Sanity Checks section reports fabricated/stale 0.92 and ~0.51 values."},
+    {"path": "make_dataset.py", "note": "Documents the three planted traps; deterministic generator (seed 7), appends 200 sampled duplicates sharing customer_id."},
+    {"path": "results/results.json", "note": "Per-seed metrics persisted and reproduced exactly on re-run; sanity-check (overfit/shuffle) results are not persisted, only baseline_auc."},
+    {"path": "tests/test_experiment.py", "note": "9 tests covering dedup, feature exclusion of account_status, stratification, sanity checks, and end-to-end run; all pass."}
+  ]
+}
+```

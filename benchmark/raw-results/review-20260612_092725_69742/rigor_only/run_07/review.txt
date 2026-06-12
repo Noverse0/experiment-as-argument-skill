@@ -1,0 +1,75 @@
+All checks complete. I have enough evidence to score. Here is my review.
+
+## Review: Churn Prediction — GB vs Logistic Regression
+
+### What works
+The experiment correctly handles **all three planted traps**:
+- **`account_status` leak:** Confirmed perfectly collinear with the target (`active`→churned=0, `closed`→churned=1). It is dropped in both code paths. ✓
+- **Duplicates:** The actual training path (`time_based_split`) calls `drop_duplicates()` *before* splitting, removing the 200 planted exact duplicates (4200→4000 rows). ✓
+- **Temporal column:** A deliberate time-based split on `signup_date` (earliest 70% train, latest 30% test) with a stated rationale. ✓
+- Scaler is fit on train only (`fit_transform` train, `transform` test). ✓
+- Trivial majority-class baseline present (AUC 0.5); primary metric is AUC plus F1/precision/recall — not accuracy alone. ✓
+- Tests pass (13/13), entrypoint runs cleanly, and re-running reproduces metrics **bit-identically**. Seeds logged per-run in `raw_results.csv`; config/metrics written to `results/`.
+
+### Real weaknesses
+
+**1. "5 seeds" provides no real variance estimate (methodology).** The train/test split is computed **once** outside the seed loop; seeds only vary model `random_state`. LogisticRegression with lbfgs is deterministic on this data, so `lr_auc` is *identical* across all 5 seeds (std = 0.0000). The reported "±0.0000" is structural, not measured uncertainty. The report's claim that the LR–GB gap "exceeds the combined uncertainty" leans on this fake-zero variance. Real generalization variance (from resampled splits or CV) is never estimated. The limitations section does note "only 5 seeds … CV would strengthen," but does not disclose that the split is fixed.
+
+**2. Two divergent dedup paths → inconsistent reported numbers (code quality).** `load_and_prep_data` dedups on *feature columns only* (after dropping IDs) → 3998 rows, and its `X, y` output is **never used for training** (only `n_before`/`n_after` are consumed). The training pipeline uses `time_based_split`, which dedups on *full rows* → 4000. Result: `metrics.json` reports `total_rows: 3998` and `duplicates_removed: 202`, while `train_size + test_size = 2800 + 1200 = 4000` and the actual planted duplicates removed = 200. The REPORT's "202 exact duplicates removed before splitting" is therefore both numerically off and based on dead code.
+
+**3. Minor:** duplicated `import sys` in `run_experiment.py`; `auc` and `precision_recall_curve` imported but unused; model hyperparameters and the dataset-generation seed are not recorded in `metrics.json`.
+
+### Net
+The argument is sound on the things that matter most — the critical leak is neutralized, dedup and temporal split are handled deliberately, and the result reproduces. The conclusion (LR > GB) is also directionally credible: the data is generated from a logistic model, so a well-specified linear model beating depth-5 trees is expected. The main rigor gap is that the variance protocol is weaker than it presents itself, and a divergent unused code path produces inconsistent reported counts.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 90,
+  "methodological_validity_score": 66,
+  "reproducibility_score": 80,
+  "claims_discipline_score": 70,
+  "executability_score": 95,
+  "code_quality_score": 66,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted traps handled correctly: account_status dropped (confirmed perfectly collinear with target), 200 exact duplicates removed before splitting, and a deliberate time-based split on signup_date.",
+    "Scaler fit on train only; trivial majority-class baseline present; AUC primary metric plus F1/precision/recall (not accuracy alone).",
+    "Tests pass (13/13), entrypoint runs and writes all artifacts, and re-running reproduces metrics bit-identically.",
+    "Methodological gap: the train/test split is computed once and seeds only vary model random_state; LogisticRegression is deterministic, so lr_auc std=0.0000 is structural, not measured. 'Exceeds combined uncertainty' leans on this fake-zero variance. No CV or resampled splits.",
+    "REPORT and metrics.json report total_rows=3998 / duplicates_removed=202, but the actual training pipeline keeps 4000 rows (train 2800 + test 1200) and removed 200 planted duplicates — the 3998/202 figures come from a dead, unused code path.",
+    "Conclusion (LR>GB) is directionally credible since the data is generated from a logistic model; limitations section is thorough and honest about feature set, tuning, imbalance, and seed count."
+  ],
+  "leakage_findings": [
+    "account_status verified perfectly collinear with target (active=>churned 0, closed=>churned 1); correctly dropped in both load_and_prep_data and time_based_split.",
+    "Duplicates removed before the split in the training path (time_based_split drops full-row duplicates: 4200 -> 4000), so planted duplicates do not straddle train/test; test_duplicates sanity check = 0.",
+    "Temporal column handled deliberately via time-based split (earliest 70% train / latest 30% test) with stated rationale.",
+    "StandardScaler fit on train only and applied to test — no transform leakage.",
+    "No leakage exploited, but reported dedup count (202) comes from a divergent unused dedup path (feature-only dedup -> 3998) rather than the actual training path (full-row dedup -> 4000, 200 removed)."
+  ],
+  "commands_run": [
+    "python3 -c \"import sklearn, pandas, numpy\" (sklearn 1.7.1)",
+    "python3 -m pytest -q  => 13 passed in 1.54s",
+    "python3 run_experiment.py  => wrote metrics.json, raw_results.csv, REPORT.md; reproduced identical AUCs",
+    "python3 -c '<dedup/leak verification>'  => raw 4200, full-row dedup 4000, feature-only dedup 3998, account_status perfectly tracks churned"
+  ],
+  "file_evidence": [
+    {"path": "src/churn_experiment.py", "note": "time_based_split dedups before splitting and drops account_status/customer_id/signup_date; scaler fit on train only. But split computed once in run_full_experiment (lines 162-170): seed loop only varies model random_state, not the split."},
+    {"path": "src/churn_experiment.py", "note": "load_and_prep_data (lines 22-38) dedups on feature columns only and its X,y are never used for training — only n_before/n_after are consumed, producing the 3998/202 figures."},
+    {"path": "results/raw_results.csv", "note": "lr_auc identical (0.74592914...) across all 5 seeds => std=0.0 is structural (deterministic LR + fixed split), not measured variance; only gb_* varies."},
+    {"path": "results/metrics.json", "note": "total_rows=3998 and duplicates_removed=202 are inconsistent with train_size 2800 + test_size 1200 = 4000; no hyperparameters or data-gen seed logged."},
+    {"path": "REPORT.md", "note": "Claims LR winner with gap 0.0347 'exceeds combined uncertainty' (LR std structurally 0); '202 exact duplicates' figure is off (actual planted=200). Limitations section is honest about features, tuning, imbalance, seed count."},
+    {"path": "run_experiment.py", "note": "Duplicate 'import sys' (lines 9,12); winner-decision logic with noise margin is sound but consumes the understated LR variance."},
+    {"path": "make_dataset.py", "note": "Confirms traps: account_status derived from churn, 200 exact duplicate rows appended, signup_date temporal column; data generated from a logistic model (favors LR)."}
+  ]
+}
+```

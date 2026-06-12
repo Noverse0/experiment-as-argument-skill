@@ -1,0 +1,71 @@
+I have everything needed. Let me synthesize the review.
+
+## Review: Churn Prediction Experiment
+
+**What it does well.** This experiment handles the three planted traps deliberately and documents each:
+- `account_status` is excluded with an explicit "perfect leak" rationale (`experiment.py:54-65`).
+- The 200 planted duplicates are removed *before* the split (`load_and_preprocess` runs `drop_duplicates()` prior to `train_test_split`), so they cannot straddle train/test. Verified live: `4200 → 4000 rows (removed 200)`.
+- `StandardScaler` is fit on train only, then applied to test (`experiment.py:97-99`), and GB is correctly run unscaled.
+
+**Methodology is solid for an honest study.** It includes a majority-class baseline (0.7295), a label-shuffle sanity check, and reports ROC-AUC/F1/precision/recall — not accuracy alone — appropriate for the 27% churn imbalance. Both models use library defaults, so the "tuning budget" is trivially equal (and honestly disclosed as untuned).
+
+**Claims are disciplined.** The stated hypothesis is "GB outperforms LR," but the conclusion honestly reports a **null result** (LR 0.7398 vs GB 0.7301, diff 0.0097 < combined uncertainty 0.0107) rather than forcing the hypothesis. Variance over 5 seeds is reported, and limitations are candid.
+
+**Weaknesses.**
+- **Temporal handling is partial:** `signup_date` is turned into year/month features but evaluated with a random stratified split — no time-based split. This is acknowledged in limitations (acceptable per the bar, but it's the weakest leakage dimension).
+- **Label-shuffle interpretation is a category error:** it compares shuffled-label *ROC-AUC* (0.349, 0.466) against an *accuracy* baseline (0.7295) and flags both "⚠ Check." A shuffled ROC-AUC should sit near 0.5, which both roughly do — the test is fine but the pass/fail logic is wrong-headed. At least it's surfaced rather than hidden.
+- **No real significance test:** the diff-vs-combined-std comparison is crude (not a paired test), though conservative and honest.
+- **Minor reproducibility gap:** the label-shuffle uses `np.random.permutation` off global state rather than an independent seed; reproducible only because the script runs in fixed order. Re-running reproduced identical shuffle values.
+- **Dead imports:** `json`, `Path`, and `StratifiedKFold` are imported in `experiment.py` but unused. `n_duplicates_removed` is hardcoded to 200 rather than computed from the actual dedup count.
+
+**Executability:** Tests pass (7/7 in 1.8s); entrypoint runs in ~2s and regenerates matching metrics/report.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 88,
+  "methodological_validity_score": 80,
+  "reproducibility_score": 86,
+  "claims_discipline_score": 91,
+  "executability_score": 96,
+  "code_quality_score": 82,
+  "verdict": "good",
+  "key_findings": [
+    "Honest null-result reporting: stated hypothesis (GB > LR) is refuted by the data (LR 0.7398 vs GB 0.7301, diff < combined std 0.0107); conclusion does not overclaim.",
+    "Strong sanity scaffolding: majority-class baseline (0.7295) and label-shuffle test both present; metrics suite (ROC-AUC/F1/precision/recall) appropriate for the 27% churn imbalance, not accuracy-only.",
+    "5-seed variance reported with mean ± std; both models use defaults so tuning budget is equal and disclosed.",
+    "Label-shuffle pass/fail logic is a category error (compares shuffled ROC-AUC to an accuracy baseline of 0.7295 with a 0.1 threshold); flagged as '⚠ Check' but the threshold is meaningless — shuffled AUC should center on 0.5.",
+    "No formal significance test; difference assessed by comparing the gap to combined std (conservative but informal).",
+    "Tests pass 7/7 in 1.8s; entrypoint runs in ~2s and reproduces the committed metrics exactly."
+  ],
+  "leakage_findings": [
+    "account_status correctly excluded as a perfect target-derived leak (experiment.py:54-65).",
+    "200 planted exact duplicates removed before the split (load_and_preprocess runs drop_duplicates prior to train_test_split), so duplicates cannot straddle train/test — verified live (4200 -> 4000).",
+    "StandardScaler fit on train only and applied to test (experiment.py:97-99); GB run unscaled, which is correct.",
+    "Temporal column handled only partially: signup_date -> year/month features but evaluated with a random stratified split, not a time-based split. Disclosed in limitations but is the weakest leakage dimension.",
+    "customer_id excluded as a non-feature."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (7 passed in 1.84s)",
+    "python run_experiment.py  (completed in ~2s; regenerated results/metrics.json and REPORT.md; shuffle ROC-AUCs 0.3492/0.4655 match committed report)"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "Core experiment; dedup-before-split, train-only scaler fit, leak exclusions. Dead imports: json, Path, StratifiedKFold unused (lines 19-28)."},
+    {"path": "run_experiment.py", "note": "Entrypoint; writes results/metrics.json and REPORT.md. Conclusion logic correctly reports null result when |diff| < combined std (lines 84-101)."},
+    {"path": "make_dataset.py", "note": "Documents the three planted traps (account_status leak, 200 duplicates, temporal column); deterministic per seed."},
+    {"path": "REPORT.md", "note": "Honest null-result conclusion and candid limitations; label-shuffle section compares ROC-AUC to accuracy baseline (flawed threshold) but self-flags '⚠ Check'."},
+    {"path": "results/metrics.json", "note": "Machine-readable metrics with mean/std/n per metric; matches a fresh run."},
+    {"path": "tests/test_experiment.py", "note": "7 tests covering leak exclusion, dedup, metric edge cases, and determinism; all pass."},
+    {"path": "pyproject.toml", "note": "Dependencies (numpy/pandas/scikit-learn) declared and used; pytest as dev extra."}
+  ]
+}
+```

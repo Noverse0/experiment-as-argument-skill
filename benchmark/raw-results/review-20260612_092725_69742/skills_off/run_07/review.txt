@@ -1,0 +1,83 @@
+I have everything I need. Let me compile the review.
+
+## Review: Churn Prediction Experiment (GB vs LR)
+
+I inventoried the project, read all source/tests/report, ran the test suite (15 passed), ran the entrypoint (~5.5s), and confirmed a byte-identical re-run.
+
+### Leakage — strong
+This is the cleanest dimension. The planted traps are all handled deliberately:
+- **`account_status` excluded.** `extract_features` selects only `tenure_months, monthly_spend, support_tickets, days_since_signup` — the target-derived `account_status` never enters the model. `validate_no_leak` also detects and logs the leak.
+- **Scaler fit on train only.** `scale_features` does `fit_transform` on train, `transform` on test (`src/preprocessing.py:98-100`).
+- **Dedup before split.** `remove_duplicates` runs in `prepare_data` before `time_based_split`, so the 200 exact duplicates can't straddle the split.
+- **Temporal column handled deliberately.** A genuine time-based split at the 75th percentile of `days_since_signup`, justified in the report.
+- A **label-shuffle** sanity check is present and passes at runtime (0.44 vs 0.50 baseline).
+
+### Methodology — adequate with a real weakness
+Trivial baseline present (stratified `DummyClassifier`, ROC-AUC ≈ 0.50). Metrics are appropriate for imbalance (ROC-AUC + precision/recall/F1, not accuracy alone). Neither model is tuned, so the "same budget" condition is trivially satisfied. **But the "5 trials per model" is mostly illusory:** `LogisticRegression` uses the default `lbfgs` solver, which is deterministic — `random_state` does nothing, so all 5 LR trials are identical and `std = 0.0`. GB's tiny variance comes only from `subsample=0.8` on a **single fixed split**. There is no cross-validation or multi-split resampling, so the reported variance does not estimate the uncertainty that actually matters (split variability).
+
+### Reproducibility — strong
+Seeds fixed (data seed 7; trial seeds 42–46), metrics written to `results/metrics.json`, config echoed into the report. Re-running produced a byte-identical `REPORT.md` and `metrics.json` (`git status` clean afterward).
+
+### Claims discipline — the weakest dimension
+Two problems:
+1. **The report asserts a result the code measured as false.** The "Sanity Checks" section of the generated report **hardcodes** `✓ Overfit Tiny Batch: Model achieves ROC-AUC > 0.95` (`run_experiment.py:97-99`), independent of the actual outcome. At runtime the overfit check **failed** (ROC-AUC 0.7867 < 0.95) and the program even printed *"Some sanity checks failed. Results may not be reliable."* — yet the report claims a clean pass.
+2. **"Confidence intervals do not overlap, suggesting the difference is real" overclaims.** This rests on LR's `std = 0.0` (an artifact of determinism) and single-split model-seed jitter, not on any resampling of the data.
+
+Credit where due: the team kept the original (refuted) hypothesis and honestly reported that LR won, and the limitations section is candid.
+
+### Executability — strong
+`pytest` → 15 passed; `python run_experiment.py` completes in ~5.5s and regenerates outputs deterministically.
+
+### Code quality — good
+Readable, modular, dependencies declared and used. Minor issues: `validate_no_leak`'s return value is discarded in `prepare_data`, and the report template's sanity-check block is disconnected from the actual check results (the root of the false claim above).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 62,
+  "reproducibility_score": 86,
+  "claims_discipline_score": 42,
+  "executability_score": 95,
+  "code_quality_score": 76,
+  "verdict": "good",
+  "key_findings": [
+    "Leakage handling is exemplary: account_status excluded, scaler fit on train only, dedup before split, deliberate time-based split, plus a passing label-shuffle check.",
+    "The generated REPORT.md hardcodes both sanity checks as PASS, but the overfit-tiny-batch check actually FAILED at runtime (ROC-AUC 0.7867 < 0.95); the run itself printed 'Some sanity checks failed. Results may not be reliable.' The report asserts something the code measured as false.",
+    "'5 trials per model' is largely illusory: LogisticRegression uses the deterministic lbfgs solver, so random_state has no effect and all 5 LR trials are identical (std=0.0). GB variance comes only from subsample on a single fixed split.",
+    "The claim 'confidence intervals do not overlap, suggesting the difference is real' overclaims, since it rests on LR's artifactual zero-width CI and single-split model-seed jitter rather than data resampling or cross-validation.",
+    "Fully executable and reproducible: 15/15 tests pass, entrypoint runs in ~5.5s, and a re-run produced byte-identical outputs (clean git status).",
+    "Trivial baseline present and imbalance-appropriate metrics used (ROC-AUC + P/R/F1); original hypothesis was honestly reported as refuted (LR won)."
+  ],
+  "leakage_findings": [
+    "account_status (target-derived) is excluded from features in extract_features; validate_no_leak also detects and logs the leak.",
+    "StandardScaler is fit on train and only transforms test (src/preprocessing.py:98-100) — no scaler leakage.",
+    "200 exact duplicate rows are removed via drop_duplicates before the split, so duplicates cannot straddle train/test.",
+    "Temporal column handled deliberately via a 75th-percentile time-based split on days_since_signup, with stated justification.",
+    "Label-shuffle sanity check passes (shuffled ROC-AUC 0.44 vs baseline 0.50), corroborating no residual leakage."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*'",
+    "python -m pytest -q  (15 passed in ~5.7s)",
+    "time python run_experiment.py  (completed in ~5.5s; overfit sanity check failed at runtime)",
+    "git status --short / git diff --stat  (clean after re-run -> reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/preprocessing.py", "note": "account_status excluded, dedup before split, train-only scaler fit, time-based split; validate_no_leak return value is ignored in prepare_data."},
+    {"path": "src/models.py", "note": "LogisticRegression uses default lbfgs solver -> random_state has no effect, making per-seed 'trials' deterministic (LR std=0.0)."},
+    {"path": "src/experiment.py", "note": "Trials vary only model seed on a fixed split; no cross-validation. Baseline DummyClassifier present. CI-overlap test drives the 'difference is real' claim."},
+    {"path": "run_experiment.py", "note": "generate_report hardcodes both sanity checks as PASS (lines 97-99), disconnected from actual shuffle_ok/overfit_ok; produces a false claim when overfit check fails."},
+    {"path": "REPORT.md", "note": "Claims overfit sanity check passed (>0.95) though runtime measured 0.7867 and failed; 'CIs do not overlap -> difference is real' overclaims given LR std=0.0; otherwise honest about refuted hypothesis and limitations."},
+    {"path": "results/metrics.json", "note": "Matches report; LR std=0.0 across all metrics confirms deterministic non-varying trials."}
+  ]
+}
+```

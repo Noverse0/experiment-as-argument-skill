@@ -1,0 +1,70 @@
+Confirmed: `account_status` is a perfect target leak (active↔0, closed↔1), 200 exact duplicates present, 27% churn. All planted traps were correctly handled. Now my review.
+
+## Review
+
+**Leakage prevention (strong).** All three planted traps were caught and handled correctly:
+- `account_status` (perfect target leak) explicitly identified and dropped (`src/experiment.py:42`).
+- 200 exact duplicates removed *before* splitting (`drop_duplicates` at `:47`), preventing train/test straddle.
+- `signup_date` dropped with an explicit justification (random split on temporal data leaks time).
+- `StandardScaler` fit on train only, applied to test (`:132-134`); the same discipline holds in the label-shuffle sanity check.
+
+**Methodology (good, one conceptual error).** Includes a trivial baseline, label-shuffle leakage check, and overfit-tiny-subset pipeline check — strong sanity scaffolding. AUC chosen appropriately for the 27% imbalance, accuracy reported as secondary. Both models use defaults symmetrically (equal tuning budget = none). **Flaw:** `baseline_majority_class` computes `max(p, 1-p)` and labels it "baseline AUC = 0.7294" — that is majority-class *accuracy*, not AUC. A constant classifier's AUC is 0.5 by definition. The mislabeled baseline appears in both code and REPORT.
+
+**Reproducibility (strong).** Seeds `[42,123,999]` fixed and logged; config/metrics written to `results/`. Re-running from a clean state reproduced LR `0.7337±0.0050`, GB `0.7245±0.0100`, delta `-0.0092` — bit-identical to `summary.json` and REPORT. Minor: seeds are hardcoded, not CLI-exposed.
+
+**Claims discipline (good).** Report claims "no detectable difference" backed by 3 seeds with reported std and overlap, honestly flags limitations (3 seeds is minimum, single split not k-fold, no tuning, synthetic data). Slight overreach: it calls the result "statistically indistinguishable / not statistically significant" but **no significance test was actually run** — the conclusion rests on eyeballing ±1 std overlap. Wording implies a test the code didn't perform.
+
+**Executability (excellent).** `pytest tests/` → 8 passed (~4s). `make_dataset.py` + `run_experiment.py` run clean (~5s), well under budget. All three reproduction commands in REPORT work as written.
+
+**Code quality (good).** Readable, typed, logged, docstring'd. Minor: unused imports (`Tuple` in experiment.py, `json` in run_experiment.py); `n_jobs=-1` on LogisticRegression with the default lbfgs solver is a no-op. Deps declared and used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 76,
+  "reproducibility_score": 90,
+  "claims_discipline_score": 79,
+  "executability_score": 96,
+  "code_quality_score": 82,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted leakage traps (account_status target leak, 200 duplicates, temporal signup_date) were correctly identified and handled.",
+    "Experiment is fully reproducible: clean-state re-run reproduced LR 0.7337±0.0050, GB 0.7245±0.0100, delta -0.0092 bit-for-bit against committed results.",
+    "Strong sanity scaffolding: trivial baseline, label-shuffle (AUC~0.5), and overfit-tiny-subset checks all present and passing.",
+    "Conceptual error: 'baseline AUC = 0.7294' is actually majority-class accuracy; a constant classifier's AUC is 0.5. Mislabeled in both code and report.",
+    "Report claims results are 'statistically indistinguishable' but no significance test was run; conclusion rests on eyeballed ±1 std overlap across only 3 seeds.",
+    "Declared test and entrypoint commands all execute cleanly in well under 120s (tests ~4s, full run ~5s)."
+  ],
+  "leakage_findings": [
+    "account_status dropped before analysis (src/experiment.py:42); verified to perfectly encode churned (active↔0, closed↔1).",
+    "200 exact duplicate rows removed via drop_duplicates before train/test split (src/experiment.py:47), preventing cross-split contamination.",
+    "signup_date dropped with explicit justification that random splits leak time on temporal data.",
+    "StandardScaler fit on train only and applied to test (src/experiment.py:132-134); same train-only fit used inside the label-shuffle sanity check.",
+    "No remaining leak surface detected; deduplication occurs after column drop, so it operates on the modeling feature set."
+  ],
+  "commands_run": [
+    "python -m pytest tests/ -q  (8 passed in ~4.1s)",
+    "python make_dataset.py --out churn.csv",
+    "python run_experiment.py --csv churn.csv --output results  (reproduced reported metrics exactly)",
+    "python -c '<verify account_status/churned crosstab, duplicate count, churn rate>'"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "load_and_clean_data drops leaks + dedups before split; scaler fit train-only; baseline_majority_class mislabels accuracy as AUC (line 55-59)."},
+    {"path": "run_experiment.py", "note": "CLI entrypoint; works as declared. Unused 'import json'."},
+    {"path": "REPORT.md", "note": "Honest limitations and overlapping-CI interpretation, but 'statistically indistinguishable' wording unsupported by any test; sanity table lists baseline as AUC=0.7294 (actually accuracy)."},
+    {"path": "results/summary.json", "note": "Committed metrics (LR 0.7337±0.0050, GB 0.7245±0.0100, delta -0.0092) reproduced bit-for-bit on clean re-run."},
+    {"path": "make_dataset.py", "note": "Deterministic generator; plants account_status leak, 200 duplicates, temporal signup_date. Confirmed by crosstab."},
+    {"path": "tests/test_experiment.py", "note": "Covers leak-drop, dedup, baseline, label-shuffle, overfit, repeatability, AUC range, summary stats; all 8 pass."}
+  ]
+}
+```

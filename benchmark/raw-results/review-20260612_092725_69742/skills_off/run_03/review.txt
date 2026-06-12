@@ -1,0 +1,86 @@
+I have everything needed for the review.
+
+## Review: Churn Prediction Experiment
+
+### What was tested
+A comparison of Logistic Regression vs. Gradient Boosting on a synthetic churn dataset (4,200 rows + 200 appended duplicates) carrying three planted rigor traps: a target-derived `account_status` leak, duplicate rows that can straddle a random split, and a temporal `signup_date` column.
+
+### Leakage prevention — strong
+- **Critical leak caught.** `account_status` (perfectly `closed → churned`) is detected by `hunt_leakage` and dropped by default (`use_leaky_features=False`). This is the headline trap and it was handled correctly (`src/preprocessing.py:65-66`).
+- **Transform fitted on train only.** `StandardScaler` is `fit_transform`-ed on train, `transform`-ed on test (`src/preprocessing.py:89-91`). Correct ordering.
+- **Temporal column handled deliberately.** A time-based split sorts by `signup_date` and cuts at the 80% index (`src/preprocessing.py:74-82`), with an explicit rationale in the report. Good.
+- **Duplicates: detected but not handled.** `check_duplicates` counts 400 duplicate rows and the report checkmarks "Duplicates: Checked before splitting" — but they are never removed. I verified that in this particular split **0 duplicate pairs straddle train/test**, because the time-based sort happens to keep identical-date copies on the same side. So no actual train/test contamination materialized — but by luck of the split, not by intent. The checkmark overstates what the code does.
+
+### Methodological validity — weakened by illusory replication
+- Trivial majority-class baseline present (`get_baseline_prediction`); both models beat it.
+- Metrics appropriate for the ~27% imbalance: ROC-AUC primary, plus F1/precision/recall (not accuracy alone).
+- Neither model is tuned — equal (zero) budget, which is fair, and acknowledged.
+- **Core flaw: the "3 independent runs" produce no real variance.** The time-based split is deterministic and identical for every seed, and Logistic Regression is deterministic — so LR's ROC-AUC is byte-identical across all three seeds (std ≈ 1e-16). Only Gradient Boosting's internal randomness varies, by ±0.0003. The seeds therefore do **not** re-split as the report claims; there is effectively one experiment, not three. The 0.038 gap is reported without any significance test, and the near-zero std should have been flagged as an anomaly rather than presented as confirming stability.
+
+### Reproducibility — excellent
+Seeds fixed and logged in config and `results.json`; config + metrics + report written to the output dir. Re-running the entrypoint reproduced the committed `results_final` comparison **identically** (verified).
+
+### Claims discipline — mixed
+- The dynamically generated Conclusion correctly reports **Logistic Regression wins** (the code follows the data).
+- But the hardcoded **Claim** at the top of the report still asserts "Gradient Boosting outperforms Logistic Regression" (`run_experiment.py:26`), directly contradicting its own conclusion — a leftover hypothesis never reconciled.
+- The report claims "3 independent runs with variance reported," which misrepresents the deterministic split. Limitations are otherwise honest (small data, defaults, no tuning, distribution shift).
+
+### Executability — excellent
+`pytest` → 19 passed in ~2.4s. `python run_experiment.py` completes in seconds and reproduces the committed numbers. Commands work from a clean state.
+
+### Code quality — good
+Clean modular structure, dependencies declared and used. Minor dead code: `crosstab` computed but never used (`src/preprocessing.py:33`); `use_leaky_features` is always `False`; returned `scaler` is unused.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 82,
+  "methodological_validity_score": 60,
+  "reproducibility_score": 92,
+  "claims_discipline_score": 55,
+  "executability_score": 95,
+  "code_quality_score": 80,
+  "verdict": "good",
+  "key_findings": [
+    "Critical leak avoided: account_status is detected and dropped by default; this is the main planted trap and it was handled correctly.",
+    "Temporal column handled deliberately via a time-based split (sort by signup_date, 80/20 index cut) with an explicit rationale.",
+    "Scaler is fitted on train only and applied to test — correct split-before-transform ordering.",
+    "Illusory replication: the time-based split is deterministic and LR is deterministic, so '3 seeds' yield byte-identical LR results (std ~1e-16) and only trivial GB variance; the runs are not independent as claimed.",
+    "No significance test for the 0.038 ROC-AUC gap, and effectively n=1 split despite the n=3 framing.",
+    "Trivial majority-class baseline present; metrics (ROC-AUC + F1/precision/recall) appropriate for the ~27% imbalance.",
+    "Fully reproducible: re-running the entrypoint reproduced the committed results_final comparison identically; 19/19 tests pass.",
+    "Report's hardcoded top-level Claim ('Gradient Boosting outperforms') contradicts its own data-driven conclusion (Logistic Regression wins)."
+  ],
+  "leakage_findings": [
+    "account_status (target-derived 'closed -> churned') correctly identified by hunt_leakage and removed via use_leaky_features=False default — critical leak prevented.",
+    "Duplicates detected (400 rows) but never removed; report checkmarks 'Checked before splitting' which overstates handling. Verified 0 duplicate pairs straddle train/test in this split — contamination avoided only as a side effect of the time-based sort keeping identical-date copies together, not by deliberate dedup.",
+    "StandardScaler fitted on train only and applied to test (src/preprocessing.py:89-91) — no fit-time leakage.",
+    "Temporal split by signup_date is deliberate (src/preprocessing.py:74-82), not a random split — avoids look-ahead leakage."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*'",
+    "python -m pytest -q  (19 passed, 1 warning in 2.43s)",
+    "timeout 110 python run_experiment.py --output results_check  (ran in seconds; Winner: Logistic Regression, diff -0.0382)",
+    "diff committed vs reproduced summary.comparison  (REPRODUCES_IDENTICAL)",
+    "python -c '<duplicate straddle check>'  (200 dup groups, 0 straddling train/test)"
+  ],
+  "file_evidence": [
+    {"path": "make_dataset.py", "note": "Documents the three planted traps: account_status leak, 200 straddling duplicates, temporal signup_date column."},
+    {"path": "src/preprocessing.py", "note": "Time-based split (sort by signup_date) + scaler fit on train only; account_status dropped by default. check_duplicates only counts, never removes. crosstab on line 33 is dead code; use_leaky_features always False."},
+    {"path": "src/experiment.py", "note": "Per-seed loop calls deterministic time-split, so split is identical every seed; LR deterministic, only GB random_state varies — source of the near-zero reported variance."},
+    {"path": "src/metrics.py", "note": "Computes ROC-AUC, F1, precision, recall, accuracy — appropriate multi-metric set for imbalanced target."},
+    {"path": "results_final/REPORT.md", "note": "Top 'Claim' hardcoded as GB-wins contradicts the data-driven Conclusion (LR wins); checklist claims '3 independent runs with variance' despite std ~0."},
+    {"path": "results_final/results.json", "note": "LR ROC-AUC identical across all 3 seeds (std 1.1e-16); GB std 2.5e-4 — confirms replication is illusory. Config and seeds logged."},
+    {"path": "tests/test_experiment.py", "note": "19 tests pass including determinism and JSON-export checks; covers structure but not leakage/dedup correctness."}
+  ]
+}
+```

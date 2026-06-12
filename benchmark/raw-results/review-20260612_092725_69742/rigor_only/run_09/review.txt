@@ -1,0 +1,65 @@
+Confirmed: `account_status` is perfectly collinear with `churned` (closed⇔churned), and 200 exact duplicates straddle the random split. The experiment is fully compromised.
+
+## Review
+
+**Leakage (critical failure).** `load_data` (src/pipeline.py:25) drops only `customer_id`, `signup_date`, and `churned`, **keeping `account_status`** — which is `"closed"` iff the customer churned. The crosstab is perfectly diagonal (3067 active/not-churned, 1133 closed/churned). This single feature determines the label, producing the 1.0 ROC-AUC across both models and all seeds. This is the textbook target leak the rubric flags as critical.
+
+Secondary leak: 200 exact duplicate rows (202 on feature columns) straddle the `train_test_split` — no deduplication before splitting. `signup_date` is dropped with an explicit justification (acceptable). Preprocessing (OrdinalEncoder/StandardScaler) is correctly fit on train only.
+
+**Claims discipline (failure).** REPORT.md asserts **"Label shuffle test ... No information leakage detected ✓"** — this is flatly false. The report presents ROC-AUC = 1.0000 ± 0.0000 for both models without ever questioning that a perfect score on real data is a near-certain leakage signature. The label-shuffle check returned 0.197 (worse than random), which was misread as reassurance rather than the anomaly it is. To its credit it does not declare a false winner ("no detectable difference") and limitations are otherwise reasonable.
+
+**Methodology.** Trivial majority-class baseline present (AUC 0.5); appropriate metrics (ROC-AUC/F1/balanced accuracy) for the 27% imbalance; 5 seeds with variance. Neither model is tuned (equal, if zero, budget). The scaffolding is sound but the comparison is meaningless because both saturate.
+
+**Reproducibility (strong).** Seeds fixed and logged, results.json written, re-run reproduced identical metrics.
+
+**Executability (strong).** `pytest` → 10 passed; `python run_experiment.py` runs clean and regenerates outputs. Note the tests assert "no leakage" only via index overlap and never check feature/target collinearity — they pass while the leak stands.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 8,
+  "methodological_validity_score": 45,
+  "reproducibility_score": 82,
+  "claims_discipline_score": 12,
+  "executability_score": 95,
+  "code_quality_score": 68,
+  "verdict": "poor",
+  "key_findings": [
+    "Critical target leak: account_status (closed iff churned) is retained as a feature, producing ROC-AUC = 1.0000 for both models across all 5 seeds.",
+    "REPORT.md falsely claims 'No information leakage detected'; a perfect 1.0 AUC on real data is never questioned.",
+    "200 exact duplicate rows straddle the random train/test split with no deduplication.",
+    "Methodology scaffolding is otherwise reasonable (majority baseline, imbalance-aware metrics, 5 seeds, train-only preprocessing) but rendered meaningless by the leak.",
+    "Reproducibility and executability are strong: tests pass (10/10), entrypoint runs, results regenerate identically.",
+    "Tests assert 'no leakage' only via index non-overlap; they never check feature/target collinearity, so they pass despite the leak."
+  ],
+  "leakage_findings": [
+    "account_status is derived from the target (active=not churned, closed=churned) and is used as a model feature — perfect leak; root cause of the 1.0 metrics.",
+    "load_data (src/pipeline.py:25) drops only customer_id, signup_date, churned; account_status is kept.",
+    "200 exact duplicate rows (202 duplicated on feature columns) appended in make_dataset.py straddle the stratified random split — train/test contamination.",
+    "signup_date temporal column is dropped with an explicit justification (no time-based split) — acceptable handling.",
+    "Scaler/encoder are correctly fit on train only and applied to test — no preprocessing leakage.",
+    "Label-shuffle sanity check returned 0.197 (anomalous, below random) and was misinterpreted as evidence of no leakage."
+  ],
+  "commands_run": [
+    "python -m pytest -q  => 10 passed in 1.59s",
+    "timeout 110 python run_experiment.py  => ran clean; LR & GB ROC-AUC 1.0000 ± 0.0000",
+    "python -c '... crosstab account_status vs churned; duplicated counts'  => diagonal crosstab; 200 exact dup rows, 202 dup feature rows"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "load_data drops only customer_id/signup_date/churned, keeping account_status (line 25); preprocessing correctly fit on train only (lines 56-63)."},
+    {"path": "make_dataset.py", "note": "Documents the planted traps: account_status derived from target (line 31), 200 duplicates appended (line 35), signup_date temporal column."},
+    {"path": "REPORT.md", "note": "Reports ROC-AUC 1.0000 ± 0.0000 for both models and claims 'No information leakage detected' (line 37) — false."},
+    {"path": "results/results.json", "note": "All folds 1.0 (one LR fold 0.99999...); label_shuffle_roc_auc=0.197; seeds and summary stats logged."},
+    {"path": "tests/test_pipeline.py", "note": "'no leakage' test checks only index overlap (lines 58-69); no collinearity/account_status check, so tests pass despite the leak."}
+  ]
+}
+```

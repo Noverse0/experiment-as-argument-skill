@@ -1,0 +1,66 @@
+I have everything I need. Let me compile the review.
+
+## Review: Churn Prediction Experiment
+
+**What it gets right.** This is a genuinely careful leakage-prevention pipeline. The three planted traps are all handled:
+- `account_status` (the perfect leak, "closed" iff churned) is excluded — only `tenure_months`, `monthly_spend`, `support_tickets` reach the model (`src/dataset.py:26`).
+- The 200 planted duplicate rows are deduplicated **before** the split (`src/dataset.py:18`), confirmed at runtime ("Duplicate rows removed: 200"), so they cannot straddle train/test.
+- `StandardScaler` is fit on train and only transformed on test, inside the per-seed loop (`src/experiment.py:74-76`) — no fit-on-all leakage.
+
+Sanity checks are present and meaningful: a majority-class baseline (AUC 0.5) and a label-shuffle test (0.74 → 0.575). Metrics go well beyond accuracy (AUC, precision, recall, F1), appropriate for the ~27% churn imbalance. Both models get the same fixed-default budget (symmetric, no tuning for either). Seeds [42,123,456] are fixed, logged to `results/metrics.json`, and I reproduced the committed AUC values exactly. Tests (7) pass; the entrypoint runs clean in ~2s.
+
+**Weaknesses.**
+- **Temporal handling is by exclusion, not design.** `signup_date` is dropped and the split is random. The report acknowledges this honestly, but no time-based split was attempted — defensible but the weakest of the three trap responses.
+- **Claims discipline is the soft spot.** The report's title claim ("Gradient boosting outperforms logistic regression") is hardcoded in `generate_report` and survives regeneration even though the measured result is the opposite. The conclusion declares "Logistic regression is better (-0.0137)" — but that 0.0137 AUC gap is *smaller* than either model's seed-to-seed std (0.019 / 0.029, n=3). No significance test; the "winner" is within noise. Limitations note wide CIs but don't connect that to the verdict.
+- **Dead code:** `StandardScaler` and `numpy` imported unused in `dataset.py`; `StratifiedKFold` and `cross_validate` imported unused in `experiment.py`. Minor cosmetic bug: the rendered target line reads "binary, N/A" because `churn_rate` is never put in `sanity_checks`.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 90,
+  "methodological_validity_score": 82,
+  "reproducibility_score": 92,
+  "claims_discipline_score": 58,
+  "executability_score": 92,
+  "code_quality_score": 74,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted traps handled: account_status excluded, 200 duplicates removed before split, scaler fit on train only.",
+    "Trivial baseline (majority, AUC 0.5) and label-shuffle sanity check (0.74->0.575) both present and pass.",
+    "Imbalance-appropriate metrics (AUC/precision/recall/F1), not accuracy alone; ~27% churn rate.",
+    "3 seeds fixed and logged; committed metrics.json reproduced exactly on re-run; tests pass (7) and entrypoint runs in ~2s.",
+    "Claims weakness: report declares a winner (LR by 0.0137 AUC) smaller than the per-model seed std (0.019-0.029), with no significance test; hardcoded title still claims GB wins.",
+    "Temporal column handled only by exclusion + acknowledgment, not a time-based split.",
+    "Dead imports in both src modules; cosmetic 'binary, N/A' churn_rate rendering bug."
+  ],
+  "leakage_findings": [
+    "account_status (perfect leak, derived from target) correctly excluded from features (src/dataset.py:26).",
+    "200 exact duplicate rows deduplicated before train/test split (src/dataset.py:18), preventing straddle; verified at runtime.",
+    "StandardScaler fit on train and only transformed on test inside per-seed loop (src/experiment.py:74-76); no fit-on-all leakage.",
+    "signup_date excluded but split is random (not time-based); acknowledged in REPORT.md limitations rather than designed around."
+  ],
+  "commands_run": [
+    "python -c 'import sklearn,pandas,numpy' (sklearn 1.7.1 present)",
+    "python -m pytest -q  -> 7 passed in 1.57s",
+    "python run_experiment.py  -> ran clean, removed 200 dupes, wrote results/metrics.json and REPORT.md",
+    "grep for unused imports (StandardScaler/StratifiedKFold/cross_validate)"
+  ],
+  "file_evidence": [
+    {"path": "src/dataset.py", "note": "Dedup before split on all non-id columns; excludes account_status & signup_date. Unused numpy/StandardScaler imports."},
+    {"path": "src/experiment.py", "note": "Per-seed split + train-only scaler fit; majority baseline + label-shuffle checks; AUC/precision/recall/F1. Unused StratifiedKFold/cross_validate imports."},
+    {"path": "run_experiment.py", "note": "Entrypoint; hardcodes GB-wins title claim in generated report; churn_rate key absent so target renders 'N/A'."},
+    {"path": "REPORT.md", "note": "Title claims GB wins but conclusion says LR better by 0.0137 < seed std (~0.02-0.03), n=3, no significance test; limitations otherwise honest."},
+    {"path": "results/metrics.json", "note": "Seeds, design, sanity checks, per-seed values logged; reproduced exactly on re-run."},
+    {"path": "tests/test_experiment.py", "note": "7 tests covering loading, dedup, sanity checks, comparison, summary, write; all pass."}
+  ]
+}
+```

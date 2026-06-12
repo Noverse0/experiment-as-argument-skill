@@ -1,0 +1,32 @@
+{
+  "baseline_majority": {
+    "auc_mean": 0.5,
+    "auc_std": 0.0,
+    "f1_mean": 0.0,
+    "f1_std": 0.0,
+    "precision_mean": 0.0,
+    "recall_mean": 0.0,
+    "specificity_mean": 1.0,
+    "n_runs": 5
+  },
+  "logistic_regression": {
+    "auc_mean": 0.7322666666666666,
+    "auc_std": 0.0,
+    "f1_mean": 0.3509933774834437,
+    "f1_std": 0.0,
+    "precision_mean": 0.5196078431372549,
+    "recall_mean": 0.265,
+    "specificity_mean": 0.9183333333333333,
+    "n_runs": 5
+  },
+  "gradient_boosting": {
+    "auc_mean": 0.6968491666666666,
+    "auc_std": 0.0003647963663317881,
+    "f1_mean": 0.39215868736018955,
+    "f1_std": 0.0009453923417029471,
+    "precision_mean": 0.4632272753603478,
+    "recall_mean": 0.34,
+    "specificity_mean": 0.8686666666666667,
+    "n_runs": 5
+  }
+}

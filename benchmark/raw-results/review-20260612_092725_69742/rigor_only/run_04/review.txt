@@ -1,0 +1,69 @@
+All three planted traps are confirmed handled, the suite passes (12/12), and the entrypoint reproduces the reported metrics exactly. Here's my assessment.
+
+## Review
+
+**Leakage prevention — strong.** All three planted traps are correctly defused:
+- `account_status` is a perfect leak (crosstab confirms `closed` iff `churned=1`); it is explicitly identified and dropped (`src/pipeline.py:17-22`).
+- Deduplication (4200→4000) runs **before** the split (`load_and_deduplicate`), so duplicate rows cannot straddle train/test.
+- The scaler is fit on train only and applied to test (`src/experiment.py:105-107`), including inside the label-shuffle sanity check.
+- `signup_date` is dropped, and the temporal question is addressed explicitly: the report justifies a random split (churn is not time-dependent here) and lists temporal split as a limitation. Defensible.
+
+**Methodological validity — good, with a real caveat.** Trivial majority-class baseline (F1=0), plus overfit and label-shuffle sanity checks — strong rigor signals. Metrics are appropriate for the 27% imbalance (F1/precision/recall/ROC-AUC, not accuracy). Both models use defaults, so tuning budget is equal. **Caveat:** the "3 runs" are three repeated random splits of the *same* 4000 rows, not cross-validation — test sets overlap, so the runs aren't independent and the ±std underestimates true variance. `StratifiedKFold` is even imported but never used. n=3 is small.
+
+**Reproducibility — strong.** Seeds fixed and logged (42/43/44), metrics + all per-run values written to `results/metrics.json`, and re-running the entrypoint regenerated identical numbers.
+
+**Claims discipline — strong.** Despite a title hypothesis favoring GB, the report concludes "No detectable difference (error bars overlap)" and quantifies the gap (0.0276) against the combined error bars (±0.0550). Limitations are honest and specific. The overlap heuristic (sum of stds) is crude but conservative — it does not overclaim.
+
+**Executability — excellent.** `pytest` → 12 passed; `python run_experiment.py` completes in seconds and regenerates both artifacts.
+
+**Code quality — decent.** Readable, well-separated pipeline. Minor smells: unused imports (`StratifiedKFold`, `RandomForestClassifier`); the `models` dict in `_run_main_comparison` (line 90-93) defines estimators with `random_state=None` that are never fit — they're re-instantiated inside the loop, making the dict redundant; and `test_split_before_transform` ends in a no-op assertion (`assert ... or True`).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 94,
+  "methodological_validity_score": 80,
+  "reproducibility_score": 90,
+  "claims_discipline_score": 90,
+  "executability_score": 97,
+  "code_quality_score": 76,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted traps handled: account_status dropped (confirmed perfect leak via crosstab), duplicates removed before split, signup_date dropped with explicit temporal justification.",
+    "Strong sanity-check suite: majority-class baseline (F1=0), overfit test, and label-shuffle test guarding against leakage.",
+    "Claims are honest and conservative: report concludes 'no detectable difference (error bars overlap)' rather than declaring GB the winner, and quantifies gap vs. error bars.",
+    "Fully executable from clean state: 12/12 tests pass, entrypoint reproduces reported metrics exactly.",
+    "Main methodological weakness: '3 runs' are repeated random splits of the same data (not CV), so test sets overlap and reported std underestimates true variance; StratifiedKFold imported but unused.",
+    "Minor code smells: unused imports, a redundant unused models dict, and a no-op assertion in test_split_before_transform."
+  ],
+  "leakage_findings": [
+    "account_status (closed iff churned=1) correctly identified as a perfect leak and dropped in drop_leaky_features (src/pipeline.py:17-22); verified via crosstab (active->0, closed->1).",
+    "StandardScaler fit on train only and applied to test (src/experiment.py:105-107); same discipline in the label-shuffle sanity check (lines 75-77).",
+    "Exact duplicate rows removed before the split (load_and_deduplicate), preventing train/test straddle; verified 4200->4000.",
+    "signup_date dropped; temporal column handled deliberately with stated justification (churn not time-dependent) and listed as a limitation. customer_id dropped as non-predictive."
+  ],
+  "commands_run": [
+    "python -c 'import sklearn,pandas,numpy' (sklearn 1.7.1)",
+    "python -m pytest -q  ->  12 passed in 6.37s",
+    "python run_experiment.py  ->  completed, regenerated results/metrics.json and REPORT.md with matching numbers",
+    "pandas check: raw 4200 rows, 4000 after dedup; crosstab(account_status, churned) confirms perfect leak"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "Split-before-transform discipline: dedup before split, leaky-column drop, scaler fit on train only."},
+    {"path": "src/experiment.py", "note": "Baseline/overfit/label-shuffle sanity checks; 3-seed comparison; but uses repeated random splits not CV, and imports StratifiedKFold/RandomForestClassifier unused."},
+    {"path": "REPORT.md", "note": "Honest conclusion 'no detectable difference (error bars overlap)'; gap 0.0276 vs +/-0.0550; specific limitations including temporal split."},
+    {"path": "results/metrics.json", "note": "All 3 per-run values plus mean/std logged; reproduced exactly on re-run."},
+    {"path": "make_dataset.py", "note": "Documents the three planted traps (account_status leak, 200 duplicates, temporal signup_date)."},
+    {"path": "tests/test_pipeline.py", "note": "Covers dedup, leak drop, split-before-transform; test_split_before_transform ends in a no-op 'assert ... or True'."}
+  ]
+}
+```

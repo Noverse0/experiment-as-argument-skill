@@ -1,0 +1,28 @@
+{
+  "models": {
+    "LogisticRegression": {
+      "test_auc_roc_mean": 0.7331632543064729,
+      "test_auc_roc_std": 0.02520696188747354,
+      "test_f1_mean": 0.3247273196461998,
+      "test_f1_std": 0.024484833705396482,
+      "test_accuracy_mean": 0.745,
+      "test_accuracy_std": 0.007729849086070458,
+      "n_seeds": 5
+    },
+    "GradientBoostingClassifier": {
+      "test_auc_roc_mean": 0.7307938857787584,
+      "test_auc_roc_std": 0.025042593223826636,
+      "test_f1_mean": 0.34175978381132455,
+      "test_f1_std": 0.03819061884794616,
+      "test_accuracy_mean": 0.745,
+      "test_accuracy_std": 0.011152417551076535,
+      "n_seeds": 5
+    }
+  },
+  "sanity_checks": {
+    "baseline_accuracy": 0.7302380952380952,
+    "label_shuffle_accuracy": 0.7297619047619047,
+    "overfit_train_accuracy": 0.84,
+    "duplicate_rows": 200
+  }
+}

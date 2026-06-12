@@ -1,0 +1,32 @@
+Excellent! All tests pass and the experiment completed successfully. Let me create a final summary:
+
+**Experiment Summary:**
+
+The experiment successfully compares Logistic Regression vs Gradient Boosting for customer churn prediction using the "Experiment as Argument" framework. 
+
+**Key findings:**
+- **Logistic Regression wins**: 0.7323 AUC vs 0.6968 AUC (3.54% improvement)
+- Both models substantially beat the baseline (majority class: 0.5000 AUC)
+- Results are consistent across 5 random seeds with minimal variance
+
+**Rigor controls implemented:**
+1. **Deduplication**: Removed 200 exact duplicates before split (prevents train/test leakage)
+2. **Time-based split**: Respects temporal ordering by signup_date (avoids future leakage)
+3. **Feature exclusion**: Removed `account_status` (perfectly derived from target) and `customer_id` (non-predictive)
+4. **Preprocessing discipline**: StandardScaler fitted on train only, applied to test
+5. **Multiple seeds**: 5 runs per model for variance estimation
+
+**Files created:**
+- `src/data.py` — Data pipeline with split, dedup, feature selection, scaling
+- `src/models.py` — Model training and evaluation utilities  
+- `run_experiment.py` — Main orchestration script (entrypoint)
+- `tests/test_data.py` — 8 tests for data integrity and split logic
+- `tests/test_models.py` — 8 tests for model training and evaluation
+- `REPORT.md` — Full report with methodology and limitations
+- `results/metrics.csv` — Raw metrics (all seeds, all models)
+- `results/statistics.json` — Aggregated statistics per model
+- `pyproject.toml` — Dependencies
+
+```json
+{"files_created": ["src/__init__.py", "src/data.py", "src/models.py", "run_experiment.py", "pyproject.toml", "tests/__init__.py", "tests/test_data.py", "tests/test_models.py", "REPORT.md", "results/metrics.csv", "results/statistics.json"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}
+```

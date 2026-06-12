@@ -1,0 +1,70 @@
+I have enough evidence to complete the review.
+
+## Review
+
+**Summary.** This is a well-engineered experiment that correctly defuses all three planted leakage traps. Its principal weakness is a methodological one masquerading as rigor: the "5 seeds for variance" design does not actually vary the data split, so the reported variance is hollow and the winner is effectively declared on a single fixed split.
+
+**Leakage (strong).** Every trap is handled:
+- `account_status` (the target-derived perfect leak) is explicitly excluded in `select_features` (`src/data.py:50`), documented, and asserted in `tests/test_data.py:53`.
+- `StandardScaler` is fit on train only and `.transform`-ed onto test (`src/data.py:70`), with a dedicated test (`test_preprocess_test_uses_train_scaler`).
+- The 200 exact duplicates are removed *before* the split (`load_and_deduplicate`, confirmed at runtime: 4200→4000), so they cannot straddle the boundary.
+- The temporal column is handled deliberately via a sort-and-cut time-based split (`time_based_split`), and a test asserts train dates ≤ test dates.
+
+**Methodology (mixed).** Trivial majority-class baseline present; metrics are appropriate for the ~25% imbalance (AUC, F1, precision, recall, specificity — never accuracy alone); both models get the same (zero) tuning budget. But `prepare_data` is fully deterministic and ignores the seed — only the model's `random_state` changes per run. I confirmed LR's AUC is byte-identical across all 5 seeds (std = 0.0) and GB's std is 0.0004. So the "variance estimate" captures only model-internal randomness, not the dominant uncertainty source (split variability). There is no cross-validation, so the winner rests on one split.
+
+**Reproducibility (strong).** Seeds fixed and logged per-row in `results/metrics.csv`; summary in `results/statistics.json`; data provenance documented (`make_dataset.py --seed 7`). Re-running reproduced the numbers exactly.
+
+**Claims (mixed).** Commendably, the report answers its own hypothesis honestly against the author's framing — GB does *not* outperform; LR wins. Limitations are candid (single split, no CV, small data, fixed HP). The ding: it declares "Logistic Regression wins: 3.54% higher AUC" backed by "5 runs provide variance estimates" and frames the zero variance as "consistent performance" — when zero variance actually reveals the seeds are not exercising the split at all. The uncertainty quantification is presented as more meaningful than it is.
+
+**Executability (strong).** 16/16 tests pass in ~1.8s; entrypoint completes in seconds and regenerates all artifacts.
+
+**Code quality (strong).** Clean module separation (`data.py`/`models.py`), tests present, dependencies declared and used. Minor: committed `egg-info`/`__pycache__` build artifacts.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 65,
+  "reproducibility_score": 86,
+  "claims_discipline_score": 66,
+  "executability_score": 95,
+  "code_quality_score": 87,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted leakage traps are correctly defused: account_status excluded, scaler fit on train only, duplicates removed before a time-based split.",
+    "The '5 seeds for variance' design is hollow: prepare_data is deterministic and ignores the seed, so the data split never changes. LR AUC is identical (std=0.0) across all 5 seeds; only GB model-internal randomness varies (std=0.0004).",
+    "The winner (LR) is effectively declared on a single fixed split with no cross-validation; reported variance does not capture split uncertainty.",
+    "Report honestly answers against its own hypothesis (GB does NOT outperform) and lists candid limitations, but frames zero variance as positive 'consistent performance'.",
+    "Fully reproducible: tests pass (16/16), entrypoint reruns reproduce metrics exactly, seeds logged to results/."
+  ],
+  "leakage_findings": [
+    "account_status (target-derived perfect leak) excluded in select_features (src/data.py:50), documented and asserted in test_select_features.",
+    "StandardScaler fit on train only then transform on test (src/data.py:70); verified by test_preprocess_test_uses_train_scaler.",
+    "200 exact duplicate rows removed via drop_duplicates before splitting (src/data.py:17); confirmed 4200->4000 at runtime, so duplicates cannot straddle train/test.",
+    "Temporal column handled deliberately: sort by signup_date then 80/20 cut (time_based_split); test asserts max(train date) <= min(test date).",
+    "customer_id excluded as a non-predictive identifier."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (16 passed in 1.77s)",
+    "python run_experiment.py  (completed in seconds; regenerated results/ and REPORT.md)",
+    "python -c '... inspect results/metrics.csv ...'  (confirmed LR AUC identical across seeds, GB std=0.0004)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Correct leakage prevention: train-only scaler fit (L70), feature exclusion (L50), dedup-before-split (L17), time-based split (L24)."},
+    {"path": "run_experiment.py", "note": "Loops 5 seeds but calls deterministic prepare_data(csv_path) each time (L36); seed only feeds model random_state, so the split is constant across runs."},
+    {"path": "results/metrics.csv", "note": "LR rows identical for all 5 seeds (AUC 0.73227); GB varies only trivially — evidence the variance estimate does not capture split uncertainty."},
+    {"path": "REPORT.md", "note": "Honestly reports LR wins against the GB hypothesis and lists limitations, but claims '5 runs provide variance estimates' and frames zero variance as 'consistent performance' (L48, L161)."},
+    {"path": "make_dataset.py", "note": "Documents the planted traps; duplicates are exact copies (incl. customer_id) so drop_duplicates fully removes them."},
+    {"path": "tests/test_data.py", "note": "Asserts leakage controls: feature exclusion, train-only scaling, temporal split ordering. 16 tests pass total."}
+  ]
+}
+```

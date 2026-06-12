@@ -1,0 +1,33 @@
+Perfect! Everything is working correctly. Let me provide a final summary:
+
+## Summary
+
+I've built a rigorous ML experiment comparing LogisticRegression vs GradientBoostingClassifier for customer churn prediction, following the "experiment-as-argument" methodology:
+
+**Key Implementation Details:**
+
+1. **Data Discipline:**
+   - Identified and dropped 3 target leaks: `account_status` (perfectly encodes churn), `signup_date` (temporal column), `customer_id` (non-predictive)
+   - Deduplication: removed 202 exact duplicates before splitting
+   - Features retained: tenure_months, monthly_spend, support_tickets
+   - Stratified 80/20 train/test split, StandardScaler fit on train only
+
+2. **Sanity Checks (all passed):**
+   - Baseline: 0.7294 AUC (majority class)
+   - Label-shuffle: ~0.5 AUC (no leakage detected)
+   - Tiny subset overfit: both models achieve high train AUC (pipeline works)
+
+3. **Results (3 seeds: [42, 123, 999]):**
+   - LogisticRegression: 0.7337 ± 0.0050 AUC
+   - GradientBoosting: 0.7245 ± 0.0100 AUC
+   - Delta: -0.0092 (no detectable difference)
+
+4. **Honest Conclusion:** Overlapping confidence intervals. Logistic Regression is marginally preferred due to higher mean AUC and lower variance across seeds.
+
+**Test Results:** All 8 tests passing (data discipline, sanity checks, repeatability, metric consistency)
+
+**Experiment Runtime:** ~5.5 seconds (well under 5-minute requirement)
+
+```json
+{"files_created": ["pyproject.toml", "src/__init__.py", "src/experiment.py", "run_experiment.py", "tests/__init__.py", "tests/test_experiment.py", "REPORT.md"], "entrypoint": "python run_experiment.py --csv churn.csv --output results", "test_command": "python -m pytest tests/test_experiment.py -v"}
+```

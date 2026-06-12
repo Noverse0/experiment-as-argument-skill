@@ -1,0 +1,75 @@
+All checks complete. The experiment reproduces byte-identically, tests pass, and the entrypoint runs cleanly in ~1s.
+
+## Review
+
+**Leakage prevention — excellent.** This is the strongest dimension. All three planted traps are caught and handled correctly:
+- `account_status` is explicitly dropped with the correct reason ("closed" iff churned) — `src/experiment.py:54`, `preprocess_data` keeps only the three benign features + target.
+- The 200 exact duplicates are removed *before* the split (`run_experiment` calls `detect_duplicates` → `df_clean` → split), so they cannot straddle train/test.
+- `signup_date` (temporal) is deliberately dropped with a stated justification, and the limitation section flags that a time-based split would be needed for a forward-looking task.
+- `StandardScaler` is fit on train only (`fit_transform(X_train)` / `transform(X_test)`), correct for LR; GB uses raw features (fine, tree models don't need scaling).
+- A label-shuffle sanity check confirms AUC collapses to ~0.53, and a leakage-ceiling check confirms AUC isn't near-perfect — both ran and passed.
+
+**Methodology — good.** ROC-AUC is the lead metric with PR-AUC and accuracy for context, appropriate for the 27% churn imbalance (the report rightly leads with AUC, since accuracy ~0.754 barely beats the 0.73 majority floor). A trivial majority-class baseline exists. Both models use library defaults — symmetric, so the comparison is fair, though neither is tuned (acknowledged as a limitation). Minor flaw: `check_baseline_floor` compares the model's **AUC** against a majority-class **accuracy** floor (different scales), so that particular check is logically loose.
+
+**Reproducibility — strong.** Seeds are fixed (`range(5)`), logged per-seed in `metrics_by_seed.csv`, dataset generation is seeded/deterministic, and re-running produced values byte-identical to the committed `results.json`. Dependencies are declared but pinned only with lower bounds (`>=`), not locked.
+
+**Claims discipline — good but with two dings.** The conclusion is conservative and honest ("no detectable difference," LR marginally ahead), limitations are thorough. However: (1) the report states **"3,360 examples per seed (after dedup)"** — this is a hardcoded string in `generate_report`, and the actual deduped dataset is 4,000 rows (3,200 train); the number is wrong and not derived from the data. (2) It reports Cohen's d = -1.19 (a "large" effect) while simultaneously claiming "overlapping confidence intervals" — but no CIs were computed; the `overlapping` flag is just a min/max range overlap. Calling it "confidence intervals" overstates the rigor of that check (though the conclusion errs conservative, not toward over-claiming).
+
+**Executability — excellent.** `pytest` → 11 passed in 1.25s; `python run_experiment.py` completes in 1s with all sanity checks passing. Works from clean state.
+
+**Code quality — good.** Readable, docstringed, dependencies declared and used. Minor issues: in `main()`, `preprocess_data(df)` runs on the *un-deduped* 4,200-row frame for the sanity-check stage while `run_experiment` independently reloads+dedupes — a redundant, slightly inconsistent data path (the sanity checks run over data still containing the 200 duplicates). `test_churn_rate` is computed but only persisted to CSV.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 80,
+  "reproducibility_score": 88,
+  "claims_discipline_score": 74,
+  "executability_score": 96,
+  "code_quality_score": 80,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted leakage traps (account_status target leak, 200 duplicates, temporal signup_date) are correctly identified and handled; duplicates are removed before the split so they cannot straddle train/test.",
+    "Scaler is fit on train only; label-shuffle (AUC~0.53) and leakage-ceiling sanity checks ran and passed, providing positive evidence of no leakage.",
+    "Conclusion is conservative and honest ('no detectable difference', LR marginally ahead) with thorough limitations; appropriately leads with ROC-AUC/PR-AUC over accuracy given the 27% class imbalance.",
+    "Reproducible: re-running produced byte-identical results to the committed results.json; seeds fixed and logged per-seed.",
+    "Tests pass (11/11 in 1.25s) and the entrypoint runs cleanly in ~1s from a clean state.",
+    "Report contains a hardcoded, incorrect sample-size claim ('3,360 examples per seed') that does not match the actual 4,000-row deduped dataset (3,200 train).",
+    "Reports a 'large' Cohen's d (-1.19) alongside an 'overlapping confidence intervals' claim, but no CIs were computed — only a crude min/max range overlap, mislabeled as confidence intervals."
+  ],
+  "leakage_findings": [
+    "account_status correctly dropped as a target-derived leak (preprocess_data keeps only tenure_months, monthly_spend, support_tickets, churned).",
+    "200 exact duplicates detected and removed BEFORE the train/test split, preventing cross-split contamination.",
+    "StandardScaler fit on train only (fit_transform on X_train, transform on X_test); GB uses raw features which is acceptable.",
+    "signup_date (temporal) dropped deliberately with stated justification; limitation notes a time-based split would be required for forward-looking use.",
+    "Label-shuffle check (AUC drops to ~0.53) and leakage-ceiling check (GB AUC ~0.74 < 0.95) provide active leakage detection and passed.",
+    "Minor: sanity checks in main() run on the un-deduped 4,200-row frame (still containing the 200 duplicates), a separate data path from the deduped experiment — does not affect headline results but is inconsistent."
+  ],
+  "commands_run": [
+    "python -c \"import sklearn, pandas, numpy\"  (sklearn 1.7.1)",
+    "python -m pytest -q  → 11 passed in 1.25s",
+    "python run_experiment.py  → all 4 sanity checks PASS, 5 seeds, completed in 1.0s",
+    "diff regenerated results.json against on-disk values → identical (reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "preprocess_data drops account_status/signup_date/customer_id; dedup before split; scaler fit on train only; 5-seed loop; effect size via Cohen's d and min/max overlap."},
+    {"path": "src/sanity_checks.py", "note": "Baseline floor, overfit-tiny-subset, label-shuffle, and leakage-ceiling checks. baseline_floor compares model AUC to a majority-class accuracy (scale mismatch)."},
+    {"path": "run_experiment.py", "note": "Entrypoint runs sanity checks then experiment then report. generate_report hardcodes '3,360 examples per seed' which mismatches the actual 4,000-row deduped dataset; main() preprocesses the un-deduped frame for sanity checks."},
+    {"path": "REPORT.md", "note": "Honest, conservative conclusion with strong limitations; but reports large Cohen's d alongside 'overlapping confidence intervals' (no CIs actually computed) and the incorrect 3,360 sample count."},
+    {"path": "results/results.json", "note": "Machine-readable metrics; regenerated byte-identically on re-run, confirming reproducibility."},
+    {"path": "results/metrics_by_seed.csv", "note": "Per-seed raw metrics logged including test_churn_rate=0.27, confirming class balance and seed-level transparency."},
+    {"path": "tests/test_experiment.py", "note": "11 tests covering dedup, preprocessing (asserts leaked columns dropped), single-seed metrics, full experiment, and JSON structure; all pass."},
+    {"path": "pyproject.toml", "note": "Dependencies declared and used, but pinned with lower-bound (>=) ranges only, not locked versions."}
+  ]
+}
+```

@@ -1,0 +1,87 @@
+{
+  "claim": "GradientBoostingClassifier outperforms LogisticRegression for churn prediction.",
+  "design": {
+    "dataset": "churn.csv",
+    "n_seeds": 5,
+    "train_test_split": "0.8/0.2 stratified",
+    "preprocessing": "dedup, temporal features (year/month), StandardScaler on numerics",
+    "excluded_features": [
+      "account_status (perfect leak)",
+      "customer_id (ID)"
+    ]
+  },
+  "sanity_checks": {
+    "majority_class_baseline": 0.7295,
+    "label_shuffle_lr": {
+      "accuracy": 0.73,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "roc_auc": 0.3492199391171994
+    },
+    "label_shuffle_gb": {
+      "accuracy": 0.73125,
+      "precision": 0.6,
+      "recall": 0.013888888888888888,
+      "f1": 0.027149321266968326,
+      "roc_auc": 0.46549578259766616
+    }
+  },
+  "results": {
+    "LogisticRegression": {
+      "accuracy": {
+        "mean": 0.7557499999999999,
+        "std": 0.006642665127793225,
+        "n": 5
+      },
+      "precision": {
+        "mean": 0.6196856262202797,
+        "std": 0.023748516362844536,
+        "n": 5
+      },
+      "recall": {
+        "mean": 0.24537037037037038,
+        "std": 0.03167153958608716,
+        "n": 5
+      },
+      "f1": {
+        "mean": 0.3506946067556762,
+        "std": 0.03443532807305696,
+        "n": 5
+      },
+      "roc_auc": {
+        "mean": 0.7397672501268392,
+        "std": 0.00609585267051544,
+        "n": 5
+      }
+    },
+    "GradientBoosting": {
+      "accuracy": {
+        "mean": 0.7455,
+        "std": 0.007689278249614841,
+        "n": 5
+      },
+      "precision": {
+        "mean": 0.5624199617010066,
+        "std": 0.03416998399885278,
+        "n": 5
+      },
+      "recall": {
+        "mean": 0.2685185185185185,
+        "std": 0.02070433312499806,
+        "n": 5
+      },
+      "f1": {
+        "mean": 0.36258328972772735,
+        "std": 0.018415182584375567,
+        "n": 5
+      },
+      "roc_auc": {
+        "mean": 0.7300648465246068,
+        "std": 0.00884504582956519,
+        "n": 5
+      }
+    }
+  },
+  "n_duplicates_removed": 200
+}

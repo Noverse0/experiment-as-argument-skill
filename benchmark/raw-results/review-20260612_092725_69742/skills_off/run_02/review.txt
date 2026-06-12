@@ -1,0 +1,80 @@
+## Review
+
+I inventoried the project, ran the test suite (`pytest`: 10 passed in ~1s) and the entrypoint (`python3 run_experiment.py`, which completed in seconds and regenerated `results/`), and audited the leakage traps, methodology, reproducibility, and claims.
+
+### What's strong
+The **leakage handling is exemplary** — it neutralizes every planted trap, with documented reasoning:
+- `account_status` (the target-derived leak) is dropped in `load_and_clean_data`, with a comment explaining it is "closed" iff churned=1.
+- The 200 planted duplicate rows are removed with `drop_duplicates` **before** the split, so they cannot straddle train/test. The run log confirms exactly 200 removed.
+- The split is **time-based on `signup_date`** (sort + positional slice), not random, with an explicit rationale — train period ends 2024-09-15, test begins there.
+- `StandardScaler` is `fit_transform`-ed on train and only `transform`-ed on test; the date column is dropped from features after the split; `customer_id` dropped.
+- A majority-class baseline is computed and printed (test baseline acc 0.748), and metrics go well beyond accuracy (ROC-AUC, precision, recall, F1).
+
+It is **executable and reproducible**: both declared commands work from this state, seeds are logged, metrics+report are written to `results/`, and re-running reproduced the committed numbers exactly.
+
+### The core flaw: a vacuous variance design driving an overstated claim
+The experiment runs "3 seeds (42, 123, 456) to estimate variance," but **nothing in the pipeline depends on the seed except model `random_state`**. The dedup, time-based split, and preprocessing are deterministic; `LogisticRegression` (lbfgs) is deterministic; `GradientBoostingClassifier` uses no subsampling, so it too is essentially deterministic. The result: LR's metrics are **byte-identical** across seeds and GB varies only at the 1e-6 level (std ≈ 7.6e-6 / 1.1e-16).
+
+The report then treats this near-zero std as a real confidence interval, reports "Overlapping intervals: False," and concludes **"LogisticRegression outperforms GradientBoosting by 0.0111 ROC-AUC"** as a significant finding. That significance is an artifact: the intervals are non-overlapping only because the design has no source of variance, not because the 0.0111 gap is robust. Three identical runs are not three independent measurements. A real variance estimate would require repeated/shuffled splits or cross-validation — neither is present; the comparison rests on a **single fixed split**. The "Same seeds produce identical results" line in the report celebrates this as reproducibility without recognizing it invalidates the variance claim.
+
+Secondary methodology issue: `class_weight="balanced"` is applied to LR but **not** to GB — asymmetric imbalance handling that confounds the accuracy/F1 comparison (though ROC-AUC, the stated primary metric, is threshold-independent).
+
+### Minor
+- Dead imports: `train_test_split` is imported in both `src/experiment.py:7` and `src/utils.py:5` and never used (the code uses a manual time-based split).
+- The `scaler` is returned through the pipeline but never reused.
+- Limitations section is otherwise honest (tuning, imbalance, sample size, duplicates) but omits the central caveat about the single split / vacuous variance.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 57,
+  "reproducibility_score": 85,
+  "claims_discipline_score": 48,
+  "executability_score": 92,
+  "code_quality_score": 80,
+  "verdict": "good",
+  "key_findings": [
+    "All leakage traps neutralized: account_status dropped as target-derived leak, 200 duplicates removed before split, time-based split on signup_date, scaler fit on train only, date column dropped from features.",
+    "Critical methodology flaw: the 3-seed 'variance estimate' is vacuous — the split and preprocessing are seed-independent and the models are effectively deterministic, so std is ~0 (1e-16 for LR, 7.6e-6 for GB). The comparison actually rests on a single fixed split, not repeated sampling or CV.",
+    "Overstated claim: REPORT.md declares 'LogisticRegression outperforms GradientBoosting by 0.0111 ROC-AUC' with 'non-overlapping intervals', but non-overlap is an artifact of zero variance, not robustness.",
+    "class_weight='balanced' applied to LR but not GB — asymmetric imbalance handling confounds accuracy/F1 (ROC-AUC unaffected).",
+    "Baseline (majority-class) present; metrics go beyond accuracy (ROC-AUC, precision, recall, F1).",
+    "Fully executable and reproducible: pytest 10/10 pass, entrypoint runs in seconds and regenerates committed metrics exactly.",
+    "Limitations section is mostly honest but omits the central single-split / no-real-variance caveat."
+  ],
+  "leakage_findings": [
+    "account_status dropped in load_and_clean_data (src/utils.py:14) — the target-derived leak is correctly removed with documented reasoning.",
+    "Duplicates removed via drop_duplicates BEFORE the split (src/utils.py:29); run log confirms exactly 200 rows removed, so duplicates cannot straddle train/test.",
+    "Time-based split on signup_date (src/utils.py:42-43) instead of a random split, with explicit temporal rationale; train ends 2024-09-15, test begins there.",
+    "StandardScaler fit_transform on train, transform on test only (src/utils.py:73-74) — no fit-time leakage.",
+    "customer_id and signup_date excluded from features; no remaining target-derived columns.",
+    "No leakage issues found; the only residual risk is benign over-dedup of feature-identical distinct customers, which did not occur here (exactly 200 removed)."
+  ],
+  "commands_run": [
+    "python3 -c \"import sklearn,pandas,numpy; print(sklearn.__version__)\" -> sklearn 1.7.1",
+    "python3 -m pytest -q -> 10 passed in 1.07s",
+    "python3 run_experiment.py -> completed; wrote results/metrics.json and results/REPORT.md, reproducing committed numbers",
+    "grep -n train_test_split src/experiment.py src/utils.py -> two unused imports",
+    "head -3 churn.csv; wc -l churn.csv -> 4201 lines (4000 + 200 dups + header)"
+  ],
+  "file_evidence": [
+    {"path": "src/utils.py", "note": "Leakage prevention done well: account_status drop (l.14), dedup before split (l.29), time-based split (l.42), train-only scaler fit (l.73-74). Unused train_test_split import at l.5."},
+    {"path": "src/experiment.py", "note": "Seeds only set model random_state (l.40,47); pipeline (dedup/split/preprocess) is seed-independent and models are effectively deterministic, so cross-seed variance is ~0. class_weight='balanced' on LR (l.41) but not GB. Unused train_test_split import at l.7."},
+    {"path": "results/metrics.json", "note": "LR roc_auc identical across all 3 seeds (std 1.1e-16); GB varies only at 7.6e-6 — confirms the variance estimate is an artifact, not a real measurement."},
+    {"path": "results/REPORT.md", "note": "Claims LR significantly beats GB (0.0111 ROC-AUC, 'Overlapping intervals: False') on the basis of near-zero std; presents identical-runs as a reproducibility virtue without noting it voids the variance claim. Limitations omit the single-split caveat."},
+    {"path": "run_experiment.py", "note": "Report-generation logic computes CI as mean±2*std (l.94-95); with std~0 this manufactures non-overlap and a false significance verdict."},
+    {"path": "make_dataset.py", "note": "Documents the three planted traps (account_status leak, 200 duplicates, temporal signup_date); all three are addressed by the pipeline."},
+    {"path": "tests/test_experiment.py", "note": "10 focused unit tests covering leak-drop, dedup, time-order split, train-only scaling, baseline; all pass."}
+  ]
+}
+```

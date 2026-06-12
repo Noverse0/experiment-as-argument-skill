@@ -1,0 +1,60 @@
+2026-06-12 08:58:48,277 - __main__ - INFO - Generating dataset: churn.csv
+2026-06-12 08:58:48,756 - __main__ - INFO - wrote churn.csv
+2026-06-12 08:58:48,756 - __main__ - INFO - 
+============================================================
+2026-06-12 08:58:48,756 - __main__ - INFO - Running Gradient Boosting experiments...
+2026-06-12 08:58:48,756 - __main__ - INFO - ============================================================
+2026-06-12 08:58:48,763 - src.experiment - INFO - Loaded 4200 rows, removed 200 duplicates, 4000 rows remain
+2026-06-12 08:58:48,763 - src.experiment - INFO - Churn rate: 0.2705
+2026-06-12 08:58:48,763 - src.experiment - INFO - 
+=== Seed 42 (1/5) ===
+2026-06-12 08:58:48,770 - src.experiment - INFO - Baseline (majority class) AUC: 0.5000
+2026-06-12 08:58:48,776 - src.experiment - INFO - Overfit check (LR on 77 rows): AUC = 0.7953
+2026-06-12 08:58:48,788 - src.experiment - INFO - Label-shuffle test (LR with shuffled labels): AUC = 0.3410
+2026-06-12 08:58:49,121 - src.experiment - INFO - gradient_boosting: ROC-AUC=0.7432, P=0.5743, R=0.2685, F1=0.3659
+2026-06-12 08:58:49,121 - src.experiment - INFO - 
+=== Seed 123 (2/5) ===
+2026-06-12 08:58:49,416 - src.experiment - INFO - gradient_boosting: ROC-AUC=0.7041, P=0.5778, R=0.2407, F1=0.3399
+2026-06-12 08:58:49,416 - src.experiment - INFO - 
+=== Seed 456 (3/5) ===
+2026-06-12 08:58:49,712 - src.experiment - INFO - gradient_boosting: ROC-AUC=0.6945, P=0.5300, R=0.2454, F1=0.3354
+2026-06-12 08:58:49,712 - src.experiment - INFO - 
+=== Seed 789 (4/5) ===
+2026-06-12 08:58:50,014 - src.experiment - INFO - gradient_boosting: ROC-AUC=0.6849, P=0.5283, R=0.2593, F1=0.3478
+2026-06-12 08:58:50,014 - src.experiment - INFO - 
+=== Seed 999 (5/5) ===
+2026-06-12 08:58:50,309 - src.experiment - INFO - gradient_boosting: ROC-AUC=0.7237, P=0.5238, R=0.2546, F1=0.3427
+2026-06-12 08:58:50,309 - __main__ - INFO - 
+============================================================
+2026-06-12 08:58:50,309 - __main__ - INFO - Running Logistic Regression experiments...
+2026-06-12 08:58:50,309 - __main__ - INFO - ============================================================
+2026-06-12 08:58:50,312 - src.experiment - INFO - Loaded 4200 rows, removed 200 duplicates, 4000 rows remain
+2026-06-12 08:58:50,312 - src.experiment - INFO - Churn rate: 0.2705
+2026-06-12 08:58:50,312 - src.experiment - INFO - 
+=== Seed 42 (1/5) ===
+2026-06-12 08:58:50,316 - src.experiment - INFO - Baseline (majority class) AUC: 0.5000
+2026-06-12 08:58:50,320 - src.experiment - INFO - Overfit check (LR on 77 rows): AUC = 0.7953
+2026-06-12 08:58:50,328 - src.experiment - INFO - Label-shuffle test (LR with shuffled labels): AUC = 0.3410
+2026-06-12 08:58:50,344 - src.experiment - INFO - logistic_regression: ROC-AUC=0.7427, P=0.5806, R=0.2500, F1=0.3495
+2026-06-12 08:58:50,344 - src.experiment - INFO - 
+=== Seed 123 (2/5) ===
+2026-06-12 08:58:50,363 - src.experiment - INFO - logistic_regression: ROC-AUC=0.7261, P=0.6000, R=0.2500, F1=0.3529
+2026-06-12 08:58:50,364 - src.experiment - INFO - 
+=== Seed 456 (3/5) ===
+2026-06-12 08:58:50,373 - src.experiment - INFO - logistic_regression: ROC-AUC=0.7040, P=0.5761, R=0.2454, F1=0.3442
+2026-06-12 08:58:50,373 - src.experiment - INFO - 
+=== Seed 789 (4/5) ===
+2026-06-12 08:58:50,384 - src.experiment - INFO - logistic_regression: ROC-AUC=0.7142, P=0.5644, R=0.2639, F1=0.3596
+2026-06-12 08:58:50,384 - src.experiment - INFO - 
+=== Seed 999 (5/5) ===
+2026-06-12 08:58:50,393 - src.experiment - INFO - logistic_regression: ROC-AUC=0.7476, P=0.5876, R=0.2639, F1=0.3642
+2026-06-12 08:58:50,394 - __main__ - INFO - 
+============================================================
+2026-06-12 08:58:50,394 - __main__ - INFO - SUMMARY
+2026-06-12 08:58:50,394 - __main__ - INFO - ============================================================
+2026-06-12 08:58:50,394 - __main__ - INFO - gradient_boosting: 0.7101 ± 0.0209 (n=5)
+2026-06-12 08:58:50,394 - __main__ - INFO - logistic_regression: 0.7269 ± 0.0165 (n=5)
+2026-06-12 08:58:50,394 - __main__ - INFO - Results written to results/results.json
+2026-06-12 08:58:50,395 - __main__ - INFO - Report written to REPORT.md
+2026-06-12 08:58:50,395 - __main__ - INFO - 
+✓ Experiment complete!

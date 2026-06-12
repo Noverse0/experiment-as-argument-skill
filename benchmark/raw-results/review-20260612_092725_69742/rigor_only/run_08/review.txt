@@ -1,0 +1,73 @@
+Both the test suite (12/12) and the entrypoint run cleanly, and re-running the experiment produced byte-identical `results/metrics.json` (no git diff). I have enough to complete the audit.
+
+## Review
+
+**Leakage prevention — strong.** All four planted traps are handled deliberately:
+- `account_status` (the deterministic target leak) is detected, *verified* against `churned`, and dropped (`data_utils.py:20-25`).
+- Duplicates are removed *before* the split, keyed on feature+target columns, so they cannot straddle the boundary (`data_utils.py:12-14`).
+- The temporal column is handled with a real time-based split — sort by `signup_date`, earlier dates train, later test (`data_utils.py:39-48`).
+- `StandardScaler` is fit on train only and applied to test (`data_utils.py:65-71`, called once with `fit_scaler=True` on the train partition).
+
+**Methodology — has real holes.** A majority-class baseline (0.75) is present and the metric set is appropriate for the 25% churn balance (precision/recall/f1/roc_auc, not accuracy alone). But:
+- The "5 seeds × 2 models" design conveys **no genuine variance**. The data split is fixed (time-based, unseeded) and LogisticRegression(lbfgs) is deterministic, so all 5 LR runs are byte-identical (std = 0.0) and GB varies only in model init. There is no cross-validation or data resampling, so the reported ±std does **not** estimate sampling uncertainty.
+- The **label-shuffle sanity check is broken** (`experiment.py:49-55`): it shuffles `y_test` and then scores the *majority-class* predictor against it — which trivially returns the class balance (~0.75) regardless. No model is retrained on shuffled labels, so it tests nothing about whether the model can learn from noise.
+
+**Claims discipline — mixed.** The report names a winner (LR) and the limitations section is honest about tuning, sample size, and distribution shift. But two claims overreach: (1) "All sanity checks passed. Models beat baseline" is **false for GB**, whose accuracy (0.7305) is *below* the 0.75 majority baseline; (2) "Difference exceeds noise threshold" rests on a near-zero std that reflects only model-init jitter, not real uncertainty — the confidence is overstated.
+
+**Reproducibility — strong.** Seeds fixed and logged in `design`, config + metrics written to `results/metrics.json`, and re-running reproduced identical output.
+
+**Executability — excellent.** Tests pass, entrypoint runs in ~1s (despite the "~2 minutes" message), reproducible from clean state.
+
+**Code quality — decent.** Dead code in `time_based_split` (`dup_cols` computed and discarded with a misleading "Check for contamination" comment that does nothing, `data_utils.py:46`). `import numpy as np` sits inside the `__main__` guard but `np` is used in `generate_report` (`run_experiment.py:114`) — fine via the entrypoint, brittle if imported. Deps declared and used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 57,
+  "reproducibility_score": 88,
+  "claims_discipline_score": 58,
+  "executability_score": 95,
+  "code_quality_score": 72,
+  "verdict": "good",
+  "key_findings": [
+    "Leakage handling is the project's strength: account_status leak detected+verified+dropped, duplicates removed before split, deliberate time-based split, scaler fit on train only.",
+    "The '5 seeds' design produces no genuine variance estimate: data split is fixed and LR is deterministic (std=0.0 for all LR metrics), with no cross-validation or resampling, so reported ±std does not capture sampling uncertainty.",
+    "Label-shuffle sanity check is broken: it scores the majority-class predictor against shuffled test labels (always ~0.75), never retraining a model, so it verifies nothing.",
+    "Report falsely states 'Models beat baseline' — GB accuracy 0.7305 is below the 0.75 majority baseline.",
+    "Significance claim ('exceeds noise threshold') is based on near-zero std reflecting only model-init jitter, overstating confidence.",
+    "Tests (12/12) and entrypoint run cleanly; re-run reproduced byte-identical metrics.json (verified via git diff)."
+  ],
+  "leakage_findings": [
+    "account_status (closed iff churned) detected, verified against target, and dropped before modeling (data_utils.py:20-25) — critical leak correctly prevented.",
+    "202 duplicate rows removed before the split, keyed on feature+target columns, preventing train/test straddle (data_utils.py:12-14).",
+    "Temporal column handled with a real time-based split (sort by signup_date, earlier=train) rather than random split (data_utils.py:39-48).",
+    "StandardScaler fit on train only and applied to test; fit happens once on the train partition (data_utils.py:65-71, experiment.py:124).",
+    "Minor: dedup subset excludes signup_date/customer_id, so distinct rows sharing all 5 feature+target values would be over-dropped — negligible for the exact-copy planted dups."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "head -3 churn.csv && wc -l churn.csv && python --version && python -c 'import sklearn,pandas,numpy'",
+    "python -m pytest -q  (12 passed in 1.35s)",
+    "python run_experiment.py  (ran ~1s, wrote results/metrics.json and REPORT.md)",
+    "git diff results/metrics.json  (empty — output reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/data_utils.py", "note": "Leak detection+drop, pre-split dedup, time-based split, train-only scaler fit. Dead code at line 46 (dup_cols computed, never used; misleading contamination comment)."},
+    {"path": "src/experiment.py", "note": "Lines 49-55: label-shuffle check scores majority predictor against shuffled labels — meaningless. Seeds only affect model init, not data split, so variance is degenerate."},
+    {"path": "REPORT.md", "note": "Claims 'Models beat baseline' (false: GB 0.7305 < baseline 0.75) and frames 5 deterministic runs as statistical confidence. Limitations section is otherwise honest."},
+    {"path": "results/metrics.json", "note": "LR std=0.0 across all metrics (deterministic); GB std ~1e-4. Confirms seeds add no real variance. Re-run produced identical file."},
+    {"path": "run_experiment.py", "note": "Entrypoint works; stderr_diff significance test (line 114) divides near-zero std, so any difference 'exceeds noise'. numpy imported only inside __main__ guard but used in generate_report."},
+    {"path": "tests/test_experiment.py", "note": "12 tests covering dedup, leak drop, time split, scaler reuse, sanity, training, same-seed reproducibility — all pass."}
+  ]
+}
+```

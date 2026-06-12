@@ -1,0 +1,56 @@
+{
+  "dataset_info": {
+    "total_rows": 3998,
+    "duplicates_removed": 202,
+    "train_size": 2800,
+    "test_size": 1200,
+    "train_churn_rate": 0.2785714285714286,
+    "test_churn_rate": 0.25166666666666665
+  },
+  "sanity_checks": {
+    "tiny_overfit_accuracy": 0.9,
+    "tiny_overfit_ok": true,
+    "label_shuffle_auc": 0.49778020324783556,
+    "label_shuffle_ok": true,
+    "test_duplicates": 0
+  },
+  "metrics": {
+    "baseline_auc": {
+      "mean": 0.5,
+      "std": 0.0
+    },
+    "lr_auc": {
+      "mean": 0.7459291434976918,
+      "std": 0.0
+    },
+    "gb_auc": {
+      "mean": 0.7111889555893154,
+      "std": 0.002967687620897029
+    },
+    "lr_f1": {
+      "mean": 0.3805309734513274,
+      "std": 0.0
+    },
+    "gb_f1": {
+      "mean": 0.40235360756825067,
+      "std": 0.0035541860613391503
+    },
+    "lr_precision": {
+      "mean": 0.5733333333333334,
+      "std": 0.0
+    },
+    "gb_precision": {
+      "mean": 0.5118103186157004,
+      "std": 0.013232622215038362
+    },
+    "lr_recall": {
+      "mean": 0.2847682119205298,
+      "std": 0.0
+    },
+    "gb_recall": {
+      "mean": 0.33178807947019867,
+      "std": 0.010043543634505369
+    }
+  },
+  "num_seeds": 5
+}

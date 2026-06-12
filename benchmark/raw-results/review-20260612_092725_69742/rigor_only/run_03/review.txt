@@ -1,0 +1,80 @@
+## Review
+
+I inventoried the project, ran the test suite (18 passed) and the entrypoint (completed in ~5s, regenerated `results/metrics.json` and `REPORT.md`), and verified `make_dataset.py`. Here is my assessment as evidence.
+
+### Leakage — strong
+This is the standout. Every planted trap is handled:
+- `account_status` (the perfect leak, `"closed" iff churned`) is dropped in `load_and_clean` — `src/pipeline.py:13`.
+- The 200 exact duplicate rows are removed by `deduplicate` **before** the split — `src/pipeline.py:21` — so they cannot straddle.
+- Split is **time-based** by `signup_date`, not random — `src/pipeline.py:35` — deliberately addressing the temporal column. `signup_date` is also dropped as a feature.
+- `StandardScaler` is fit on train only, applied to test — `src/pipeline.py:75-77`.
+- A `check_no_leakage` guard confirms no `customer_id` straddles the boundary.
+
+### Methodology — undermined by a vacuous variance design
+- Trivial baseline present (majority-class, AUC 0.5000) and models beat it. Metrics are AUC/precision/recall/F1 — appropriate for the ~28% churn imbalance, not accuracy alone. Both models use fixed defaults (equal, untuned budget) — honestly stated.
+- **Critical weakness:** the "5 seeds for variance" is theater. The train/test split is fixed (time-based, seed-independent) and both estimators are effectively deterministic, so all 5 seeds produce identical results — `std = 0.0` (see `metrics.json`). The repetitions capture *no* real variance; meaningful variance would require cross-validation, bootstrap resampling, or split perturbation.
+- `label_shuffle_test` (`src/experiment.py:47-58`) is a no-op: it computes a shuffled AUC, asserts nothing, and uses an unseeded RNG. It doesn't actually guard against label leakage.
+
+### Reproducibility — strong
+Seeds fixed and logged; config/metrics written to `results/metrics.json` with per-seed values; deterministic re-run reproduced identical numbers. Only the unseeded RNG in the label-shuffle check is non-deterministic, but it never feeds the recorded metrics.
+
+### Claims discipline — overstates confidence
+The report declares a winner ("logistic regression outperforms by 0.0112 AUC"). The overlap test `abs(diff) < (lr_std + gb_std)` reduces to `0.0112 < 0` because std is zero, so *any* nonzero difference is declared significant. A 0.0112 AUC gap with vacuous variance does not support a winner claim. The "overlapping confidence intervals" interpretation section is sound in principle but inapplicable given std=0. Limitations (tuning, feature scope, small data, single task) are genuinely honest. The report also says the label-shuffle "verified information does not leak," which the code does not actually verify.
+
+### Executability — excellent
+All three declared commands work from a clean state: `make_dataset.py`, `run_experiment.py`, and `pytest tests/` all succeed.
+
+### Code quality — good
+Clean module split (`pipeline`/`experiment`), typed, docstringed; deps declared and used. Minor: `preprocess`'s `seed` param is unused, and the shuffled-AUC value in `label_shuffle_test` is computed and discarded (dead).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 90,
+  "methodological_validity_score": 62,
+  "reproducibility_score": 85,
+  "claims_discipline_score": 58,
+  "executability_score": 95,
+  "code_quality_score": 80,
+  "verdict": "good",
+  "key_findings": [
+    "Leakage handling is exemplary: account_status dropped, duplicates removed before splitting, time-based split on signup_date, scaler fit on train only.",
+    "The '5 seeds for variance' design is vacuous — the split is fixed and both models are deterministic, so all seeds yield identical metrics (std=0.0). No real variance is measured.",
+    "REPORT claims a winner (LR by 0.0112 AUC) on the basis of zero-variance results; the overlap test trivially declares significance because lr_std+gb_std=0.",
+    "label_shuffle_test asserts nothing and uses an unseeded RNG — it is a no-op sanity check despite the report claiming it 'verified information does not leak'.",
+    "Trivial baseline (majority-class AUC 0.5) present; imbalance-appropriate metrics (AUC/P/R/F1); both models untuned with equal budget.",
+    "All declared commands run from a clean state; 18 tests pass; metrics.json and REPORT.md regenerated deterministically.",
+    "Limitations section is honest about tuning, feature scope, dataset size, and generalization."
+  ],
+  "leakage_findings": [
+    "account_status (derived from target — perfect leak) is dropped in load_and_clean (src/pipeline.py:13).",
+    "200 exact duplicate rows are removed via drop_duplicates BEFORE the split (src/pipeline.py:21), preventing train/test straddling; confirmed at runtime ('Dropped 200 exact duplicate rows').",
+    "Split is time-based on signup_date (src/pipeline.py:35), deliberately handling the temporal column rather than random splitting.",
+    "StandardScaler is fit on train and only transformed on test (src/pipeline.py:75-77) — no fit-time leakage.",
+    "check_no_leakage verifies no customer_id appears in both train and test (src/pipeline.py:46-53).",
+    "signup_date is excluded from the feature matrix, avoiding date-as-feature leakage."
+  ],
+  "commands_run": [
+    "python3 -m pytest tests/ -q  (18 passed)",
+    "python3 run_experiment.py  (ran end-to-end; LR AUC 0.7459, GB AUC 0.7347; wrote results/metrics.json and REPORT.md)",
+    "python3 make_dataset.py --out /tmp/churn_check.csv  (regenerated dataset successfully)"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "Leakage controls: drop account_status, dedup-before-split, time-based split, train-only scaler, customer_id overlap guard."},
+    {"path": "src/experiment.py", "note": "Models deterministic given fixed split; label_shuffle_test (lines 47-58) computes shuffled AUC but asserts nothing and uses unseeded RNG."},
+    {"path": "results/metrics.json", "note": "std=0.0 across all 5 seeds for both models — repetitions capture no real variance."},
+    {"path": "REPORT.md", "note": "Claims LR wins by 0.0112 AUC with ±0.0000; honest limitations section but overstates the label-shuffle check and the significance of the difference."},
+    {"path": "make_dataset.py", "note": "Documents the three planted traps (account_status leak, duplicate rows, temporal column); deterministic generation."},
+    {"path": "run_experiment.py", "note": "Entrypoint orchestrates clean→split→preprocess→sanity→multi-seed→report; runs end-to-end."}
+  ]
+}
+```

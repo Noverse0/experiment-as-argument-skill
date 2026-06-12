@@ -1,0 +1,64 @@
+I have everything needed. Here is my review.
+
+## Review: Churn Prediction Model Comparison
+
+**What's strong.** This is a genuinely careful experiment. It catches the two hardest planted traps cleanly: `account_status` is detected as a perfect leak (verified, then dropped) and the 200 duplicate rows are removed *before* the split. The `StandardScaler` is fit on train only and applied to val/test. The classification threshold is tuned on the validation set and applied to test — not peeked from test. Five seeds, fixed and logged; metrics persisted to `results/metrics.json`; a dedicated reproducibility test. Both the test suite (5 passed) and the entrypoint run end-to-end from a clean state and reproduce the reported numbers exactly. It uses ROC-AUC plus precision/recall/F1 (not accuracy alone), appropriate for the 27% positive rate, and refuses to crown a winner.
+
+**What's weak.**
+- **No trivial baseline.** There is a dead `self.baseline_pred = None` attribute but no majority-class/DummyClassifier baseline is ever computed or reported. The audit cannot tell whether 0.73 AUC beats a naive predictor in any documented way.
+- **Temporal trap acknowledged but not handled.** `signup_date` → `days_since_signup` is used as a feature, but the split is purely random. The report lists time-based splitting as a limitation rather than doing it — honest, but the planted temporal trap is not actually addressed.
+- **Overstated statistical language.** The "no statistically significant difference / confidence intervals overlap" claim rests on a crude one-sided heuristic (`gb_auc - gb_std < lr_auc + lr_std`), not a significance test. mean ± 1 std is mislabeled as a confidence interval. Notably the ranges barely overlap (LR [0.723, 0.743] vs GB [0.703, 0.730]) and GB is consistently lower across paired seeds, so a proper paired test might well reach the opposite conclusion. The conservative no-winner verdict is fine; the "statistically significant" framing is not earned.
+- **Minor dead code:** `auc` and `precision_recall_curve` imported but unused; the `baseline_pred` attribute is orphaned.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 86,
+  "methodological_validity_score": 67,
+  "reproducibility_score": 92,
+  "claims_discipline_score": 70,
+  "executability_score": 95,
+  "code_quality_score": 76,
+  "verdict": "good",
+  "key_findings": [
+    "account_status perfect leak detected (verified against target), then removed; this is the hardest trap and it is handled correctly.",
+    "200 duplicate rows removed before the split via drop_duplicates, preventing train/test straddle.",
+    "StandardScaler fit on train only; classification threshold tuned on validation set and applied to test (no test peeking).",
+    "No trivial/majority-class baseline is computed or reported; a dead `baseline_pred = None` attribute is the only trace of intent.",
+    "Random split used despite a temporal signup_date column; acknowledged as a limitation but not addressed with a time-based split.",
+    "5 seeds fixed and logged, metrics persisted to results/, and the entrypoint reproduces reported AUCs exactly (LR 0.7330+/-0.0099, GB 0.7167+/-0.0137).",
+    "'No statistically significant difference' claim is backed only by a crude mean+/-1std overlap heuristic, not an actual significance test; mean+/-std is mislabeled as a confidence interval.",
+    "Report correctly declines to crown a winner and lists honest, relevant limitations."
+  ],
+  "leakage_findings": [
+    "account_status (derived from target as 'closed' iff churned) correctly identified and dropped — critical leak avoided.",
+    "Exact duplicate rows (200) removed before the train/val/test split, so duplicates cannot straddle the boundary.",
+    "Preprocessing (StandardScaler) fit on training data only and applied to val/test — no test-statistic leakage.",
+    "Decision threshold selected on validation set, not test — no threshold leakage.",
+    "Temporal column (signup_date) converted to days_since_signup against a fixed reference date (no leak), but split is random rather than time-based; only acknowledged in limitations, not handled."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*'",
+    "python3 -m pytest tests/ -q  (5 passed in 1.61s)",
+    "timeout 110 python3 run_experiment.py  (completed; reproduced reported metrics)",
+    "grep -n for baseline_pred / unused sklearn.metrics imports"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "DataLoader.load_and_clean verifies+drops account_status and dedups before split; Preprocessor fits scaler on train only; threshold tuned on val (roc_curve, argmax(tpr-fpr)). Dead `self.baseline_pred = None` (line 97); unused imports `auc`, `precision_recall_curve` (line 11)."},
+    {"path": "run_experiment.py", "note": "Deterministic pipeline; winner logic uses overlap heuristic (gb_auc-gb_std < lr_auc+lr_std) to declare 'no significant difference' — not a real test. Writes results/metrics.json and regenerates REPORT.md."},
+    {"path": "make_dataset.py", "note": "Confirms planted traps: account_status = target-derived leak, 200 appended duplicates, temporal signup_date. All three are relevant to the audit."},
+    {"path": "REPORT.md", "note": "Claims n=5 mean+/-std, declines a winner, lists honest limitations including temporal split; but uses 'statistically significant' / 'confidence intervals' language unsupported by any test, and never reports a trivial baseline."},
+    {"path": "results/metrics.json", "note": "Seeds [42,123,456,789,999] logged; LR test_auc 0.7330+/-0.0099, GB 0.7167+/-0.0137; matches a fresh run exactly (reproducible)."},
+    {"path": "tests/test_experiment.py", "note": "5 tests covering leak removal, dedup, train-only preprocessing, training, and seed reproducibility; all pass."}
+  ]
+}
+```

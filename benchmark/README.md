@@ -16,7 +16,24 @@ Isolated-arm comparison of ML experiment codegen with and without the experiment
 
 ## Results
 
-Pending first full run (`REPEATS=10` per arm). This section will contain the run-level table (run id → per-arm n/mean/sd → significance) produced by `analyze.py report`.
+First full run: codegen `20260612_083306_91273` → review `20260612_092725_69742`, 10 repeats per arm, codegen Haiku, review Opus.
+
+| Arm | n | Weighted mean | sd | Leakage | Method. | Repro. | Claims | Exec. | Code | Verdicts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `skills_off` | 10 | 81.6 | 4.6 | 87.4 | 71.4 | 89.0 | 67.3 | 94.3 | 78.7 | good 10 |
+| `rigor_only` | 10 | 78.9 | 12.2 | 82.2 | 70.4 | 83.3 | 67.1 | 94.7 | 75.2 | good 9, poor 1 |
+
+Difference in weighted mean: −2.7 (`rigor_only` − `skills_off`). Mann-Whitney z=0.08, p=0.94.
+
+**Conclusion: no detectable difference between the arms on this prompt and model.** Applying the skill's own claims discipline, the 2.7-point gap is far inside the noise (the skill arm's sd alone is 12.2), so we do not claim a winner — and certainly not that the baseline "won."
+
+What the per-run data shows:
+
+- **The baseline was already strong.** Both arms caught the most important trap — the target-derived `account_status` feature — in almost every run. `skills_off` scored 87.4 on leakage prevention with all 10 runs rated `good`; there was very little headroom for the skill to add. (In an earlier batch, two `skills_off` runs even enumerated all three traps correctly in their plans before the harness cut them off; those were regenerated.)
+- **The skill's variance came from one failure.** Nine of ten `rigor_only` runs were `good` (78–89). Run 09 used `account_status` directly as a feature (leakage score 8, total 46, `poor`), which alone pulled the arm's mean down and its sd up. The skill does not guarantee the agent never leaks.
+- **The prompt absorbed the skill's job.** Asking the agent to "choose and justify the evaluation methodology yourself" pushed even the baseline to reason about splits and features. This mirrors the sister benchmark's finding that a sufficiently specified prompt narrows the gap between arms.
+
+This is a null result, reported as one. It does not show the skill is useless; it shows this prompt+model combination is too easy to separate the arms. Next steps to get a real signal: a weaker codegen model, a prompt whose traps are less obvious (e.g. leakage through a plausible-looking engineered feature rather than an obviously target-named column), and more repeats to tighten the interval.
 
 ## Reproduce
 

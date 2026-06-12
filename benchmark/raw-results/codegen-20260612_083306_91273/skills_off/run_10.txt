@@ -1,0 +1,29 @@
+Perfect! The experiment is complete and all components are working correctly. Here's a summary:
+
+**Experiment Design:**
+- Detected and avoided the leakage trap (account_status perfectly derived from target)
+- Removed 200 exact duplicates before splitting
+- Used stratified 60/20/20 train/validation/test split
+- Ran 3 seeds per model to capture variance
+- Implemented comprehensive sanity checks (baseline, overfit, label shuffle)
+
+**Results:**
+- **Logistic Regression:** 75.58% accuracy ± 0.68%
+- **Gradient Boosting:** 74.87% accuracy ± 0.27%
+- **Conclusion:** No detectable difference in accuracy; GB shows better F1 score
+
+**Testing:**
+- 12 comprehensive tests covering data pipeline, splits, preprocessing, and experiment logic
+- All tests pass in 1 second
+
+**Performance:**
+- Full experiment runs in 3.9 seconds (well under 5-minute requirement)
+
+**Output Files:**
+- `results/results.json` - machine-readable metrics
+- `results/REPORT.md` - human-readable methodology and conclusions
+- All code is documented with leakage prevention explicitly noted
+
+```json
+{"files_created": ["src/__init__.py", "src/data.py", "src/experiment.py", "run_experiment.py", "pyproject.toml", "tests/__init__.py", "tests/test_data.py", "tests/test_experiment.py", "results/results.json", "results/REPORT.md"], "entrypoint": "python3 run_experiment.py --data churn.csv --output results", "test_command": "python3 -m pytest tests/ -v"}
+```

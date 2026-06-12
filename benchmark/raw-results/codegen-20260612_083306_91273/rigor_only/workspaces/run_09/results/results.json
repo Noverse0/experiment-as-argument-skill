@@ -1,0 +1,94 @@
+{
+  "claim": "Does gradient boosting outperform logistic regression for customer churn prediction?",
+  "dataset": "churn.csv",
+  "n_seeds": 5,
+  "seeds": [
+    42,
+    123,
+    456,
+    789,
+    999
+  ],
+  "baseline": {},
+  "logistic_regression": [
+    {
+      "roc_auc": 1.0,
+      "f1": 1.0,
+      "balanced_accuracy": 1.0
+    },
+    {
+      "roc_auc": 1.0,
+      "f1": 1.0,
+      "balanced_accuracy": 1.0
+    },
+    {
+      "roc_auc": 1.0,
+      "f1": 1.0,
+      "balanced_accuracy": 1.0
+    },
+    {
+      "roc_auc": 0.9999999999999999,
+      "f1": 1.0,
+      "balanced_accuracy": 1.0
+    },
+    {
+      "roc_auc": 1.0,
+      "f1": 1.0,
+      "balanced_accuracy": 1.0
+    }
+  ],
+  "gradient_boosting": [
+    {
+      "roc_auc": 1.0,
+      "f1": 1.0,
+      "balanced_accuracy": 1.0
+    },
+    {
+      "roc_auc": 1.0,
+      "f1": 1.0,
+      "balanced_accuracy": 1.0
+    },
+    {
+      "roc_auc": 1.0,
+      "f1": 1.0,
+      "balanced_accuracy": 1.0
+    },
+    {
+      "roc_auc": 1.0,
+      "f1": 1.0,
+      "balanced_accuracy": 1.0
+    },
+    {
+      "roc_auc": 1.0,
+      "f1": 1.0,
+      "balanced_accuracy": 1.0
+    }
+  ],
+  "sanity_checks": {
+    "baseline_roc_auc": 0.5,
+    "overfit_accuracy": 1.0,
+    "label_shuffle_roc_auc": 0.19707480818414325
+  },
+  "target_distribution": {
+    "churn_rate": 0.26976190476190476,
+    "not_churned": 3067,
+    "churned": 1133,
+    "total": 4200
+  },
+  "summary": {
+    "logistic_regression": {
+      "roc_auc_mean": 1.0,
+      "roc_auc_std": 4.965068306494546e-17,
+      "f1_mean": 1.0,
+      "f1_std": 0.0
+    },
+    "gradient_boosting": {
+      "roc_auc_mean": 1.0,
+      "roc_auc_std": 0.0,
+      "f1_mean": 1.0,
+      "f1_std": 0.0
+    }
+  },
+  "winner": "no_detectable_difference",
+  "conclusion": "No statistically significant difference detected between the two methods"
+}

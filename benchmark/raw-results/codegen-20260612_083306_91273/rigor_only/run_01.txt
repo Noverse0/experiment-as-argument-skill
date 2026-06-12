@@ -1,0 +1,16 @@
+```json
+{
+  "files_created": [
+    "src/experiment.py",
+    "src/__init__.py",
+    "run_experiment.py",
+    "tests/test_experiment.py",
+    "tests/__init__.py",
+    "pyproject.toml",
+    "REPORT.md",
+    "results/metrics.json"
+  ],
+  "entrypoint": "python run_experiment.py",
+  "test_command": "python -m pytest tests/ -v"
+}
+```

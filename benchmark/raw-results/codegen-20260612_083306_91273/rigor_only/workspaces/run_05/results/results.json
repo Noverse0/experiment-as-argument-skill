@@ -1,0 +1,47 @@
+{
+  "sanity_checks": {
+    "baseline_auc": 0.7293646823411706,
+    "label_shuffle_lr_auc": 0.5228399111539708,
+    "label_shuffle_gb_auc": 0.5488811249614658,
+    "overfit_lr_auc": 0.7671517671517671,
+    "overfit_gb_auc": 1.0
+  },
+  "seeds": {
+    "42": {
+      "LogisticRegression": {
+        "train_auc": 0.7373837055169731,
+        "test_auc": 0.7351771782690834,
+        "test_accuracy": 0.7425
+      },
+      "GradientBoosting": {
+        "train_auc": 0.8017848957778444,
+        "test_auc": 0.7386037577760036,
+        "test_accuracy": 0.75125
+      }
+    },
+    "123": {
+      "LogisticRegression": {
+        "train_auc": 0.7395169582442414,
+        "test_auc": 0.7269486447818766,
+        "test_accuracy": 0.7475
+      },
+      "GradientBoosting": {
+        "train_auc": 0.8057211310946981,
+        "test_auc": 0.7181628474994269,
+        "test_accuracy": 0.76625
+      }
+    },
+    "999": {
+      "LogisticRegression": {
+        "train_auc": 0.7365695512240806,
+        "test_auc": 0.7389792191983307,
+        "test_accuracy": 0.755
+      },
+      "GradientBoosting": {
+        "train_auc": 0.8065583274902194,
+        "test_auc": 0.716633336231632,
+        "test_accuracy": 0.73125
+      }
+    }
+  }
+}
