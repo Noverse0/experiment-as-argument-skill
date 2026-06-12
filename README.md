@@ -38,6 +38,22 @@ curl -fsSL https://raw.githubusercontent.com/Noverse0/experiment-as-argument-ski
   -o ~/.claude/skills/experiment-as-argument/SKILL.md
 ```
 
+Option C: Codex CLI / Gemini CLI
+
+The rules are agent-neutral; the repo ships byte-identical mirrors for each CLI's context-file convention ([AGENTS.md](AGENTS.md) for Codex, [GEMINI.md](GEMINI.md) for Gemini CLI). Drop one into a project root, or install globally:
+
+```bash
+# Codex CLI (per project: copy to the repo root instead)
+curl -fsSL https://raw.githubusercontent.com/Noverse0/experiment-as-argument-skill/main/AGENTS.md \
+  -o ~/.codex/AGENTS.md
+
+# Gemini CLI (per project: copy to the repo root instead)
+curl -fsSL https://raw.githubusercontent.com/Noverse0/experiment-as-argument-skill/main/GEMINI.md \
+  -o ~/.gemini/GEMINI.md
+```
+
+If you already have a global context file, append the mirror to it rather than overwriting. All mirrors (including CLAUDE.md) are generated from `skills/experiment-as-argument/SKILL.md` by `scripts/sync_context_files.py`; edit the SKILL.md and re-run the script, or use `--check` to detect drift.
+
 ## Reproduce the benchmark
 
 ```bash
