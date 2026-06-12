@@ -1,0 +1,72 @@
+All tests pass (20/20), the entrypoint runs in ~6s and reproduces the reported numbers exactly. Now I have everything needed for the audit.
+
+## Review
+
+**Leakage prevention — strong.** All three planted traps are caught:
+- `account_status` (the target-derived leak) is dropped in `src/data.py:24`, with a correct rationale comment.
+- The 200 exact duplicate rows are removed *before* any split (`src/data.py:17`), preventing train/test straddle.
+- The temporal column is handled deliberately: `signup_date → signup_days`, sorted, and `TimeSeriesSplit` is used so no future data appears in training (`src/data.py:31-35`, `src/evaluate.py:14-18`).
+- `StandardScaler` is inside the `Pipeline` (`src/pipeline.py:13-16`), so it's fit on the train fold only — `clone()` per fold prevents state leak (`src/evaluate.py:24`).
+- A label-shuffle sanity check (≈0.52 / 0.50) confirms no residual leakage. This is genuinely above-and-beyond.
+
+**Methodology — adequate but the seed design is ineffective.** A trivial baseline exists, though majority-class dummy ROC-AUC is 0.5 by construction (uninformative but harmless). Metrics (ROC-AUC primary, F1, PR-AUC) are appropriate for the 27% imbalance — accuracy isn't leaned on. Budgets are symmetric. The real weakness: `TimeSeriesSplit` does not depend on the seed, and `LogisticRegression(lbfgs)` is deterministic — so the three seeds produce *identical* LR results and near-identical GB results. The "variance from model randomness" the design claims to measure is essentially not measured. Repeated/shuffled CV or bootstrap would have given real uncertainty.
+
+**Reproducibility — strong.** Seeds fixed and logged, config + per-seed + summary metrics written to `results/metrics.json`, and a clean re-run reproduced the published numbers exactly.
+
+**Claims discipline — the main concern.** The conclusion declares LR the winner via "non-overlapping ±1 SD intervals," but the SD used is the std *across three seed-means* (0.000 for LR, 0.001 for GB) — artificially tiny precisely because seeds barely perturb anything. The true fold-to-fold SD is ~0.022–0.025 (visible in `per_seed` values). The report reports `±0.000` without flagging that a zero standard deviation is a red flag, and bases a winner claim on it. The directional conclusion (LR ≥ GB) does survive even with honest fold-level SD, so it isn't *wrong* — but the uncertainty is materially understated and the "15 independent evaluations" framing oversells what the across-seed SD actually reflects. Limitations are otherwise honest and thorough (synthetic data, no tuning, small feature set, no formal significance test, time-axis proxy).
+
+**Executability — excellent.** `pytest` → 20 passed; `python3 run_experiment.py` runs in ~6s and writes both artifacts. Declared commands work from a clean state.
+
+**Code quality — strong.** Clean modular split (data/pipeline/evaluate/report), per-module tests, docstrings, no dead code, dependencies declared and all used. The no-op scaler in the GB pipeline is explicitly justified for symmetry.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 72,
+  "reproducibility_score": 92,
+  "claims_discipline_score": 62,
+  "executability_score": 98,
+  "code_quality_score": 90,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted leakage traps are correctly handled: account_status dropped, 200 duplicates removed before split, temporal TimeSeriesSplit on sorted signup_days.",
+    "Scaler is fit train-only via in-pipeline StandardScaler with per-fold clone(); a label-shuffle sanity check (~0.52/0.50) confirms no residual leakage.",
+    "Multi-seed design is ineffective: TimeSeriesSplit is seed-independent and LR(lbfgs) is deterministic, so the 3 seeds yield identical/near-identical results and measure essentially no variance.",
+    "Winner claim ('non-overlapping +/-1 SD intervals in favour of LR') rests on across-seed SD of 0.000/0.001, which understates true fold-level uncertainty (~0.022-0.025); the report never flags that a 0.000 SD is suspicious.",
+    "Directional conclusion (LR >= GB) is still defensible under honest fold-level SD, and limitations are honest and thorough.",
+    "Tests pass (20/20), entrypoint runs in ~6s, and results reproduce the published numbers exactly."
+  ],
+  "leakage_findings": [
+    "account_status (perfectly correlated with churned) dropped in src/data.py:24 — critical leak avoided.",
+    "Duplicate rows (200) removed before split in src/data.py:17 — no train/test straddle.",
+    "Temporal handling deliberate: signup_date converted to signup_days, sorted, evaluated with TimeSeriesSplit (src/data.py:31-35, src/evaluate.py:14-18).",
+    "StandardScaler fit inside Pipeline and cloned per fold — fitted on train fold only (src/pipeline.py:13-16, src/evaluate.py:24).",
+    "customer_id identifier dropped (src/data.py:27).",
+    "Label-shuffle check returns ~0.5, empirically confirming no missed leaky feature (src/evaluate.py:54-70)."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (20 passed in 2.33s)",
+    "python3 run_experiment.py  (ran in ~6s; reproduced metrics.json and REPORT.md)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops account_status + customer_id, dedups before split, converts/sorts signup_date — all leakage controls correct."},
+    {"path": "src/pipeline.py", "note": "Scaler inside Pipeline so it never sees test data; symmetric preprocessing for both models; seeds plumbed through."},
+    {"path": "src/evaluate.py", "note": "TimeSeriesSplit with per-fold clone(); label_shuffle_check provides leakage sanity check; per-fold values retained."},
+    {"path": "src/report.py", "note": "Auto-generates conclusion from +/-1 SD overlap, but uses across-seed SD (near 0) — drives an over-precise non-overlap winner claim."},
+    {"path": "run_experiment.py", "note": "Aggregates std across 3 seed-means (0.000/0.001) rather than pooling 15 fold values; seeds do not perturb the deterministic split, so variance is essentially unmeasured."},
+    {"path": "results/metrics.json", "note": "per_seed shows true fold SD ~0.022-0.025 and near-identical seed means, confirming the summary SD understates uncertainty."},
+    {"path": "REPORT.md", "note": "Honest, detailed limitations; but conclusion claims non-overlapping intervals 'in favour of LR' on +/-0.000 SD without flagging the zero-variance artifact."},
+    {"path": "tests/", "note": "20 tests covering data cleaning traps, pipeline determinism, and evaluation incl. a leakage-detection assertion; all pass."}
+  ]
+}
+```

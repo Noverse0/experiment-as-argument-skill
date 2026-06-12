@@ -1,0 +1,159 @@
+{
+  "config": {
+    "n_splits": 5,
+    "random_state": 0,
+    "cv": "TimeSeriesSplit",
+    "data_path": "churn.csv"
+  },
+  "data": {
+    "n_total": 4000,
+    "target_rate": 0.2705,
+    "feature_cols": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets",
+      "signup_days"
+    ],
+    "n_duplicates_removed": 200
+  },
+  "sanity": {
+    "baseline": {
+      "baseline_accuracy": 0.75,
+      "test_target_rate": 0.25
+    },
+    "overfit_tiny_lr": {
+      "overfit_tiny_train_acc": 0.9,
+      "overfit_n": 50
+    },
+    "overfit_tiny_gbm": {
+      "overfit_tiny_train_acc": 1.0,
+      "overfit_n": 50
+    },
+    "label_shuffle_lr": {
+      "shuffle_mean_auc": 0.5251861111111111,
+      "shuffle_n": 3
+    },
+    "label_shuffle_gbm": {
+      "shuffle_mean_auc": 0.5535138888888889,
+      "shuffle_n": 3
+    }
+  },
+  "lr": {
+    "folds": [
+      {
+        "roc_auc": 0.7323925314806774,
+        "f1": 0.32234432234432236,
+        "precision": 0.5714285714285714,
+        "recall": 0.22448979591836735,
+        "accuracy": 0.7222222222222222
+      },
+      {
+        "roc_auc": 0.7376626506024095,
+        "f1": 0.39543726235741444,
+        "precision": 0.5360824742268041,
+        "recall": 0.3132530120481928,
+        "accuracy": 0.7612612612612613
+      },
+      {
+        "roc_auc": 0.6959162303664922,
+        "f1": 0.2661290322580645,
+        "precision": 0.5789473684210527,
+        "recall": 0.17277486910994763,
+        "accuracy": 0.7267267267267268
+      },
+      {
+        "roc_auc": 0.7659099281635662,
+        "f1": 0.42585551330798477,
+        "precision": 0.6588235294117647,
+        "recall": 0.3146067415730337,
+        "accuracy": 0.7732732732732732
+      },
+      {
+        "roc_auc": 0.7320481927710843,
+        "f1": 0.33476394849785407,
+        "precision": 0.582089552238806,
+        "recall": 0.23493975903614459,
+        "accuracy": 0.7672672672672672
+      }
+    ],
+    "summary": {
+      "roc_auc_mean": 0.732785906676846,
+      "roc_auc_sd": 0.022275795958170384,
+      "roc_auc_n": 5,
+      "f1_mean": 0.3489060157531281,
+      "f1_sd": 0.056291975811889786,
+      "f1_n": 5,
+      "precision_mean": 0.5854742991453998,
+      "precision_sd": 0.04017711227267295,
+      "precision_n": 5,
+      "recall_mean": 0.25201283553713727,
+      "recall_sd": 0.05476498747652085,
+      "recall_n": 5,
+      "accuracy_mean": 0.7501501501501501,
+      "accuracy_sd": 0.021353019621178568,
+      "accuracy_n": 5
+    }
+  },
+  "gbm": {
+    "folds": [
+      {
+        "roc_auc": 0.6493215371254886,
+        "f1": 0.4094488188976378,
+        "precision": 0.42162162162162165,
+        "recall": 0.3979591836734694,
+        "accuracy": 0.6621621621621622
+      },
+      {
+        "roc_auc": 0.6365481927710843,
+        "f1": 0.4274061990212072,
+        "precision": 0.2930648769574944,
+        "recall": 0.7891566265060241,
+        "accuracy": 0.47297297297297297
+      },
+      {
+        "roc_auc": 0.6627886470101957,
+        "f1": 0.4034582132564842,
+        "precision": 0.44871794871794873,
+        "recall": 0.36649214659685864,
+        "accuracy": 0.6891891891891891
+      },
+      {
+        "roc_auc": 0.7109274267820961,
+        "f1": 0.49230769230769234,
+        "precision": 0.54421768707483,
+        "recall": 0.449438202247191,
+        "accuracy": 0.7522522522522522
+      },
+      {
+        "roc_auc": 0.7015361445783133,
+        "f1": 0.23148148148148148,
+        "precision": 0.5,
+        "recall": 0.15060240963855423,
+        "accuracy": 0.7507507507507507
+      }
+    ],
+    "summary": {
+      "roc_auc_mean": 0.6722243896534356,
+      "roc_auc_sd": 0.029132349637106852,
+      "roc_auc_n": 5,
+      "f1_mean": 0.39282048099290057,
+      "f1_sd": 0.08661848860290632,
+      "f1_n": 5,
+      "precision_mean": 0.44152442687437893,
+      "precision_sd": 0.08538548438456554,
+      "precision_n": 5,
+      "recall_mean": 0.4307297137324195,
+      "recall_sd": 0.2061511768162683,
+      "recall_n": 5,
+      "accuracy_mean": 0.6654654654654655,
+      "accuracy_sd": 0.1024037233629453,
+      "accuracy_n": 5
+    }
+  },
+  "conclusion": {
+    "auc_gap_gbm_minus_lr": -0.060561517023410394,
+    "noise_floor": 0.029132349637106852,
+    "detectable": true,
+    "text": "LR outperforms the other: AUC gap = -0.0606 (> 2\u00d7 noise floor 0.0291)."
+  }
+}

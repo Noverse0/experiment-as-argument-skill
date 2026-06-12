@@ -1,0 +1,78 @@
+This is a notably rigorous experiment. Here is my assessment.
+
+## Review
+
+**Leakage prevention — strong.** All three planted traps are handled correctly and deliberately:
+- `account_status` (the target-derived leak) is dropped in `src/data.py:10`, documented, and asserted by a test (`test_account_status_removed`).
+- The 200 injected exact-duplicate rows are removed *before* splitting via `drop_duplicates()` (`data.py:33`), with a test requiring `n_removed >= 200`. The run confirms exactly 200 removed.
+- The temporal column is handled deliberately: `signup_date` → `signup_days`, data sorted by time, and `TimeSeriesSplit` used so every test window is strictly later than its train window.
+- Crucially, the `StandardScaler` is inside an sklearn `Pipeline` rebuilt fresh each fold and `fit` on `X_train` only (`evaluate.py:40-41`) — no scaler leakage across the split. `signup_days` is a deterministic offset from a global min date, not a fit-on-train statistic, so no target leak there.
+- Label-shuffle (AUC ~0.5) and overfit-tiny sanity checks back the no-leak claim empirically.
+
+**Methodological validity — good.** Majority-class `DummyClassifier` baseline present (0.750). Class is imbalanced (churn 0.271) and metrics are appropriate — ROC-AUC primary, plus F1/precision/recall, not accuracy alone. Tuning budget is symmetric (neither model tuned; both fixed defaults). Weaknesses: the "detectable difference" rule is a 2×SD heuristic over **TimeSeriesSplit folds, which are non-independent** (nested growing train sets), so it isn't a valid significance test; and the result is borderline (gap 0.0606 vs floor 0.0583). The "consistent across folds" support (all 5 gaps negative) is the stronger argument and is honest.
+
+**Reproducibility — good.** Seeds fixed (`RANDOM_STATE=0`, generator `seed=7`) and `random_state` logged in `results/metrics.json`. Re-running reproduced REPORT.md to the digit. Minor gap: the dataset generation seed isn't recorded in the metrics config.
+
+**Claims discipline — good.** Declares a winner (LR) backed by 5 folds with mean±SD and a per-fold table; limitations are honest and specific (no tuning, single seed, no temporal gap, test touched once). It slightly over-trusts a borderline "detectable" verdict given fold non-independence, but does not claim anything the code didn't measure.
+
+**Executability — excellent.** `python3 run_experiment.py` auto-generates data if missing and completes in ~3s; `pytest` passes 33/33 from a clean state.
+
+**Code quality — strong.** Clean module separation (data/pipeline/evaluate/sanity), docstrings, no dead code, deps declared and used. Minor: `pyproject.toml` build-backend string looks non-standard (doesn't affect running).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 82,
+  "reproducibility_score": 88,
+  "claims_discipline_score": 84,
+  "executability_score": 98,
+  "code_quality_score": 90,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps handled deliberately: account_status dropped, 200 duplicates removed before split, temporal column converted and used for a TimeSeriesSplit.",
+    "StandardScaler is inside a per-fold sklearn Pipeline fit on train only — no preprocessing leakage across the split.",
+    "Trivial majority-class baseline present (0.750); imbalanced target (0.271) evaluated with ROC-AUC primary plus F1/precision/recall, not accuracy alone.",
+    "Tuning budget symmetric (both models use fixed defaults); report honestly flags no hyperparameter tuning as a limitation.",
+    "Seeds fixed and logged; re-running reproduced REPORT.md numbers exactly (LR AUC 0.7328, GBM 0.6722, gap -0.0606).",
+    "Sanity suite (majority baseline, overfit-tiny, label-shuffle ~0.5) supports the no-leak claim empirically.",
+    "Main methodological weakness: the 2xSD 'detectable difference' rule is applied over non-independent TimeSeriesSplit folds and the result is borderline (0.0606 vs 0.0583 floor); not a valid significance test, though per-fold consistency (all 5 gaps negative) is the stronger argument.",
+    "Limitations section is specific and honest (single seed/dataset, no temporal gap between folds, test touched once)."
+  ],
+  "leakage_findings": [
+    "account_status (perfect target leak, 'closed' iff churned=1) dropped in src/data.py:10 and asserted by test_account_status_removed.",
+    "200 exact-duplicate rows removed via drop_duplicates() before any split (data.py:33); test requires n_removed>=200; run confirmed exactly 200 removed, so no train/test straddling.",
+    "Temporal handling deliberate: signup_date -> signup_days, full dataset sorted by time, TimeSeriesSplit ensures each test window is strictly later than its train window (no random-split contamination).",
+    "StandardScaler fit per-fold on X_train only via sklearn Pipeline rebuilt each fold (evaluate.py:40-41) — no scaler leakage.",
+    "signup_days uses a global min-date offset (deterministic transform of raw dates), not a fit-on-train statistic, so it does not leak the target.",
+    "No leakage detected; label-shuffle AUC (LR 0.525, GBM 0.554) and overfit-tiny checks corroborate."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*'",
+    "python3 -m pytest -q  (33 passed in 2.42s)",
+    "time python3 run_experiment.py  (completed ~3.1s, reproduced REPORT.md)",
+    "python3 -c \"import json; ... print metrics.json fields\""
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops account_status & customer_id; converts signup_date->signup_days; drop_duplicates() before split; sorts by time for TimeSeriesSplit."},
+    {"path": "src/evaluate.py", "note": "run_cv rebuilds pipeline per fold and fits on X_train only — scaler not leaked; metrics include ROC-AUC/F1/precision/recall/accuracy with mean+/-sd."},
+    {"path": "src/pipeline.py", "note": "LR wrapped with StandardScaler (scale-sensitive); GBM without (scale-invariant); both seeded via random_state."},
+    {"path": "src/sanity.py", "note": "Majority-class baseline, overfit-tiny, and label-shuffle (fits on shuffled train, evaluates real test -> ~0.5) checks."},
+    {"path": "make_dataset.py", "note": "Deterministic generator documenting the three planted traps; churn from a logistic model (favors correctly-specified LR)."},
+    {"path": "run_experiment.py", "note": "Entrypoint: auto-generates data, runs sanity + 5-fold TimeSeriesSplit CV, applies 2xSD detectable rule, writes results/metrics.json and REPORT.md."},
+    {"path": "REPORT.md", "note": "Declares LR winner backed by 5 folds with mean+/-sd and per-fold table; honest limitations; borderline 'detectable' verdict on non-independent folds."},
+    {"path": "results/metrics.json", "note": "Persists config (n_splits, random_state, cv), data meta, sanity, per-fold + summary metrics, conclusion; logs random_state but not dataset seed."},
+    {"path": "tests/test_data.py", "note": "Asserts account_status/customer_id/signup_date removal, >=200 duplicates removed, temporal split ordering."},
+    {"path": "pyproject.toml", "note": "Deps declared; pythonpath set for tests; build-backend string looks non-standard but does not affect execution."}
+  ]
+}
+```

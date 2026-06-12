@@ -1,0 +1,3 @@
+15/15 tests pass, experiment completes in ~30 seconds.
+
+{"files_created": ["src/__init__.py", "src/data.py", "src/models.py", "src/evaluate.py", "run_experiment.py", "tests/__init__.py", "tests/test_pipeline.py", "requirements.txt", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py --data churn.csv", "test_command": "python3 -m pytest tests/ -v"}

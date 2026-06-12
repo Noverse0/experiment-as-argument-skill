@@ -1,0 +1,73 @@
+Both the test suite (15 passed) and entrypoint run cleanly from a clean state, and re-running reproduces metrics identically. Here's my assessment.
+
+## Summary
+
+This is a strong, rigorous experiment that **avoids all three planted traps**:
+
+- **`account_status` (the perfect leak)** is explicitly dropped in `src/pipeline.py:38` and confirmed absent by a dedicated test.
+- **Duplicate rows** are removed *before* any split (`load_and_clean`, `pipeline.py:20`), so the 200 dups can't straddle train/test.
+- **The temporal column** is handled deliberately via `TimeSeriesSplit` on date-sorted data — training always precedes test in time.
+
+Fit-like transforms are clean too: `StandardScaler` lives *inside* the `Pipeline` and is cloned+fit per fold on train only (`experiment.py:59-62`), so no scaler leakage.
+
+Weaknesses are in the claim/methodology layer rather than leakage:
+
+1. **Verdict by ad-hoc heuristic, not a statistical test.** The "winner" is decided by `abs(gap) < max(fold_std)` (`run_experiment.py:87`). The gap (0.058) clears that bar, but there's no paired test across folds and only a single data seed — so the headline "Logistic regression outperforms gradient boosting" is stronger than the evidence licenses. The limitations section does honestly flag the single seed and that the logistic DGP structurally favors LR.
+2. **Report contradicts its own code on the baseline.** REPORT.md says the majority baseline ROC-AUC is "N/A" and "cannot be computed (no probability output)", but `metrics.json` and the run output both show 0.500 — the code *did* compute it.
+3. **Seed conflation / incomplete logging.** The dataset is generated with seed 7 (`make_dataset.py` default), but the report claims "same random seed (42)". The data-generation seed is not recorded in `results/metrics.json`, so reproducibility of the *data* relies on an undocumented default.
+4. Minor: `days_since_ref` is a pure-noise feature in the DGP, and with `TimeSeriesSplit` the test fold's dates always exceed the training range (extrapolation) — harmless here but worth noting.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 80,
+  "reproducibility_score": 80,
+  "claims_discipline_score": 72,
+  "executability_score": 95,
+  "code_quality_score": 87,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted traps avoided: account_status dropped, duplicates removed before split, temporal column handled via TimeSeriesSplit.",
+    "Scaler is inside the Pipeline and cloned+fit per fold on train only — no fit-time leakage.",
+    "Trivial majority baseline (DummyClassifier) included; metrics suitable for imbalance (ROC-AUC primary, plus F1/accuracy).",
+    "Fully reproducible: re-running the entrypoint from a clean state regenerated identical summary metrics (verified byte-for-byte).",
+    "Test command (15 passed) and entrypoint both execute cleanly; suite includes a label-shuffle sanity check.",
+    "Winner declared from a single data seed via an ad-hoc heuristic (gap vs max fold std), not a paired statistical test — headline 'outperforms' overstates the evidence.",
+    "REPORT.md says baseline ROC-AUC is 'N/A / cannot be computed', but the code computed 0.500 — report contradicts its own results.",
+    "Limitations are honest: single seed, no tuning, and explicit acknowledgement that the logistic DGP structurally favors LR."
+  ],
+  "leakage_findings": [
+    "account_status (derived from target, 'closed' iff churned==1) is dropped in make_features (pipeline.py:38) and asserted absent by test_leaky_columns_absent.",
+    "200 exact duplicate rows removed via drop_duplicates BEFORE splitting (pipeline.py:20), preventing train/test contamination.",
+    "Temporal leakage addressed deliberately: data sorted by signup_date and 5-fold TimeSeriesSplit so train always precedes test.",
+    "StandardScaler is fit inside the per-fold cloned Pipeline (experiment.py:59-62) — fitted on train only, no test leakage.",
+    "customer_id (identifier) dropped; signup_date encoded as days-since-fixed-reference (no fitting required), avoiding any fit-time leak.",
+    "Minor: days_since_ref is a noise feature in the DGP and is extrapolated (test dates always exceed train range under TimeSeriesSplit) — not leakage but methodologically loose."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q  (15 passed in ~2s)",
+    "rm -f churn.csv && python run_experiment.py  (regenerated data + metrics + REPORT)",
+    "diff of regenerated vs backed-up summary metrics — IDENTICAL (reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "Drops account_status/customer_id/target (line 38); dedup before split (line 20); fixed-reference date encoding — all leakage mitigations correct."},
+    {"path": "src/experiment.py", "note": "TimeSeriesSplit CV with per-fold cloned Pipeline; StandardScaler fit on train only; DummyClassifier majority baseline included."},
+    {"path": "run_experiment.py", "note": "Verdict chosen by heuristic abs(gap)<max(std) (line 87), not a significance test; writes results/metrics.json and REPORT.md."},
+    {"path": "make_dataset.py", "note": "Dataset uses seed 7 by default; entrypoint invokes it without --seed, but REPORT claims seed 42 and the data seed is not logged to metrics.json."},
+    {"path": "REPORT.md", "note": "Claims LR 'outperforms' GBM from a single seed; states baseline ROC-AUC is 'N/A/cannot be computed' though code yields 0.500; limitations section is honest about single seed and logistic-DGP bias."},
+    {"path": "results/metrics.json", "note": "Per-fold and summary metrics written machine-readably; baseline roc_auc=0.5 recorded, contradicting the report's 'N/A'."},
+    {"path": "tests/test_pipeline.py", "note": "15 meaningful tests incl. leakage-column assertions, dedup counts, and a label-shuffle degrades-AUC sanity check."}
+  ]
+}
+```

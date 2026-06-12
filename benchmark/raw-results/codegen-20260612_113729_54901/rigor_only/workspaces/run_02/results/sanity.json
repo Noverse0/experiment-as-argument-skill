@@ -1,0 +1,5 @@
+{
+  "baseline_floor_auc": 0.7373988885128291,
+  "label_shuffle_auc": 0.4859974463277674,
+  "overfit_tiny_acc": 1.0
+}

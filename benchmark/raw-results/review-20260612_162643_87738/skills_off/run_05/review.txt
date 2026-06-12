@@ -1,0 +1,95 @@
+I have everything I need. Here is my review.
+
+## Review: Churn Prediction Experiment
+
+**What the experiment does:** Compares `LogisticRegression` vs `GradientBoostingClassifier` on a synthetic churn dataset, asking whether GB outperforms LR. I read all source, ran the tests, ran the entrypoint, and verified reproducibility.
+
+### Leakage prevention — strong
+All three planted traps were caught:
+- **`account_status` dropped** (`pipeline.py:6,27`) — explicitly identified as a perfect target leak and removed before any modeling. ✓
+- **Duplicates removed before splitting** (`pipeline.py:23`) — `drop_duplicates()` runs in `load_and_clean`, before `time_split`, so the 200 baked-in dupes can't straddle. Confirmed in output: "4200 rows, 200 duplicates removed." ✓
+- **Temporal split, deliberately justified** (`pipeline.py:41-54`) — sorts by `signup_date`, earliest 70% train / latest 30% test, with an explicit rationale rejecting random splits. ✓
+- **Scaler fit on train only** (`experiment.py:72-74`) — `fit_transform` on train, `transform` on test. ✓
+- **Label-shuffle probe** (`experiment.py:81-87`) confirms AUC collapses to 0.44 (near chance) — a genuine leakage sentinel, not decoration.
+
+Minor: `time_split` does a hard index cut after sorting; rows sharing the boundary `signup_date` could in principle straddle the split (the test only asserts `max_train_date <= min_test_date`, allowing equality). Day-resolution dates make this a soft, low-severity concern.
+
+### Methodology — solid with disclosed gaps
+- Trivial **majority-class baseline** present (AUC 0.5). ✓
+- Metrics appropriate for ~27% imbalance: **ROC-AUC + Average Precision**, not accuracy. ✓
+- **Tuning budget equal at zero** — both use defaults, honestly flagged. However GB gets a non-default `subsample=0.8` (`experiment.py:97`) specifically to manufacture seed variance; disclosed, but slightly asymmetric.
+- **LR is deterministic** (lbfgs), so its 5 seeds yield std=0 — effectively n=1. The "5 seeds" framing over-states LR's variance evidence, though the report acknowledges the near-zero std.
+- No statistical test, single temporal split — both disclosed as limitations.
+
+### Reproducibility — excellent
+- Seeds `[0,1,2,3,4]` fixed and logged in `metrics.json`. ✓
+- Config + metrics written to `results/`. ✓
+- **Verified:** re-running the entrypoint produced byte-identical metrics; `make_dataset.py` regenerates `churn.csv` deterministically (seed 7).
+
+### Claims discipline — good, mildly overconfident
+The report declares "**Logistic Regression appears stronger**" by 0.0216 AUC. The decision logic (`report.py:27`) only suppresses a winner if gap < 0.01 *or* spreads overlap — but LR's spread is artificially zero (deterministic), so the "no overlap" that licenses the winner claim rests on fake-zero variance rather than a real difference test. Language is appropriately hedged ("appears"), and the limitations section is genuinely honest (single split, synthetic data favoring the logistic process, need for paired tests). The "GB may be overfitting the training set" line is speculation the code never measured (no train-set scores reported).
+
+### Executability — verified
+`pytest` → 14 passed. `python run_experiment.py` runs clean and regenerates report + metrics. Dependencies declared in `requirements.txt` and all used.
+
+### Code quality — clean
+Well-factored (pipeline / experiment / report), good docstrings, tests cover dedup, leakage, temporal split, scaler discipline, and sanity checks. One dead import: `import sys` in `run_experiment.py:4` is unused.
+
+**Commands run:** `python -m pytest -q`, `python run_experiment.py`, metrics diff after re-run, `python make_dataset.py` determinism check.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 78,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 80,
+  "executability_score": 95,
+  "code_quality_score": 88,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted leakage traps caught: account_status dropped, 200 duplicates removed before split, deliberate time-based split on signup_date.",
+    "Reproducibility verified empirically: re-running the entrypoint produced byte-identical metrics.json, and make_dataset.py regenerates churn.csv deterministically (seed 7).",
+    "Both declared commands work from existing state: pytest reports 14 passed; run_experiment.py runs clean and writes results/metrics.json + REPORT.md.",
+    "Majority-class baseline (AUC 0.5) and label-shuffle probe (AUC 0.44, near chance) both present and informative; metrics (ROC-AUC + Average Precision) suit the ~27% class imbalance.",
+    "Neither model is tuned (equal zero budget, disclosed), but GB gets a non-default subsample=0.8 to manufacture seed variance — a slight asymmetry, disclosed.",
+    "Report picks LR as winner (+0.0216 AUC) on a single temporal split; the winner logic leans on LR's artificially zero variance (deterministic lbfgs makes its 5 seeds effectively n=1) rather than a statistical test.",
+    "Limitations section is honest about single split, no tuning, 5-seed weakness, and synthetic data favoring the logistic process; the 'GB may be overfitting' line is unmeasured speculation."
+  ],
+  "leakage_findings": [
+    "account_status (derived from target, 'closed' iff churned) is in LEAKY_COLS and dropped in load_and_clean before modeling (pipeline.py:6,27). Critical leak avoided.",
+    "Exact duplicates removed via drop_duplicates() in load_and_clean BEFORE time_split, preventing the 200 baked-in dupes from straddling train/test (pipeline.py:23; confirmed 200 removed at runtime).",
+    "Temporal split: sorted by signup_date, earliest 70% train / latest 30% test, with explicit justification rejecting random splits (pipeline.py:41-54).",
+    "StandardScaler fit on train only (fit_transform train, transform test) in experiment.py:72-74; GB correctly uses raw features.",
+    "Label-shuffle sentinel collapses AUC to 0.44 (near chance), confirming no residual leakage signal (experiment.py:81-87, metrics.json).",
+    "Minor: time_split uses a hard positional index cut; rows sharing the boundary signup_date could straddle the split (the test asserts max_train_date <= min_test_date, allowing equality). Low severity at day resolution."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q  (14 passed in 1.68s)",
+    "python run_experiment.py  (LR AUC 0.7459+/-0.0000, GB AUC 0.7244+/-0.0037)",
+    "diff of re-run metrics.json vs backup  (METRICS IDENTICAL)",
+    "python make_dataset.py --out /tmp/regen.csv && diff churn.csv /tmp/regen.csv  (DATASET DETERMINISTIC)",
+    "grep -n sys run_experiment.py  (unused import confirmed)"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "LEAKY_COLS drops account_status; drop_duplicates before split; time-based split with justification. Boundary-date ties could straddle split (minor)."},
+    {"path": "src/experiment.py", "note": "Scaler fit on train only; majority baseline + label-shuffle sanity checks; 5 fixed seeds; GB given non-default subsample=0.8 to create variance; LR deterministic so std=0."},
+    {"path": "src/report.py", "note": "Winner-selection logic (line 27) suppresses claim only if gap<0.01 or spreads overlap; LR's zero variance lets a small 0.0216 gap read as a clean separation."},
+    {"path": "REPORT.md", "note": "Claims LR stronger with hedged language; honest limitations (single split, no tuning, synthetic bias); 'GB overfitting' is unmeasured speculation."},
+    {"path": "results/metrics.json", "note": "Full config+metrics persisted: seeds, sanity checks, per-seed values, means/std. Matches REPORT and reproduces identically."},
+    {"path": "tests/test_pipeline.py", "note": "14 tests covering dedup, account_status drop, temporal no-future-leak, scaler discipline, label-shuffle-to-chance, baseline beat. All pass."},
+    {"path": "run_experiment.py", "note": "Working entrypoint; unused 'import sys' at line 4 (dead code)."},
+    {"path": "requirements.txt", "note": "scikit-learn, pandas, numpy, pytest all declared and used."}
+  ]
+}
+```

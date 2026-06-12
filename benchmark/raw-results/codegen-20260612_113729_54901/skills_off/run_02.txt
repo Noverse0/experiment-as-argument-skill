@@ -1,0 +1,18 @@
+Everything works. Here's the final summary of what was built:
+
+**Files created:**
+- `src/__init__.py`, `src/data.py`, `src/models.py`, `src/evaluate.py` — experiment library
+- `run_experiment.py` — entrypoint
+- `tests/__init__.py`, `tests/test_data.py`, `tests/test_pipeline.py` — 18 pytest tests
+- `requirements.txt`
+
+**Rigor traps handled:**
+1. `account_status` dropped (perfect label leak)
+2. 200 duplicate rows deduplicated before any split
+3. `TimeSeriesSplit` used (respects temporal ordering of `signup_date`)
+
+**Result:** No detectable difference — LR 0.733 ± 0.023 vs GB 0.707 ± 0.014, gap (0.026) < combined spread (0.037). This makes sense: the data's generative process is a logistic model, which LR can fit exactly.
+
+```json
+{"files_created": ["src/__init__.py", "src/data.py", "src/models.py", "src/evaluate.py", "run_experiment.py", "tests/__init__.py", "tests/test_data.py", "tests/test_pipeline.py", "requirements.txt", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 make_dataset.py --out churn.csv && python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}
+```

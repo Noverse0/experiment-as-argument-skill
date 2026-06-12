@@ -1,0 +1,84 @@
+All checks complete. The experiment reproduces byte-identically and runs end-to-end in seconds. Here is my review.
+
+## Review: Churn Prediction — GB vs LR
+
+This is a genuinely rigorous experiment that correctly identified and defused every planted trap. It runs clean, reproduces exactly, and draws an honest, appropriately hedged conclusion.
+
+### Leakage prevention — strong
+- **`account_status` correctly dropped** as target-derived label leakage (`src/data.py:11`, `LEAKY_COLS`), with explicit justification in REPORT and a dedicated test (`test_no_leaky_columns`).
+- **Scaler fitted train-only**: `StandardScaler` lives inside a `Pipeline` (`src/models.py`), so it is refit on each CV training fold and on train-only for the final fit — never on test. There is even an explicit test asserting this (`test_scaler_fitted_on_train_only`).
+- **Duplicates removed before splitting** (`drop_duplicates(subset=features+target)`), so the 202 planted exact-dup rows cannot straddle the split.
+- **Temporal split** by `signup_date` rather than random — the deliberate choice for time-ordered data.
+- Baseline floor + label-shuffle ceiling sanity checks are built in.
+
+Minor: dedup on the feature+target subset (not full row) removed 202 vs the 200 planted — a couple of natural feature/target collisions were dropped too; defensible since such rows are indistinguishable. Minor: the positional time split leaves 9 records sharing the boundary date `2024-12-21` straddling train/test — a small same-day leak (signup_date isn't a feature, so impact is negligible).
+
+### Methodological validity — strong
+Majority-class baseline present; ROC-AUC chosen as primary metric for the 27% imbalance, with F1/precision/recall reported (not accuracy alone); both arms use identical preprocessing/split and zero tuning (equal budget); 3 seeds × 5-fold CV (n=15) with reported std. The winner rule (`|gap| > max(std)`) is an honest but ad-hoc heuristic rather than a paired statistical test. The label-shuffle uses a **single** permutation and returns 0.636 — a noisy single draw treated as a binary pass/fail; a proper null would average many shuffles.
+
+### Reproducibility — excellent
+Seeds fixed and logged (`SEEDS=[42,123,777]`, CV `random_state`, model `random_state`); config + metrics written to `results/metrics.json`; re-running reproduced all metrics identically (only the UTC timestamp changed), and `make_dataset.py` regenerates the CSV byte-identically (same md5).
+
+### Claims discipline — strong, with one tension
+The conclusion ("no detectable difference, gap −0.0128 within noise 0.0184") is backed by 15 CV scores with variance and is appropriately hedged. The limitations section is honest (single-seed final test, no tuning, temporal proxy, small feature set, synthetic data). **However**, the Sanity Checks table reports the label-shuffle as "✗ FAIL — suspect leakage," yet the conclusion proceeds to a clean result without ever addressing that flagged contradiction — the report states a value its own narrative flags as a problem but never resolves it.
+
+### Executability — excellent
+`pytest` → 15/15 passed in ~2s. `python3 run_experiment.py` runs end-to-end in seconds, writes both artifacts, and the entrypoint gives a clear remediation message if the CSV is missing.
+
+### Code quality — strong
+Clean modular split (`data`/`models`/`evaluate`), docstrings and type hints, no dead code, all declared dependencies used. Runs cleanly on sklearn 1.7 despite `>=1.3` pin.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 91,
+  "methodological_validity_score": 84,
+  "reproducibility_score": 94,
+  "claims_discipline_score": 82,
+  "executability_score": 96,
+  "code_quality_score": 90,
+  "verdict": "excellent",
+  "key_findings": [
+    "All four planted traps defused: account_status dropped as label leak, duplicates removed pre-split, scaler fitted train-only via Pipeline, temporal split by signup_date.",
+    "Reproducibility is excellent: 15/15 tests pass, entrypoint reruns metrics identically (only timestamp differs), and make_dataset.py regenerates the CSV byte-for-byte (same md5).",
+    "Methodology is sound: majority baseline, ROC-AUC primary for 27% imbalance plus F1/precision/recall, equal (zero) tuning budget per arm, 3 seeds x 5-fold CV with reported variance.",
+    "Conclusion is honest and hedged ('no detectable difference', gap -0.0128 within noise 0.0184), with a candid limitations section.",
+    "Tension in the report: the label-shuffle sanity check is printed as 'FAIL - suspect leakage' (AUC 0.636) but the conclusion never addresses this contradiction; it stems from using a single noisy permutation rather than a multi-shuffle null distribution.",
+    "Winner-determination rule (|gap| > max std) is an ad-hoc heuristic, not a paired significance test."
+  ],
+  "leakage_findings": [
+    "account_status (= 'closed' iff churned) correctly identified as target-derived and dropped (src/data.py:11); enforced by test_no_leaky_columns.",
+    "StandardScaler is inside a sklearn Pipeline (src/models.py), so it is fit on the train fold only within CV and on train-only for the final fit; verified by test_scaler_fitted_on_train_only and by re-run.",
+    "202 exact-duplicate rows removed before splitting via drop_duplicates(subset=features+target), preventing the planted duplicates from straddling train/test.",
+    "Time-based split on signup_date instead of random, the deliberate correct choice for temporal data; 9 records sharing the boundary date 2024-12-21 straddle the positional split (minor, signup_date is not a feature).",
+    "Dedup on the feature+target subset rather than full row removed 202 vs 200 planted, dropping ~2 natural feature/target collisions — defensible but worth noting."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -m pytest -q  (15 passed in 1.85s)",
+    "python3 -c 'import sklearn,pandas,numpy' (sklearn 1.7.1, pandas 2.3.1, numpy 1.26.4)",
+    "python3 run_experiment.py  (ran end-to-end, wrote results/metrics.json and REPORT.md)",
+    "python3 make_dataset.py --out /tmp/churn_regen.csv  (md5 identical to committed churn.csv)",
+    "diff of metrics.json before/after re-run (identical excluding experiment_date)",
+    "python3 -c '...' to inspect train/test boundary date straddle"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops account_status as leaky; dedups on feature+target before splitting; time_split sorts by signup_date and splits positionally (boundary-date straddle of 9 rows)."},
+    {"path": "src/models.py", "note": "Both models wrap StandardScaler in a Pipeline with fixed random_state, ensuring train-only fitting and equal preprocessing per arm."},
+    {"path": "src/evaluate.py", "note": "3 seeds x 5-fold StratifiedKFold CV (n=15), majority baseline, single-permutation label-shuffle test (noisy), ROC-AUC/F1/precision/recall."},
+    {"path": "tests/test_pipeline.py", "note": "15 tests covering dedup, leakage, time-split ordering, scaler-train-only, baseline floor, label-shuffle, beats-baseline, and determinism; all pass."},
+    {"path": "REPORT.md", "note": "Hedged 'no detectable difference' conclusion with variance and honest limitations; but Sanity Checks table prints label-shuffle as 'FAIL - suspect leakage' without resolving the contradiction."},
+    {"path": "results/metrics.json", "note": "Machine-readable config + CV/test metrics + conclusion; reproduced identically on re-run (timestamp aside)."},
+    {"path": "make_dataset.py", "note": "Deterministic generator; regenerated CSV md5-identical to committed churn.csv, confirming data reproducibility."}
+  ]
+}
+```

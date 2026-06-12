@@ -1,0 +1,14 @@
+Everything ran cleanly. Here's a summary of what was built and the final output:
+
+**Leakage traps handled:**
+- `account_status` dropped — perfect target leak (`"closed"` iff `churned=1`)
+- 200 duplicate rows removed before splitting — prevents train/test straddling
+- Temporal split on `signup_date` — avoids time leakage from random splits
+
+**Results:** LogisticRegression wins decisively (AUC 0.7323 ± 0.0000 vs GBM 0.6017 ± 0.0170), which is expected since the dataset's generative model is logistic-linear.
+
+---
+
+```json
+{"files_created": ["src/__init__.py", "src/data.py", "src/features.py", "src/models.py", "src/evaluate.py", "run_experiment.py", "tests/__init__.py", "tests/test_data.py", "tests/test_pipeline.py", "requirements.txt", "pyproject.toml", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}
+```

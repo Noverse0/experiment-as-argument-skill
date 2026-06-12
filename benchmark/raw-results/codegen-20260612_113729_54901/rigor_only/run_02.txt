@@ -1,0 +1,3 @@
+19/19 pass, experiment runs clean in ~5 seconds. Here is the final JSON:
+
+{"files_created": ["src/__init__.py", "src/data.py", "src/evaluate.py", "src/sanity.py", "src/report.py", "run_experiment.py", "tests/__init__.py", "tests/test_data.py", "tests/test_evaluate.py", "tests/test_sanity.py", "requirements.txt"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}

@@ -1,0 +1,79 @@
+I have enough evidence. Here is my review.
+
+## Review
+
+**Setup.** A churn-prediction experiment comparing `LogisticRegression` vs `GradientBoostingClassifier`, organized into clean modules (`src/data.py`, `pipeline.py`, `evaluate.py`, `checks.py`), with an entrypoint that loads data, splits temporally, runs sanity checks, CV-compares, evaluates once on a held-out set, and writes both `results/metrics.json` and `REPORT.md`. The dataset (`make_dataset.py`) plants three traps: a target-derived `account_status`, 200 exact duplicate rows, and a temporal `signup_date` column.
+
+**Leakage — handled well.** All three traps are caught:
+- `account_status` is dropped in `load_and_clean` (`data.py:24`); I confirmed it is uniquely determined by `churned`, so dropping it is correct.
+- Deduplication happens *before* the split (`data.py:28`), removing all 200 planted dupes, so they cannot straddle train/test.
+- The split is temporal — sort by `signup_date`, last 20% as test (`data.py:31-33`, `temporal_split`).
+- `StandardScaler` lives inside the sklearn `Pipeline`, so it is fitted per-fold in CV (via `cross_validate`) and on train-only for the final fit. No fit-on-full-data leakage.
+- A label-shuffle check (AUC 0.54, near chance) and an overfit-tiny check (AUC 0.90) provide an independent leakage tripwire.
+
+One minor inconsistency: the final holdout is temporal, but CV uses `StratifiedKFold(shuffle=True)` — random, not time-based. Given the report's own temporal-leakage rationale, a time-aware CV would be more consistent, though this affects only the comparison estimate, not the honest held-out number.
+
+**Methodology — solid with one gap.** Metrics are appropriate for the ~27% imbalance (ROC-AUC, PR-AUC, F1; never accuracy alone). Variance is reported over 5 folds. Both models get the same (zero) tuning budget — defaults only — which is equal-footed and honestly disclosed. The notable gap: **no trivial/majority-class baseline** (e.g. `DummyClassifier`). The label-shuffle test approximates a chance floor but is not the same as a no-skill baseline comparison the rubric asks for.
+
+**Reproducibility — strong.** Seeds are fixed throughout (data `seed=7`, pipelines/CV `random_state=42`, shuffle `999`) and logged in `metrics.json`. Re-running the entrypoint reproduced the committed metrics exactly, and `make_dataset.py` regenerates a byte-identical `churn.csv`.
+
+**Claims — disciplined.** The report concludes "no detectable difference" (gap 0.0105 < pooled CV std ~0.0204) rather than crowning a winner. This is a heuristic, not a formal significance test, but it is conservative and does not overclaim. Limitations are thorough and honest — including the candid note that the simulated logistic DGP structurally favors LR. Nothing is claimed that the code did not measure.
+
+**Executability — clean.** `pytest` → 20 passed; `python run_experiment.py` → ~4s, regenerates both artifacts.
+
+**Code quality — good.** Modular, type-hinted, documented; dependencies all declared and used; no dead code spotted.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 80,
+  "reproducibility_score": 90,
+  "claims_discipline_score": 88,
+  "executability_score": 95,
+  "code_quality_score": 90,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps (account_status leak, 200 duplicates, temporal column) are deliberately and correctly handled.",
+    "Preprocessing is encapsulated in sklearn Pipelines, so the scaler is fitted per-fold in CV and train-only for the final fit — no fit-on-full-data leakage.",
+    "Metrics suit the ~27% class imbalance (ROC-AUC, PR-AUC, F1); accuracy is never used alone; variance reported over 5 folds.",
+    "Report concludes 'no detectable difference' (gap 0.0105 < pooled std 0.0204) instead of overclaiming a winner; limitations are thorough and honest.",
+    "Fully reproducible: 20/20 tests pass, entrypoint runs in ~4s and reproduces committed metrics.json exactly; make_dataset.py regenerates byte-identical churn.csv.",
+    "Gap: no trivial/majority-class baseline (e.g. DummyClassifier); label-shuffle test only approximates a chance floor.",
+    "Minor inconsistency: final holdout is temporal but CV uses random StratifiedKFold(shuffle=True) rather than a time-aware split."
+  ],
+  "leakage_findings": [
+    "account_status dropped in data.py:24; confirmed it is uniquely determined by the target, so it is a perfect leak and correctly removed.",
+    "Duplicates removed before the split (data.py:28); all 200 planted dupes eliminated, preventing train/test straddle.",
+    "Temporal split via sort-by-signup_date + last-20% holdout (data.py:31-33, temporal_split) instead of a naive random split.",
+    "StandardScaler inside Pipeline => fitted only on each CV fold's train portion and on train-only for the held-out fit; no scaler leakage.",
+    "Label-shuffle sanity check yields AUC 0.54 (near chance), an independent confirmation that no residual leakage inflates the signal.",
+    "Caveat: CV is random-shuffled (StratifiedKFold shuffle=True), not time-based, which is mildly inconsistent with the report's stated temporal-leakage concern."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q  (20 passed in 1.60s)",
+    "python run_experiment.py  (~3.8s; regenerated results/metrics.json and REPORT.md, values match committed)",
+    "python make_dataset.py --out /tmp/_churn_check.csv  (regenerated dataset identical to committed churn.csv)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops account_status and customer_id, deduplicates before split, sorts by signup_date, and temporal_split takes the last 20% chronologically."},
+    {"path": "src/pipeline.py", "note": "Scaler+LR and GB wrapped in Pipelines with fixed random_state=42, so transforms fit per-fold; both models use untuned defaults (equal budget)."},
+    {"path": "src/evaluate.py", "note": "StratifiedKFold(shuffle=True, random_state=42) via cross_validate over ROC-AUC/PR-AUC/F1; reports mean, std, and per-fold scores."},
+    {"path": "src/checks.py", "note": "Overfit-tiny (AUC>0.80) and label-shuffle (AUC<0.65) tripwires; deep-copies pipeline so the passed instance is not mutated."},
+    {"path": "run_experiment.py", "note": "Test set fit/predicted exactly once; persists full config + metrics to results/metrics.json and regenerates REPORT.md programmatically."},
+    {"path": "REPORT.md", "note": "Conclusion is 'no detectable difference' backed by 5-fold variance; limitations are honest, incl. that the simulated logistic DGP favors LR. No trivial baseline reported."},
+    {"path": "make_dataset.py", "note": "Documents the planted traps; regenerates a byte-identical churn.csv, confirming determinism for seed=7."},
+    {"path": "results/metrics.json", "note": "Matches a fresh entrypoint run exactly, confirming reproducibility; seeds and all metrics logged."}
+  ]
+}
+```

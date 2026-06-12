@@ -1,0 +1,77 @@
+I have everything I need. Both declared commands work from a clean state, and the experiment reproduces the committed metrics exactly.
+
+## Review
+
+**Leakage prevention — strong.** All four planted traps are handled and *tested*, not just claimed:
+- `account_status` dropped (`src/data.py:21`), with a test (`tests/test_data.py:87`) that confirms the leak actually exists in the raw data, making the drop meaningful.
+- `customer_id` dropped (`src/data.py:17`).
+- 200 duplicates removed *before* splitting (`src/data.py:25`); audit reports exactly 200, matching the planted count.
+- Temporal split on `signup_date` (`src/data.py:39`), with a test asserting `train.signup_days.max() <= test.signup_days.min()`.
+- Scaler is inside the `Pipeline` (`src/models.py:26`), fit on train folds only, and a test (`test_scaler_fitted_on_train_only`) verifies `scaler.mean_` equals the train mean.
+
+One nuance, not a leak: `signup_days` is both the split variable and a retained feature, so test values lie entirely outside the train range — defensible and documented (cohort effects), but worth noting.
+
+**Methodology — good with gaps.** ROC-AUC primary plus F1/precision/recall on a ~25% churn class — not accuracy alone. Neither model is tuned, so the budget is symmetric and honestly disclosed. Sanity checks (overfit-on-20-rows, label-shuffle, majority-class floor) are a nice touch. Weaknesses: the "baseline" is only a stated AUC=0.5 floor, not a trained DummyClassifier in the results table; evaluation rests on a single fixed test split.
+
+**Reproducibility — excellent.** Seeds `[0-4]` fixed and logged, dataset seed fixed (`make_dataset.py`), config + per-seed metrics written to `results/metrics.json`, and re-running reproduced the committed numbers to the digit.
+
+**Claims discipline — strong.** The report is auto-generated from the measured output, so it cannot over-claim relative to the code. The winner determination uses an explicit noise bound (2× max std); gap 0.1306 ≫ bound 0.034. Limitations are unusually honest — notably that the synthetic generator is structurally linear and thus *advantages* LR, plus the caveat that ±std reflects only seed variance, not test-set sampling. The claim rests on a single split with LR std=0, which they acknowledge.
+
+**Executability — strong.** 19 tests pass in ~2s; entrypoint runs in ~3s and reproduces. One defect: `pyproject.toml:3` declares `build-backend = "setuptools.backends.legacy:build"`, which does not exist (`pip install .` would fail) — but it's off the declared run path (`python3 run_experiment.py`), so it doesn't block the experiment.
+
+**Code quality — good.** Clean modular split (data/features/models/evaluate), documented, deps declared and used. Minor: `compute_metrics` is imported in `run_experiment.py:20` but never called there (dead import); plus the broken build-backend string.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 80,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 88,
+  "executability_score": 90,
+  "code_quality_score": 84,
+  "verdict": "good",
+  "key_findings": [
+    "All four planted traps (account_status leak, customer_id, 200 straddling duplicates, temporal column) are handled correctly AND covered by dedicated tests.",
+    "Experiment reproduces the committed results/metrics.json exactly on re-run; seeds [0-4] and dataset seed fixed and logged.",
+    "Report is auto-generated from measured output, so it cannot over-claim; winner is decided via an explicit noise bound (gap -0.1306 vs bound +-0.0340).",
+    "Limitations section is unusually honest, including that the synthetic generator is structurally linear and therefore advantages LogisticRegression.",
+    "Weaknesses: no trained trivial baseline in the results table (only a stated 0.5 floor), no hyperparameter tuning for either model, and a single fixed test split with seed-only variance (LR std=0).",
+    "pyproject.toml build-backend 'setuptools.backends.legacy:build' is invalid (pip install . would fail), but the declared run path 'python3 run_experiment.py' is unaffected."
+  ],
+  "leakage_findings": [
+    "account_status dropped in src/data.py:21; test_data.py:87 confirms it is a perfect function of the target, making the drop meaningful.",
+    "customer_id dropped in src/data.py:17.",
+    "200 exact duplicates removed before splitting (src/data.py:25); audit reports exactly 200, matching planted count, so duplicates cannot straddle train/test.",
+    "Time-based split on signup_date (src/data.py:39); test_temporal_split_ordering asserts train signup_days all precede test.",
+    "StandardScaler is inside the sklearn Pipeline (src/models.py:26), fit only on train; test_scaler_fitted_on_train_only verifies scaler.mean_ == train mean.",
+    "Minor: signup_days is both the temporal split variable and a retained feature, so test values fall entirely outside the train range — defensible and documented, not a target leak."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  => 19 passed in 2.01s",
+    "python3 run_experiment.py  => completed in ~3s, reproduced committed metrics (LR AUC 0.7323+-0.0000, GBM 0.6017+-0.0170)",
+    "grep -n compute_metrics run_experiment.py  => imported line 20 but not called (dead import)",
+    "python3 -c 'import importlib; importlib.import_module(\"setuptools.backends.legacy\")'  => ModuleNotFoundError (invalid build backend)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops account_status + customer_id, dedups before split, time-based split sorted by signup_days."},
+    {"path": "src/models.py", "note": "StandardScaler+model Pipeline ensures scaler fit on train only; seed passed to both models."},
+    {"path": "src/evaluate.py", "note": "run_seeds aggregates mean/std across seeds on a fixed split; ROC-AUC/F1/precision/recall."},
+    {"path": "run_experiment.py", "note": "Orchestrates pipeline; includes overfit and label-shuffle sanity checks; auto-generates REPORT.md from measured output; line 20 imports unused compute_metrics."},
+    {"path": "tests/test_data.py", "note": "Tests leak drop, dedup, temporal ordering, and confirms the account_status leak exists in raw data."},
+    {"path": "tests/test_pipeline.py", "note": "Verifies scaler-fit-on-train-only, seed determinism, and AUC above 0.5."},
+    {"path": "results/metrics.json", "note": "Full per-seed metrics + audit logged; reproduced exactly on re-run."},
+    {"path": "REPORT.md", "note": "Honest limitations including linear-generator bias toward LR and seed-only variance; winner backed by noise-bound reasoning over 5 seeds on one split."},
+    {"path": "pyproject.toml", "note": "build-backend 'setuptools.backends.legacy:build' is invalid; pip install would fail, though declared run path is unaffected."}
+  ]
+}
+```

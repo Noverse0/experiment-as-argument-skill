@@ -1,0 +1,83 @@
+Both commands work and the run reproduces the recorded metrics exactly. The run also surfaces the key methodological issue: LR's ROC-AUC is **identical** (0.7329 ± 0.0226) across all three seeds, confirming the seed dimension adds no independent information for the deterministic LR pipeline.
+
+## Review
+
+This is a genuinely rigorous experiment that catches every planted trap. The audit:
+
+**Leakage — handled well.**
+- `account_status` (the perfect target leak) is dropped via `LEAK_COLS` in `src/data.py:16,31`, with the reasoning documented.
+- The 200 appended duplicates are removed via `drop_duplicates()` *before* any split (`src/data.py:34-36`); the run confirms exactly 200 removed.
+- `customer_id` dropped.
+- Temporal handling is deliberate: rows are sorted by `signup_date` and evaluated with `TimeSeriesSplit` so training always precedes evaluation in time (`src/data.py:39`, `src/evaluate.py:14-19`). `signup_date` itself is excluded from features.
+- `StandardScaler` is inside the `Pipeline` and `pipeline.fit` runs per-fold on train only (`src/evaluate.py:21`) — no scaler leakage.
+
+**Methodology — mostly sound, two gaps.**
+- Metrics are appropriate for the 0.27 churn rate: ROC-AUC, PR-AUC, and F1 — not accuracy alone.
+- Both models use untuned defaults, so tuning budget is symmetric (zero for both) — fair.
+- **No trivial baseline** (DummyClassifier / majority-class) is included, so the ~0.73 AUC isn't anchored against chance within the experiment.
+- **Pseudo-replication:** "3 seeds × 5 folds = 15 observations" overstates independence. `TimeSeriesSplit` produces identical splits every run, and LR is deterministic, so LR's 15 values are 3 exact copies of 5 folds (GB varies only trivially). The reported std is fold-to-fold variance with effective n≈5, not 15. The variance figure isn't wrong, but the n=15 framing inflates apparent power.
+
+**Reproducibility — excellent.** Seeds `[42,123,456]` fixed and logged in `config`; full config/data_stats/summaries/raw_folds written to `results/metrics.json`; re-running reproduced the recorded numbers exactly.
+
+**Claims — honest, one overclaim.** The report claims *no winner*, which is conservative and matches the data. Limitations are candid (synthetic data, 3 features, modest n, no post-hoc selection). Two caveats: (1) the report asserts seeds "vary solver tie-breaking for LR," which the data directly contradicts — LR is bit-identical across seeds; (2) the "gap < combined spread" decision rule (`run_experiment.py:68`) is an ad hoc heuristic, not a real significance test, though they acknowledge formal significance would need more replications.
+
+**Executability — clean.** `make_dataset.py`, `run_experiment.py`, and `pytest` all run from a clean state; 18 tests pass in ~2s.
+
+**Code quality — good.** Modular `src/`, documented rationale, deps declared and used. Minor: `import numpy` buried inside `summarize()` (`src/evaluate.py:38`), and `.pytest_cache/` committed.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 72,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 75,
+  "executability_score": 96,
+  "code_quality_score": 88,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted traps are caught: account_status leak dropped, 200 duplicates removed before split, signup_date handled via a deliberate temporal TimeSeriesSplit.",
+    "StandardScaler is fitted per-fold inside the sklearn Pipeline on training data only — no fit-transform leakage.",
+    "Pseudo-replication: '3 seeds x 5 folds = 15 observations' overstates independence. TimeSeriesSplit gives identical splits and LR is deterministic, so LR's 15 values are 3 exact copies of 5 folds; effective n is ~5 and reported std is fold-to-fold variance.",
+    "No trivial/dummy baseline included to anchor the ~0.73 AUC against chance.",
+    "Metrics (ROC-AUC, PR-AUC, F1) are appropriate for the 0.27 churn imbalance; accuracy alone is avoided.",
+    "Report claims no winner (conservative, matches data) with honest limitations; both models use untuned defaults so tuning budget is symmetric.",
+    "Fully reproducible: re-running reproduced recorded metrics exactly; config and raw folds logged to results/metrics.json.",
+    "Report overclaims that seeds 'vary solver tie-breaking for LR', which the bit-identical LR results across seeds directly contradict.",
+    "Decision rule 'gap < sum of stds' is an ad hoc heuristic rather than a formal significance test (acknowledged in limitations)."
+  ],
+  "leakage_findings": [
+    "account_status (closed iff churned=1) dropped via LEAK_COLS in src/data.py:16,31 before training.",
+    "200 exact duplicate rows removed with drop_duplicates() before any split (src/data.py:34-36); run confirms exactly 200 removed.",
+    "customer_id dropped as a non-predictive identifier.",
+    "Temporal leakage avoided: data sorted by signup_date (src/data.py:39) and evaluated with TimeSeriesSplit (src/evaluate.py:14-19); signup_date excluded from features.",
+    "StandardScaler fitted train-only per fold inside Pipeline (src/models.py:9-12, src/evaluate.py:21) — no scaler leakage across folds.",
+    "No remaining leakage detected; the experiment's leakage handling is the strongest part of the project."
+  ],
+  "commands_run": [
+    "head -3 churn.csv; wc -l churn.csv",
+    "python3 --version",
+    "python3 -m pytest -q  (18 passed in 1.93s)",
+    "python3 run_experiment.py  (ran to completion, reproduced recorded metrics; LR identical across all 3 seeds)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops account_status + customer_id, removes duplicates before split, sorts by signup_date for temporal CV; leakage rationale documented."},
+    {"path": "src/evaluate.py", "note": "TimeSeriesSplit CV; pipeline.fit per fold on train only; reports roc_auc/pr_auc/f1. import numpy buried inside summarize()."},
+    {"path": "src/models.py", "note": "LR pipeline with StandardScaler, GB without (scale-invariant); seed wired into random_state of both."},
+    {"path": "run_experiment.py", "note": "Loops 3 seeds x 5 folds; writes results/metrics.json; ad hoc 'gap < combined spread' conclusion rule (line 68); auto-generates REPORT.md."},
+    {"path": "results/metrics.json", "note": "raw_folds show LR values are 3 identical copies of 5 folds (deterministic), revealing seed pseudo-replication; config/seeds/data_stats logged."},
+    {"path": "REPORT.md", "note": "Honest null-result claim with limitations; but asserts seeds vary LR solver tie-breaking, contradicted by identical LR results; frames n=15 without noting effective n~5."},
+    {"path": "make_dataset.py", "note": "Documents the three planted traps; deterministic generation; appends 200 sampled duplicate rows."},
+    {"path": "tests/", "note": "18 tests covering cleaning (drops, dedup, sort), pipeline structure, CV fold counts, metric ranges; all pass. No test asserts leakage absence end-to-end but coverage is solid."}
+  ]
+}
+```

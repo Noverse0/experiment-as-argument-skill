@@ -1,0 +1,70 @@
+My audit is complete. This is a notably rigorous experiment.
+
+## Review
+
+**Leakage prevention — strong.** The headline trap is neutralized: `account_status` (which is `"closed"` iff `churned==1`) is explicitly dropped (`src/data.py:11,28`). The `StandardScaler` lives inside a `Pipeline` and is re-fit per fold on training data only (`src/models.py:9-12`, `src/evaluate.py:17`), so no test-fold statistics leak. The 200 planted exact duplicates are removed *before* any split (`src/data.py:23`), preventing train/test straddling. The temporal column is handled deliberately: `signup_date → days_since_first`, sorted ascending, evaluated with `TimeSeriesSplit` (`src/data.py:31-36`, `src/evaluate.py:10`). One minor nuance: the `min_date` reference for `days_since_first` is computed over the full dataset before splitting — negligible here since the earliest date sits in the first train fold anyway.
+
+**Methodology — good.** Two trivial baselines are present (majority-class AUC=0.5 and a label-shuffle control that correctly falls to 0.525, gating the run). ROC-AUC is the primary metric with F1 reported alongside — appropriate for the 27% churn imbalance. Both arms use library defaults with equal (zero) tuning budget. The weak spot: the "winner if ±1 SD bands don't overlap" rule is a heuristic, not a proper paired/corrected significance test — fragile at n=5 folds, though they disclose it.
+
+**Reproducibility — excellent.** Seeds are fixed and logged (model `random_state=42`, dataset `seed=7`, shuffle seed). Full config + metrics are persisted to `results/metrics.json`. I reran from a clean state (deleted data + regenerated) and got byte-identical data and exactly matching metrics.
+
+**Claims discipline — good.** The report claims LR beats GB (gap −0.058, non-overlapping bands) and backs it with the 5-fold numbers. Limitations are honest and specific (5 folds noisy, no tuning, single synthetic draw, temporal-proxy caveat). No claim exceeds what the code measured.
+
+**Executability — excellent.** `pytest` (13 passed) and `python run_experiment.py` both work from clean state; data auto-generates if absent.
+
+**Code quality — strong.** Clean module separation (data/models/evaluate), no dead code, all four declared dependencies used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 85,
+  "executability_score": 98,
+  "code_quality_score": 92,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps neutralized: account_status dropped, 200 duplicates removed before split, signup_date handled via TimeSeriesSplit on sorted days_since_first.",
+    "StandardScaler is inside a Pipeline and re-fit per fold on train only — no scaler leakage.",
+    "Two trivial baselines present (majority-class AUC=0.5 and a label-shuffle control at 0.525 that gates the run); AUC+F1 reported for the 27% imbalance.",
+    "Fully reproducible: clean-state regen produced byte-identical data and exactly matching metrics; seeds fixed and logged to results/metrics.json.",
+    "Both declared commands (pytest, run_experiment.py) execute cleanly; 13 tests pass.",
+    "Winner verdict rule relies on non-overlapping ±1 SD bands — a heuristic rather than a proper significance test, but disclosed in limitations.",
+    "Report claims a winner (LR > GB) backed by 5 folds with honest limitations and no overclaiming beyond what was measured."
+  ],
+  "leakage_findings": [
+    "account_status (target-derived, 'closed' iff churned==1) explicitly dropped via LEAKED_COLS in src/data.py:11,28 — critical leak avoided.",
+    "StandardScaler fitted on train fold only inside the Pipeline/TimeSeriesSplit loop (src/models.py, src/evaluate.py:17) — no preprocessing leakage.",
+    "200 exact duplicate rows deduplicated before any split (src/data.py:23) — no train/test straddling.",
+    "Temporal column handled deliberately: signup_date -> days_since_first, sorted ascending, TimeSeriesSplit used (src/data.py:31-36).",
+    "Minor: days_since_first reference min_date computed over the full dataset before split; negligible impact since earliest date lies in the first train fold."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q",
+    "python run_experiment.py",
+    "rm churn.csv && python run_experiment.py (clean-state regen)",
+    "diff <(sort churn.csv) <(sort /tmp/churn_backup.csv)  -> IDENTICAL"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops account_status + customer_id, dedupes before split, converts signup_date to days_since_first and sorts temporally."},
+    {"path": "src/models.py", "note": "LR and GB each wrapped in a Pipeline with StandardScaler; random_state=42 fixed."},
+    {"path": "src/evaluate.py", "note": "TimeSeriesSplit CV re-fitting per fold on train only; label_shuffle_auc leakage control with fixed seed."},
+    {"path": "run_experiment.py", "note": "Runs majority + label-shuffle sanity gates, both models, non-overlapping ±1 SD verdict rule; persists metrics.json and regenerates REPORT.md."},
+    {"path": "make_dataset.py", "note": "Deterministic synthetic generator (seed=7) planting the three traps; documents them in a docstring."},
+    {"path": "results/metrics.json", "note": "Full config, sanity checks, per-fold AUC/F1, and conclusion persisted; reproduced exactly on rerun."},
+    {"path": "tests/test_pipeline.py", "note": "13 tests covering dedup count, leaked-column absence, temporal sort, label-shuffle near chance, and baseline-beating checks; all pass."},
+    {"path": "REPORT.md", "note": "Claims LR > GB with 5-fold evidence and non-overlapping SD bands; honest limitations on fold count, no tuning, single synthetic draw."}
+  ]
+}
+```

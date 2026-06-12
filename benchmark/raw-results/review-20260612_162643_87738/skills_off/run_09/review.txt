@@ -1,0 +1,76 @@
+I have enough to complete the review.
+
+## Review
+
+**Summary.** This is a strong, rigorous experiment. All four planted leakage traps are correctly handled, the code runs cleanly from a clean state, tests pass, and results reproduce bit-for-bit. The main weaknesses are statistical: the "winner" determination rests on a crude noise heuristic over non-independent folds, and the margin is razor-thin.
+
+**Leakage (excellent).** All four traps caught:
+- `account_status` is dropped via an explicit `LEAK_COLS` list, with a docstring explaining it encodes the target perfectly. Covered by a dedicated test (`test_account_status_absent`).
+- The 200 exact duplicates are removed with `drop_duplicates()` *before* splitting (verified: 200 dropped, 4000 remain), so they cannot straddle folds.
+- `StandardScaler` lives inside the LR `Pipeline`, so it is fit on the train fold only each CV iteration. GB correctly omits the scaler.
+- `signup_date` is handled deliberately: rows sorted chronologically + `TimeSeriesSplit`, with a test asserting `train_idx.max() < test_idx.min()`.
+- Minor nit: `reference_date` for `signup_days` is the global `min` over the whole dataset, computed before splitting — technically a train/test boundary crossing, but since the data is sorted ascending the global min always sits in fold-0's training set, so there is no actual leak.
+
+**Methodology (good, not airtight).** Trivial baseline present (DummyClassifier → AUC 0.5) plus a label-shuffle check. Metrics are appropriate for the ~27% churn imbalance (ROC-AUC primary + avg_precision/F1/precision/recall; no reliance on accuracy). Equal tuning budget (both at defaults, acknowledged). The weak point: `determine_winner` defines "noise" as the *sum of the two fold-stds*, not a paired significance test. With `TimeSeriesSplit`'s expanding, overlapping training windows the folds are not independent, so those stds understate true variance — and the gap (0.0594) clears the noise band (0.0566) by only **0.0028**. The substantive conclusion (LR wins on a linearly-generated target) is almost certainly right, but the statistical justification is thin.
+
+**Reproducibility (excellent).** Seed defaults to 42, threaded into both pipelines and logged in `results/metrics.json` config. Re-running the entrypoint produced byte-identical metrics. Config + per-fold CSV + JSON all written to `results/`.
+
+**Claims (good).** REPORT.md reports mean±std with n=5 for every metric, lists honest and relevant limitations (single dataset, no tuning, signup_days distribution-shift risk, expanding window favoring complex models, fixed 0.5 threshold). Nothing claimed that the code didn't measure. Slight overconfidence in the bold "Winner: LogisticRegression" given how borderline the margin is.
+
+**Executability (excellent).** `pytest` → 18 passed in ~2s. `python3 run_experiment.py` completes in seconds and reproduces. Dataset committed; regeneration documented.
+
+**Code quality (good).** Clean modular split (`data`/`models`/`evaluate`), docstrings, declared+used deps. Minor smells: blanket `warnings.filterwarnings("ignore")` hides potential signals, and `summarise` computes mean/std over non-metric keys (`fold`, `train_size`) too — harmless but sloppy.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 78,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 80,
+  "executability_score": 98,
+  "code_quality_score": 88,
+  "verdict": "good",
+  "key_findings": [
+    "All four planted rigor traps are correctly handled: account_status dropped, duplicates removed before split, scaler inside pipeline (train-only fit), and TimeSeriesSplit for the temporal column.",
+    "Experiment is fully reproducible: re-running the entrypoint produced byte-identical metrics.json; seed (42) is fixed and logged in config.",
+    "18/18 tests pass in ~2s; entrypoint runs in seconds and writes JSON, CSV, and REPORT.md.",
+    "Weakest area is the winner test: 'noise' is defined as the sum of fold-stds (not a paired significance test) over non-independent expanding-window folds, and the AUC gap clears that band by only 0.0028.",
+    "Limitations section is honest and specific (no tuning, expanding window, signup_days shift risk, fixed threshold); no claim exceeds what the code measured.",
+    "Includes a trivial baseline (DummyClassifier, AUC 0.5) and a label-shuffle sanity check (AUC regressed to 0.577)."
+  ],
+  "leakage_findings": [
+    "account_status correctly identified as a target leak and dropped via explicit LEAK_COLS; enforced by test_account_status_absent.",
+    "200 exact duplicate rows removed with drop_duplicates() BEFORE splitting (verified 4200->4000), so they cannot straddle train/test.",
+    "StandardScaler is inside the LR Pipeline, so it is fit on train folds only; GB pipeline correctly has no scaler.",
+    "Temporal column handled deliberately: sorted by signup_date + TimeSeriesSplit, with test asserting train_idx.max() < test_idx.min().",
+    "Minor: signup_days reference_date uses the global min over the full dataset (computed pre-split), but because data is sorted ascending the global min is always in the first training fold, so no actual leakage occurs."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -c \"import pandas as pd; d=pd.read_csv('churn.csv'); print(len(d), d.duplicated().sum())\"",
+    "python3 -m pytest -q  (18 passed in 1.76s)",
+    "python3 run_experiment.py  (completed in seconds; LR AUC 0.7328, GB AUC 0.6734)",
+    "python3 -c \"compare /tmp/metrics_orig.json vs results/metrics.json -> identical; margin gap-noise = 0.0028\""
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "load_and_clean drops account_status + meta cols, dedups before split, engineers signup_days, sorts by date; get_time_splits uses TimeSeriesSplit. Clean leakage handling."},
+    {"path": "src/models.py", "note": "LR pipeline bundles StandardScaler (train-only fit); GB omits scaler. Both seeded; both at library defaults (equal tuning budget)."},
+    {"path": "run_experiment.py", "note": "determine_winner uses gap > (lr_std + gb_std) as the decision rule — a crude noise heuristic, not a paired significance test over non-independent folds. Sanity checks (dummy + label shuffle) present."},
+    {"path": "src/evaluate.py", "note": "Computes AUC/avg_precision/F1/precision/recall (good for imbalance); summarise reports mean/std/n but iterates over all keys incl. non-metrics like fold/train_size."},
+    {"path": "tests/test_pipeline.py", "note": "18 tests covering dedup, leak-column removal, temporal ordering, label-shuffle degradation, and tiny-batch overfit. All pass."},
+    {"path": "REPORT.md", "note": "Reports mean±std with n=5, declares LR winner, and lists honest limitations; winner margin (0.0594) exceeds the sum-of-stds band by only 0.0028 — borderline, slightly overconfident."},
+    {"path": "results/metrics.json", "note": "Per-fold + summary metrics, sanity results, and full config (seed=42, features, dropped leak cols) logged; reproduced identically on re-run."},
+    {"path": "make_dataset.py", "note": "Deterministic generator documenting the three planted traps; target logit is linear in features, consistent with LR genuinely outperforming GB."}
+  ]
+}
+```

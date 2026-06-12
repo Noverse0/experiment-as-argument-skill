@@ -1,0 +1,69 @@
+Everything reproduces exactly (git status clean after rerun — identical `metrics.json` and `REPORT.md`), tests pass, and `scipy` is the only declared-but-unused dependency. I have what I need to write the review.
+
+## Review
+
+This is a strongly rigorous experiment. All three planted traps in the data generator are caught and handled deliberately, the sanity scaffolding (baseline floor, label-shuffle, leakage-ceiling test) goes beyond what's required, and the declared commands run clean and reproduce the committed numbers exactly.
+
+**Leakage** — Exemplary. `account_status` is dropped first thing in `load_and_clean` with a documented rationale (`src/data.py:21,32`). The 200 exact duplicates are removed *before* splitting via `drop_duplicates` on all non-ID columns (`src/data.py:36-38`), confirmed by the run output ("removing 200 duplicates"). The temporal column drives a chronological split (sorted by `signup_date`, `time_split` slices in order — `src/data.py:45-56`) rather than a random one, and the report is honest that `signup_date` is a customer attribute approximating, not perfectly replicating, deployment time. `StandardScaler` is fit on train only (`src/data.py:71-73`). A dedicated test asserts each property.
+
+**Methodology** — Majority-class `DummyClassifier` baseline present and beaten. ROC-AUC is the primary metric (appropriate for the 25% churn imbalance), reported alongside F1/precision/recall/accuracy — accuracy is never used alone. Neither model is tuned, which is an *equal* budget and fair, though it leaves GBM's capacity unexplored. One real weakness: LR with `lbfgs` is deterministic, so its 5 "seeds" produce identical results (std = 0.0) — the LR variance estimate is effectively n=1, which the report does acknowledge.
+
+**Reproducibility** — Seeds fixed and logged to `results/metrics.json`; config and metrics persisted; re-running reproduced the metrics byte-for-byte (git status clean afterward). Committed `churn.csv` plus deterministic `make_dataset.py`.
+
+**Claims** — The report claims a winner (LR by 0.0069 AUC) using a defined "2 × max std" noise threshold, applied consistently in code (`run_experiment.py:129-149`). Limitations are honest and specific: no statistical test, synthetic DGP that happens to be correctly-specified for LR, single dataset, low power at 5 seeds. Every number in REPORT.md traces to measured output. The one stretch: declaring LR "the stronger model" off a ~0.007 AUC gap with no formal test and a degenerate LR variance is slightly over-confident, though well-hedged.
+
+**Executability** — `pytest` (12 passed) and `python run_experiment.py` both work from the existing state; dependencies declared.
+
+**Code quality** — Clean modular split (`data`/`models`/`evaluate`), well-documented, no dead code. Minor: `scipy` is declared in requirements but never imported; a couple of in-function re-imports in `sanity_checks`.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 87,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 85,
+  "executability_score": 98,
+  "code_quality_score": 86,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps (target-derived account_status, 200 straddling duplicates, temporal column) are handled deliberately and documented.",
+    "Sanity scaffolding exceeds requirements: majority-class baseline, label-shuffle test (AUC 0.6084), and a leakage-ceiling test (AUC < 0.99).",
+    "Experiment is fully reproducible: re-running reproduced committed metrics exactly and left git status clean; 12/12 tests pass in ~1.6s.",
+    "Report claims a winner (LR by 0.0069 AUC) via a consistently-applied 2x-std noise threshold, with an honest limitations section (no stat test, correctly-specified synthetic DGP, single dataset).",
+    "Weakness: LR's 5 seeds are degenerate (lbfgs is deterministic, std=0), so the LR variance estimate is effectively n=1 — declaring LR 'the stronger model' off a ~0.007 gap is slightly over-confident, though hedged.",
+    "Minor: scipy is declared in requirements.txt but never imported."
+  ],
+  "leakage_findings": [
+    "account_status dropped first in load_and_clean (src/data.py:21,32) — perfect target-derived leak correctly removed.",
+    "Duplicates removed BEFORE the split via drop_duplicates on all non-ID columns (src/data.py:36-38); run confirms 200 removed, so duplicates cannot straddle train/test.",
+    "Chronological 80/20 split sorted by signup_date (src/data.py:45-56) instead of a random split; report justifies excluding the date as a feature and notes it is a customer attribute, not an event timestamp.",
+    "StandardScaler fit on train only and applied to test (src/data.py:71-73), asserted by test_test_scaler_uses_train_stats.",
+    "customer_id dropped as a non-predictive identifier (src/data.py:42)."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (12 passed in 1.64s)",
+    "python run_experiment.py  (ran 5 seeds x 2 models; LR AUC 0.7323+-0.0000, GBM 0.7254+-0.0025; reproduced committed metrics.json exactly)",
+    "grep -rn scipy . --include=*.py  (no matches — declared but unused)",
+    "git status --short  (clean after rerun — outputs reproduced byte-for-byte)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Leakage handling: drops account_status (leak) and customer_id, dedups before split on non-ID cols, temporal sort, train-only scaler fit."},
+    {"path": "run_experiment.py", "note": "Orchestration: baseline, label-shuffle sanity check, 5 seeds x 2 models, defined noise-threshold winner logic (lines 129-149), writes metrics + report."},
+    {"path": "make_dataset.py", "note": "Generator documenting the three planted traps; deterministic for a given seed; appends 200 exact duplicates."},
+    {"path": "tests/test_pipeline.py", "note": "12 tests covering leak removal, dedup, temporal ordering, train-only scaling, baseline floor, label-shuffle, and a leakage-ceiling check; all pass."},
+    {"path": "REPORT.md", "note": "Claims LR winner by 0.0069 AUC with variance reported; honest limitations (no stat test, n=5, synthetic correctly-specified DGP). Numbers trace to metrics.json."},
+    {"path": "results/metrics.json", "note": "Seeds, sanity findings, per-seed raw runs, and aggregates persisted; LR raw runs identical across seeds (deterministic), confirming n=1 effective variance for LR."},
+    {"path": "requirements.txt", "note": "Dependencies declared; scipy listed but never imported in code."}
+  ]
+}
+```

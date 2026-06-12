@@ -1,0 +1,12 @@
+Everything works correctly. Here's a summary of what was built and the key design decisions:
+
+**Trap handling:**
+- `account_status` dropped — it's a perfect leak (`"closed"` iff `churned==1`)
+- 200 duplicates removed before splitting — prevents cross-split contamination
+- Temporal split by `signup_date` (chronological) — avoids time-ordering leakage
+
+**Methodology:** 5-fold stratified CV on training data (80% by time), test set touched once. Sanity checks: overfit-tiny-subset (0.90 AUC, PASS) and label-shuffle (0.54 AUC, PASS).
+
+**Result:** No detectable difference — the 0.011 ROC-AUC gap is within the 0.020 pooled CV noise. The dataset's linear log-odds generating process naturally favours LR, but neither model is a statistically clear winner.
+
+{"files_created": ["src/__init__.py", "src/data.py", "src/pipeline.py", "src/evaluate.py", "src/checks.py", "run_experiment.py", "tests/__init__.py", "tests/test_data.py", "tests/test_pipeline.py", "tests/test_evaluate.py", "requirements.txt", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}

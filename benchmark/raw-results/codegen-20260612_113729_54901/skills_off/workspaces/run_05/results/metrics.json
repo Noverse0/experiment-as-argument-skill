@@ -1,0 +1,76 @@
+{
+  "data_info": {
+    "n_before_dedup": 4200,
+    "n_after_dedup": 4000,
+    "n_dupes_removed": 200,
+    "n_train": 2800,
+    "n_test": 1200,
+    "target_rate_train": 0.2786,
+    "target_rate_test": 0.2517
+  },
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "sanity_checks": {
+    "baseline_majority_roc_auc": 0.5,
+    "baseline_majority_avg_precision": 0.251667,
+    "label_shuffle_roc_auc": 0.440906,
+    "label_shuffle_near_chance": true
+  },
+  "logistic_regression": {
+    "roc_auc": {
+      "mean": 0.7459438929777726,
+      "std": 0.0,
+      "n": 5,
+      "values": [
+        0.745944,
+        0.745944,
+        0.745944,
+        0.745944,
+        0.745944
+      ]
+    },
+    "avg_precision": {
+      "mean": 0.5026513251225135,
+      "std": 0.0,
+      "n": 5,
+      "values": [
+        0.502651,
+        0.502651,
+        0.502651,
+        0.502651,
+        0.502651
+      ]
+    }
+  },
+  "gradient_boosting": {
+    "roc_auc": {
+      "mean": 0.7243576601424799,
+      "std": 0.003746968614310381,
+      "n": 5,
+      "values": [
+        0.730746,
+        0.719546,
+        0.722986,
+        0.725726,
+        0.722784
+      ]
+    },
+    "avg_precision": {
+      "mean": 0.4799057382503971,
+      "std": 0.005995555225990909,
+      "n": 5,
+      "values": [
+        0.47945,
+        0.471379,
+        0.480489,
+        0.490072,
+        0.478139
+      ]
+    }
+  }
+}

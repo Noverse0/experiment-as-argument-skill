@@ -1,0 +1,132 @@
+{
+  "experiment": "churn_lr_vs_gbm",
+  "seed": 42,
+  "n_cv_folds": 5,
+  "runtime_seconds": 2.27,
+  "data_audit": {
+    "n_raw": 4200,
+    "n_after_dedup": 4000,
+    "n_dupes_removed": 200,
+    "target_rate": 0.2705,
+    "dropped_columns": [
+      "customer_id",
+      "signup_date",
+      "account_status"
+    ],
+    "leak_column_confirmed": "account_status"
+  },
+  "split_info": {
+    "n_train": 3200,
+    "n_test": 800,
+    "train_signup_date_range": [
+      "2023-01-01",
+      "2024-12-21"
+    ],
+    "test_signup_date_range": [
+      "2024-12-21",
+      "2025-06-18"
+    ],
+    "train_target_rate": 0.275625,
+    "test_target_rate": 0.25
+  },
+  "baseline": {
+    "strategy": "most_frequent",
+    "majority_class": 0,
+    "test_accuracy": 0.75,
+    "test_auc": 0.5
+  },
+  "sanity_checks": {
+    "LogisticRegression": {
+      "overfit_one_batch": {
+        "tiny_n": 50,
+        "train_accuracy_on_tiny": 0.9,
+        "passed": true
+      },
+      "label_shuffle": {
+        "shuffled_label_auc_per_seed": [
+          0.7215833333333332,
+          0.34931666666666666,
+          0.514725,
+          0.43767500000000004,
+          0.69065
+        ],
+        "shuffled_label_auc_mean": 0.5427899999999999,
+        "n_repeats": 5,
+        "passed": true
+      }
+    },
+    "GradientBoosting": {
+      "overfit_one_batch": {
+        "tiny_n": 50,
+        "train_accuracy_on_tiny": 1.0,
+        "passed": true
+      },
+      "label_shuffle": {
+        "shuffled_label_auc_per_seed": [
+          0.4861333333333333,
+          0.46039166666666664,
+          0.5102958333333334,
+          0.46577500000000005,
+          0.5402833333333333
+        ],
+        "shuffled_label_auc_mean": 0.4925758333333333,
+        "n_repeats": 5,
+        "passed": true
+      }
+    }
+  },
+  "cv_results": {
+    "LogisticRegression": {
+      "cv_auc_per_fold": [
+        0.7339141682224745,
+        0.7787946455808961,
+        0.7232440242946708,
+        0.7290482954545453,
+        0.7209663989028212
+      ],
+      "cv_auc_mean": 0.7371935064910816,
+      "cv_auc_std": 0.02128689911710351,
+      "cv_f1_per_fold": [
+        0.4153846153846154,
+        0.3870967741935484,
+        0.2916666666666667,
+        0.296,
+        0.39080459770114945
+      ],
+      "cv_f1_mean": 0.356190530789196,
+      "cv_f1_std": 0.051852672445365275,
+      "n_folds": 5
+    },
+    "GradientBoosting": {
+      "cv_auc_per_fold": [
+        0.7169650156801015,
+        0.762620346304499,
+        0.7192581798589341,
+        0.7267523021159874,
+        0.7033209247648903
+      ],
+      "cv_auc_mean": 0.7257833537448825,
+      "cv_auc_std": 0.019913837289336947,
+      "cv_f1_per_fold": [
+        0.3851851851851852,
+        0.3939393939393939,
+        0.3215686274509804,
+        0.367816091954023,
+        0.4259927797833935
+      ],
+      "cv_f1_mean": 0.3789004156625952,
+      "cv_f1_std": 0.03433119900517842,
+      "n_folds": 5
+    }
+  },
+  "test_results": {
+    "LogisticRegression": {
+      "test_auc": 0.7322666666666666,
+      "test_f1": 0.3509933774834437
+    },
+    "GradientBoosting": {
+      "test_auc": 0.7247958333333335,
+      "test_f1": 0.40372670807453415
+    }
+  }
+}

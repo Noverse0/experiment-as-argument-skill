@@ -1,0 +1,52 @@
+{
+  "experiment": "churn-lr-vs-gbm",
+  "n_seeds": 5,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "n_train": 3200,
+  "n_test": 800,
+  "n_dupes_removed": 200,
+  "features": [
+    "tenure_months",
+    "monthly_spend",
+    "support_tickets"
+  ],
+  "sanity": {
+    "floor_auc": 0.7322666666666666,
+    "shuffle_auc": 0.6084333333333333
+  },
+  "results": {
+    "baseline": {
+      "roc_auc_mean": 0.5,
+      "roc_auc_std": 0.0,
+      "n": 5,
+      "avg_precision_mean": 0.25,
+      "avg_precision_std": 0.0,
+      "f1_mean": 0.0,
+      "f1_std": 0.0
+    },
+    "logistic_regression": {
+      "roc_auc_mean": 0.7322666666666666,
+      "roc_auc_std": 0.0,
+      "n": 5,
+      "avg_precision_mean": 0.4922014190495648,
+      "avg_precision_std": 0.0,
+      "f1_mean": 0.3509933774834437,
+      "f1_std": 0.0
+    },
+    "gradient_boosting": {
+      "roc_auc_mean": 0.7177133333333334,
+      "roc_auc_std": 0.002505163764329825,
+      "n": 5,
+      "avg_precision_mean": 0.45662530593285044,
+      "avg_precision_std": 0.007891016341934946,
+      "f1_mean": 0.3891716230987873,
+      "f1_std": 0.006382885240367579
+    }
+  }
+}

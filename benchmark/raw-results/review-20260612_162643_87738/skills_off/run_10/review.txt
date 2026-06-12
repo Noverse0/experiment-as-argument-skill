@@ -1,0 +1,73 @@
+I have everything I need to write the review.
+
+## Review
+
+This is an exemplary, rigorous experiment. Every planted trap in `make_dataset.py` was identified and handled correctly, and the claims are appropriately disciplined.
+
+**Leakage prevention (excellent).** All three traps were caught:
+- `account_status` (the perfect target leak — "closed" iff churned) is in `LEAKY_COLS` and dropped before modeling (`src/data.py:7`).
+- 200 exact duplicates are removed via `drop_duplicates()` *before* the split (`src/data.py:23`), so they cannot straddle train/test. Verified: 4200 → 4000.
+- `signup_date` is treated as temporal: rows are sorted by date, earliest 80% → train, latest 20% → test (`src/data.py:35-57`), and the column is excluded from features.
+- Scaler is fit *inside* the Pipeline, so `cross_validate` re-fits it per fold on the fold's train subset only; the holdout fits on train only. No fit-on-full-data leakage.
+
+Minor nit: the within-train CV uses `StratifiedKFold(shuffle=True)` rather than temporal CV. This is defensible for variance estimation (the *final* evaluation is the temporal holdout), and the report flags walk-forward CV as future work — but it's a small inconsistency with the temporal-leakage stance.
+
+**Methodology (strong).** Majority-class `DummyClassifier` baseline present; ROC-AUC primary with F1/precision/recall reported (not accuracy alone, appropriate for 27% churn); both models untuned (equal budget, honestly disclosed); 3 seeds × 5 folds = 15 estimates for variance.
+
+**Reproducibility (strong).** All seeds fixed and logged to `results/metrics.json` (generator seed 7, CV seeds 42/123/456, holdout seed 42). Re-running reproduced the committed REPORT.md numbers exactly.
+
+**Claims (strong).** Reports "no detectable difference" (gap −0.0145, −0.7 SD), backed by n=15 with mean±sd; does not crown a winner; limitations are honest and specific. The "real signal" sanity claim rests on a theoretical 0.5 baseline, correctly labeled as theoretical.
+
+**Executability/Code quality (strong).** Clean modular split (data/models/evaluate/experiment), 25 tests pass, entrypoint runs in ~5s, no dead code, all four declared dependencies used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 94,
+  "methodological_validity_score": 88,
+  "reproducibility_score": 93,
+  "claims_discipline_score": 92,
+  "executability_score": 98,
+  "code_quality_score": 92,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps handled: account_status leak dropped, 200 duplicates removed before split, signup_date used for time-based split.",
+    "Test suite (25 tests) passes and the entrypoint runs in ~5s, reproducing the committed REPORT.md numbers exactly — strong determinism evidence.",
+    "Majority-class baseline present; ROC-AUC primary metric with F1/precision/recall, appropriate for the 27% churn imbalance (not accuracy alone).",
+    "Variance estimated over 15 CV estimates (3 seeds x 5 folds); report claims 'no detectable difference' (-0.0145, -0.7 SD) without crowning a winner.",
+    "Both models untuned with defaults — equal budget and honestly disclosed as a limitation.",
+    "Limitations section is specific and honest (single dataset, no tuning, 3 features, single temporal split, distribution-shift caveat)."
+  ],
+  "leakage_findings": [
+    "account_status (target-derived: 'closed' iff churned) is in LEAKY_COLS and dropped before any modeling (src/data.py:7).",
+    "drop_duplicates() applied before the split (src/data.py:23); verified 4200->4000, so duplicate rows cannot straddle train/test.",
+    "Time-based split: sorted by signup_date, earliest 80% train / latest 20% test (src/data.py:35-57); temporal column excluded from feature matrices.",
+    "StandardScaler is fit inside the Pipeline, so cross_validate re-fits it per fold on the fold's train subset only and the holdout fits on train only — no fit-on-full-data leakage.",
+    "Minor: within-train CV uses StratifiedKFold(shuffle=True) rather than temporal CV; defensible for variance estimation since the final evaluation is the temporal holdout, but slightly inconsistent with the temporal-leakage stance."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (25 passed in ~2s)",
+    "python run_experiment.py  (completed in ~5s, wrote results/metrics.json and REPORT.md)",
+    "python -c \"json.load(open('results/metrics.json'))\"  (verified config/metrics persisted)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "LEAKY_COLS drops account_status/customer_id/signup_date; drop_duplicates before split; time-based split sorted by signup_date."},
+    {"path": "src/models.py", "note": "StandardScaler fit inside Pipeline for both LR and GB; seeded estimators."},
+    {"path": "src/evaluate.py", "note": "cv_scores_multi_seed runs 3 seeds x 5 folds (n=15) with per-fold scaler refit; majority-class DummyClassifier baseline; holdout scored once."},
+    {"path": "src/experiment.py", "note": "Orchestrates pipeline, logs seeds (42/123/456) and config, writes results/metrics.json."},
+    {"path": "run_experiment.py", "note": "Entrypoint generates data, runs experiment, derives conclusion via SD-thresholded verdict, writes REPORT.md; ran clean."},
+    {"path": "REPORT.md", "note": "Claims 'no detectable difference' (-0.0145, -0.7 SD) backed by n=15; honest limitations; numbers match a fresh run."},
+    {"path": "results/metrics.json", "note": "Persisted config (seeds, folds, n_estimates=15), data meta, baseline, CV and holdout results."},
+    {"path": "tests/test_data.py", "note": "Asserts dedup, temporal ordering, and absence of leaky/ID/target columns in feature matrices."}
+  ]
+}
+```

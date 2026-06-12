@@ -1,0 +1,72 @@
+All commands work and reproduce the reported numbers exactly. Here's my assessment.
+
+## Review
+
+**Leakage prevention — strong.** All three planted traps are caught deliberately:
+- `account_status` is dropped *and* an assertion (`src/data.py:29`) verifies it's `"closed" iff churned==1` before excluding it — not just dropped silently.
+- Exact duplicates removed via `drop_duplicates()` *before* splitting (`src/data.py:23`, `src/data.py:55`), preventing train/test straddle.
+- `signup_date` handled with a deliberate time-based split (latest 20%), with explicit justification in both code and report.
+- `StandardScaler` is inside the `Pipeline`, so it's refit per CV fold — verified by `test_scaler_is_inside_pipeline`.
+
+One minor blemish: the time split cuts at a positional index, and the boundary date `2024-12-21` appears as both `train.max` and `test.min`. Same-date customers land on opposite sides of the cut. Because each is a distinct `customer_id` (no row-level leak), this is a soft temporal-boundary imperfection, not a true leak — but it's not strict separation either.
+
+**Methodology — solid.** Majority-class baseline present (AUC 0.5). Primary metric is ROC-AUC (appropriate for the ~0.27 imbalance) with F1 as secondary — not accuracy alone. Both models use untuned defaults, so the tuning budget is symmetric and honestly disclosed. 5-fold stratified CV gives variance. Two genuine sanity checks (overfit-tiny + label-shuffle averaged over 5 seeds). The "detectable difference" rule (gap > sum of stds) is a heuristic, not a formal significance test — worth noting, but it's used conservatively.
+
+**Reproducibility — excellent.** Seed 42 threaded through CV, model `random_state`, and shuffle checks; logged in `results/metrics.json`. I re-ran the entrypoint and got byte-identical metrics to the committed file.
+
+**Claims discipline — excellent.** The report claims *no winner* ("no detectable difference"), backed by 5-fold CV with stds. Limitations are honest and specific (single seed, no tuning, time-split approximation, only 3 features, dataset size). No claim exceeds what the code measured; reported runtime (2.4s) matches metrics (2.37s).
+
+**Executability — verified.** `pytest` → 16 passed; `python run_experiment.py` → completes in ~2.3s and regenerates outputs from the present `churn.csv`.
+
+**Code quality — good.** Clean `src/` module split, readable, all deps declared and used. Minor: `main()` calls `load_and_clean()` only for its audit dict and discards the cleaned df (`_`), while `time_based_split()` re-reads and re-dedups the CSV independently — slight redundancy, though correct.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 88,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 95,
+  "executability_score": 98,
+  "code_quality_score": 88,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted rigor traps (target-derived account_status, 200 exact duplicates, temporal signup_date) are caught and handled deliberately, with verification rather than silent fixes.",
+    "Report claims NO winner ('no detectable difference', CV AUC gap 0.0114 < combined spread 0.0412), backed by 5-fold stratified CV with reported stds — conservative and honest.",
+    "Experiment reproduces exactly: re-running run_experiment.py produced metrics byte-identical to the committed results/metrics.json; all 16 tests pass.",
+    "Majority-class baseline present (AUC 0.5), AUC chosen as primary metric for the ~0.27 imbalance (not accuracy alone), symmetric untuned-defaults budget for both models.",
+    "Limitations section is specific and honest (single seed, no tuning, time-split approximation, 3 features, dataset size).",
+    "'Detectable difference' decision rule (gap > sum of per-model stds) is a heuristic rather than a formal significance test, though applied conservatively."
+  ],
+  "leakage_findings": [
+    "account_status dropped AND asserted to equal the target before exclusion (src/data.py:29-30) — strongest possible handling.",
+    "Exact duplicates (200) removed via drop_duplicates() before any split, in both load_and_clean and time_based_split.",
+    "StandardScaler placed inside each Pipeline so it is refit per CV fold; verified by test_scaler_is_inside_pipeline.",
+    "Time-based split (latest 20% by signup_date) used instead of random split, with explicit justification.",
+    "Minor: the split boundary date 2024-12-21 is both train.max and test.min, so same-date (distinct-customer) cohorts straddle the cut — not a row-level leak, but not strict temporal separation either."
+  ],
+  "commands_run": [
+    "python -c \"import sklearn,pandas,numpy\" (sklearn 1.7.1)",
+    "python -m pytest -q  → 16 passed in 3.12s",
+    "python run_experiment.py  → completes ~2.3s, regenerates results/metrics.json and REPORT.md, metrics identical to committed file"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Dedup-before-split, account_status leak assertion + drop, time_based_split sorts by signup_date and slices latest 20%."},
+    {"path": "src/models.py", "note": "StandardScaler inside both Pipelines; fixed random_state=seed; GBM scaler kept 'for symmetry' (documented)."},
+    {"path": "src/evaluate.py", "note": "DummyClassifier majority baseline, stratified CV with roc_auc+f1, label-shuffle (5-seed mean) and overfit-tiny sanity checks."},
+    {"path": "run_experiment.py", "note": "Single-variable design; test set touched once; writes results/metrics.json and generates REPORT.md from measured metrics. load_and_clean's cleaned df is discarded (only audit used) — minor redundancy vs time_based_split re-reading the CSV."},
+    {"path": "tests/test_pipeline.py", "note": "16 tests covering dedup count, account_status exclusion, time-split no-overlap, customer_id non-overlap, scaler-in-pipeline, beats-baseline, overfit, label-shuffle, CV shape."},
+    {"path": "REPORT.md", "note": "Conservative 'no detectable difference' conclusion with mean±std for n=5, honest limitations, runtime matches metrics."},
+    {"path": "results/metrics.json", "note": "Full machine-readable metrics including seed, audit, split_info, baseline, sanity_checks, per-fold CV scores."}
+  ]
+}
+```

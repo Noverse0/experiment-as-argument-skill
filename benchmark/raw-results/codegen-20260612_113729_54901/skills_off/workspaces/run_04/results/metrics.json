@@ -1,0 +1,89 @@
+{
+  "experiment_date": "2026-06-12T07:52:43.550104+00:00",
+  "data": {
+    "path": "churn.csv",
+    "n_total": 3998,
+    "n_dedup_removed": 202,
+    "target_rate": 0.2706,
+    "n_train": 3198,
+    "n_test": 800
+  },
+  "features": [
+    "tenure_months",
+    "monthly_spend",
+    "support_tickets"
+  ],
+  "dropped_as_leaky": [
+    "account_status"
+  ],
+  "sanity_checks": {
+    "majority_baseline_auc": 0.5,
+    "label_shuffle_auc": 0.636
+  },
+  "cv_results": {
+    "LogisticRegression": {
+      "roc_auc": {
+        "mean": 0.7385592694074034,
+        "std": 0.01465022782383644,
+        "n": 15
+      },
+      "f1": {
+        "mean": 0.3629688415243375,
+        "std": 0.034183379748698034,
+        "n": 15
+      },
+      "precision": {
+        "mean": 0.5978458386261771,
+        "std": 0.04862588597250209,
+        "n": 15
+      },
+      "recall": {
+        "mean": 0.2611753124464989,
+        "std": 0.02907669163171881,
+        "n": 15
+      }
+    },
+    "GradientBoosting": {
+      "roc_auc": {
+        "mean": 0.7257928702498471,
+        "std": 0.01838604192304847,
+        "n": 15
+      },
+      "f1": {
+        "mean": 0.39466107319038807,
+        "std": 0.027074771671386402,
+        "n": 15
+      },
+      "precision": {
+        "mean": 0.577708127000772,
+        "std": 0.04005274913763465,
+        "n": 15
+      },
+      "recall": {
+        "mean": 0.3012219654168806,
+        "std": 0.029079620647019574,
+        "n": 15
+      }
+    }
+  },
+  "test_results": {
+    "LogisticRegression": {
+      "roc_auc": 0.7313249999999999,
+      "f1": 0.3509933774834437,
+      "precision": 0.5196078431372549,
+      "recall": 0.265
+    },
+    "GradientBoosting": {
+      "roc_auc": 0.7218708333333334,
+      "f1": 0.379746835443038,
+      "precision": 0.5172413793103449,
+      "recall": 0.3
+    }
+  },
+  "conclusion": {
+    "winner": "none",
+    "cv_auc_gap": -0.0128,
+    "cv_auc_noise": 0.0184,
+    "text": "No detectable difference (gap=-0.0128 is within noise=0.0184)."
+  }
+}

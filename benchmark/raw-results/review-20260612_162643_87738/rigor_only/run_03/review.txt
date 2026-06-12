@@ -1,0 +1,93 @@
+All three planted traps confirmed and all handled correctly. Here is my review.
+
+## Review
+
+**Files inventoried:** `make_dataset.py`, `run_experiment.py`, `src/{data,features,models,evaluate,sanity,experiment}.py`, `tests/{test_data,test_pipeline,test_sanity}.py`, `REPORT.md`, `results/metrics.json`, `requirements.txt`.
+
+**Commands run:**
+- `python3 -m pytest -q` → **30 passed in 5.77s**
+- `python3 run_experiment.py` → ran in ~6s, regenerated metrics + report
+- Re-run `diff` against prior metrics → **byte-identical** (reproducible)
+- Verified dataset: 4200 rows, 200 exact dups, `account_status` is a *perfect* encoding of `churned` (active↔0, closed↔1).
+
+### Leakage — handled across the board
+- **`account_status` dropped** in `engineer_features` (the critical leak). Verified it's a pure target encoding; correctly excluded.
+- **`customer_id` dropped** as opaque identifier.
+- **Duplicates removed before splitting** (`dedup` runs prior to `time_split`), so the 200 exact dups cannot straddle the split. This is the correct ordering.
+- **Scaler fit on train only** (`fit_transform(X_train)`, `transform(X_test)`) — no test contamination.
+- **Temporal split is deliberate**: sorted by `signup_date`→`days_since_start`, earliest 80% train. Justified explicitly in code and report.
+- Minor: `days_since_start` is both the split key *and* a feature, so its test range lies entirely outside the train range (extrapolation). Acknowledged as non-predictive in the report, so low impact. Date ties at the cutoff could place same-day customers on both sides, but that's not row-level leakage.
+
+### Methodology — strong, with one structural limit
+- Trivial baseline present (`DummyClassifier` majority-class, 0.75).
+- Metrics appropriate for imbalance: ROC-AUC primary plus F1/precision/recall/Brier — not accuracy alone.
+- Extra rigor: overfit-tiny-subset and label-shuffle sanity checks, both passing.
+- Same (zero) tuning budget for both models — symmetric and honest.
+- Limitation: a **single temporal split**; the ±std reflects model seed noise only (and LR's is exactly 0, deterministic), not split variation. No CV/walk-forward.
+
+### Reproducibility — excellent
+Seeds `[0,1,2,3,4]` fixed and logged, config + metrics written to `results/metrics.json`, dataset generation deterministic, and re-running produced identical output.
+
+### Claims — mostly disciplined
+Declares LR the winner (Δ AUC = 0.123). The "non-overlapping ±1 std" framing slightly overstates certainty given the std is purely seed-noise on one split (LR std = 0). However, limitations are unusually honest: explicitly flags single-split variance, no tuning, synthetic-data favoring LR's model class, only-5-seeds, and need for a paired test. No claim exceeds what the code measured; sanity figures match `metrics.json`.
+
+### Executability — clean
+Both declared commands work from a clean state; deps declared and sufficient.
+
+### Code quality — good
+Clear modular separation, readable, well-documented. Minor dead import (`from sklearn.pipeline import Pipeline` unused in `features.py`).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 83,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 80,
+  "executability_score": 95,
+  "code_quality_score": 85,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted traps handled correctly: account_status leak dropped, 200 exact duplicates removed before splitting, temporal split on signup_date with explicit justification.",
+    "30/30 tests pass; entrypoint runs in ~6s; re-running produces byte-identical metrics.json (fully reproducible with fixed, logged seeds).",
+    "Strong sanity suite: majority-class baseline, overfit-tiny-subset, and averaged label-shuffle test (mean AUC ~0.52-0.54, < 0.65 threshold), all passing.",
+    "Metrics appropriate for 25% positive rate (ROC-AUC primary plus F1/precision/recall/Brier), not accuracy alone.",
+    "Main weakness: winner declared (LR, Δ=0.123) from a single temporal split where reported ±std captures only seed noise (LR std is exactly 0), not split variation — though limitations section honestly discloses exactly this.",
+    "Synthetic DGP is logistic, so LR's win reflects correct model class; report acknowledges this rather than overclaiming."
+  ],
+  "leakage_findings": [
+    "account_status verified as a perfect target encoding (active->churned=0, closed->churned=1); correctly dropped in src/data.py engineer_features.",
+    "customer_id dropped as opaque identifier.",
+    "dedup() runs before time_split() so the 200 exact duplicates cannot straddle train/test; dedup removes exactly 200 (verified).",
+    "StandardScaler fit on train only (fit_transform on X_train, transform on X_test) — no test leakage.",
+    "Temporal split is deliberate and justified; not a naive random split.",
+    "Minor: days_since_start is used as both the split key and a model feature, creating train/test range extrapolation; acknowledged as non-predictive, low impact. Same-day ties could cross the split boundary but this is not row-level leakage."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (30 passed in 5.77s)",
+    "python3 run_experiment.py  (ran ~6s; wrote results/metrics.json and REPORT.md)",
+    "diff of metrics.json before/after re-run (identical -> reproducible)",
+    "python3 -c '...' to verify dataset: 4200 rows, 200 dups, account_status==target crosstab"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "dedup before split; account_status + customer_id dropped; days_since_start derived; temporal time_split."},
+    {"path": "src/experiment.py", "note": "scaler fit on train only; 5-seed loop; sanity checks wired in; clean results dict."},
+    {"path": "src/sanity.py", "note": "majority-class baseline, overfit-tiny-subset, averaged label-shuffle (mean<0.65) — robust sanity battery."},
+    {"path": "src/evaluate.py", "note": "imbalance-appropriate metric suite (ROC-AUC, F1, precision, recall, Brier) with mean/std/values aggregation."},
+    {"path": "src/features.py", "note": "FEATURE_COLS excludes leaker/id; minor unused import sklearn.pipeline.Pipeline (dead code)."},
+    {"path": "make_dataset.py", "note": "deterministic generator; documents the three planted traps; account_status = target encoding confirmed."},
+    {"path": "REPORT.md", "note": "declares LR winner on single split; ±std is seed-noise only, slightly overstated, but limitations honestly disclose single-split/no-tuning/synthetic-data/5-seed caveats."},
+    {"path": "results/metrics.json", "note": "full config + metrics persisted; reproduced byte-identical on re-run."},
+    {"path": "tests/", "note": "30 tests covering dedup count, split ordering/disjointness, leaker removal, determinism, sanity passes — all green."}
+  ]
+}
+```

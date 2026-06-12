@@ -1,0 +1,240 @@
+{
+  "sanity": {
+    "baseline_dummy_auc": 0.5,
+    "shuffled_label_auc": 0.5765939714995338,
+    "shuffle_regressed": true
+  },
+  "logistic_regression": {
+    "folds": [
+      {
+        "roc_auc": 0.7323925314806774,
+        "avg_precision": 0.5288918344246782,
+        "f1": 0.32234432234432236,
+        "precision": 0.5714285714285714,
+        "recall": 0.22448979591836735,
+        "fold": 0,
+        "train_size": 670,
+        "test_size": 666,
+        "test_churn_rate": 0.29429429429429427
+      },
+      {
+        "roc_auc": 0.7376626506024095,
+        "avg_precision": 0.4558911907327984,
+        "f1": 0.39543726235741444,
+        "precision": 0.5360824742268041,
+        "recall": 0.3132530120481928,
+        "fold": 1,
+        "train_size": 1336,
+        "test_size": 666,
+        "test_churn_rate": 0.24924924924924924
+      },
+      {
+        "roc_auc": 0.6959162303664922,
+        "avg_precision": 0.47301529410669596,
+        "f1": 0.2661290322580645,
+        "precision": 0.5789473684210527,
+        "recall": 0.17277486910994763,
+        "fold": 2,
+        "train_size": 2002,
+        "test_size": 666,
+        "test_churn_rate": 0.28678678678678676
+      },
+      {
+        "roc_auc": 0.7659099281635662,
+        "avg_precision": 0.5553305429543477,
+        "f1": 0.42585551330798477,
+        "precision": 0.6588235294117647,
+        "recall": 0.3146067415730337,
+        "fold": 3,
+        "train_size": 2668,
+        "test_size": 666,
+        "test_churn_rate": 0.2672672672672673
+      },
+      {
+        "roc_auc": 0.7320481927710843,
+        "avg_precision": 0.49152519388558874,
+        "f1": 0.33476394849785407,
+        "precision": 0.582089552238806,
+        "recall": 0.23493975903614459,
+        "fold": 4,
+        "train_size": 3334,
+        "test_size": 666,
+        "test_churn_rate": 0.24924924924924924
+      }
+    ],
+    "summary": {
+      "roc_auc": {
+        "mean": 0.732785906676846,
+        "std": 0.02490509700769202,
+        "n": 5
+      },
+      "avg_precision": {
+        "mean": 0.5009308112208217,
+        "std": 0.04073530034932003,
+        "n": 5
+      },
+      "f1": {
+        "mean": 0.3489060157531281,
+        "std": 0.06293634225157974,
+        "n": 5
+      },
+      "precision": {
+        "mean": 0.5854742991453998,
+        "std": 0.044919377090668886,
+        "n": 5
+      },
+      "recall": {
+        "mean": 0.25201283553713727,
+        "std": 0.061229117392212644,
+        "n": 5
+      },
+      "fold": {
+        "mean": 2.0,
+        "std": 1.5811388300841898,
+        "n": 5
+      },
+      "train_size": {
+        "mean": 2002.0,
+        "std": 1053.0384608360703,
+        "n": 5
+      },
+      "test_size": {
+        "mean": 666.0,
+        "std": 0.0,
+        "n": 5
+      },
+      "test_churn_rate": {
+        "mean": 0.2693693693693694,
+        "std": 0.020848714663915646,
+        "n": 5
+      }
+    }
+  },
+  "gradient_boosting": {
+    "folds": [
+      {
+        "roc_auc": 0.6567792010421191,
+        "avg_precision": 0.4246600325399332,
+        "f1": 0.4044943820224719,
+        "precision": 0.45,
+        "recall": 0.3673469387755102,
+        "fold": 0,
+        "train_size": 670,
+        "test_size": 666,
+        "test_churn_rate": 0.29429429429429427
+      },
+      {
+        "roc_auc": 0.6352590361445783,
+        "avg_precision": 0.3772866424523499,
+        "f1": 0.4236453201970443,
+        "precision": 0.291196388261851,
+        "recall": 0.7771084337349398,
+        "fold": 1,
+        "train_size": 1336,
+        "test_size": 666,
+        "test_churn_rate": 0.24924924924924924
+      },
+      {
+        "roc_auc": 0.6626563791678147,
+        "avg_precision": 0.44633493933973034,
+        "f1": 0.4034582132564842,
+        "precision": 0.44871794871794873,
+        "recall": 0.36649214659685864,
+        "fold": 2,
+        "train_size": 2002,
+        "test_size": 666,
+        "test_churn_rate": 0.28678678678678676
+      },
+      {
+        "roc_auc": 0.7108007920427335,
+        "avg_precision": 0.45871191305207826,
+        "f1": 0.49230769230769234,
+        "precision": 0.54421768707483,
+        "recall": 0.449438202247191,
+        "fold": 3,
+        "train_size": 2668,
+        "test_size": 666,
+        "test_churn_rate": 0.2672672672672673
+      },
+      {
+        "roc_auc": 0.7014036144578314,
+        "avg_precision": 0.43079429501522376,
+        "f1": 0.23148148148148148,
+        "precision": 0.5,
+        "recall": 0.15060240963855423,
+        "fold": 4,
+        "train_size": 3334,
+        "test_size": 666,
+        "test_churn_rate": 0.24924924924924924
+      }
+    ],
+    "summary": {
+      "roc_auc": {
+        "mean": 0.6733798045710154,
+        "std": 0.03173889214849245,
+        "n": 5
+      },
+      "avg_precision": {
+        "mean": 0.42755756447986304,
+        "std": 0.03110153114793877,
+        "n": 5
+      },
+      "f1": {
+        "mean": 0.39107741785303485,
+        "std": 0.09632289273313115,
+        "n": 5
+      },
+      "precision": {
+        "mean": 0.44682640481092595,
+        "std": 0.09558614541629529,
+        "n": 5
+      },
+      "recall": {
+        "mean": 0.4221976261986108,
+        "std": 0.22725502762111752,
+        "n": 5
+      },
+      "fold": {
+        "mean": 2.0,
+        "std": 1.5811388300841898,
+        "n": 5
+      },
+      "train_size": {
+        "mean": 2002.0,
+        "std": 1053.0384608360703,
+        "n": 5
+      },
+      "test_size": {
+        "mean": 666.0,
+        "std": 0.0,
+        "n": 5
+      },
+      "test_churn_rate": {
+        "mean": 0.2693693693693694,
+        "std": 0.020848714663915646,
+        "n": 5
+      }
+    }
+  },
+  "conclusion": {
+    "winner": "LogisticRegression",
+    "reasoning": "LR outperforms GB by 0.0594 AUC points, outside the combined noise (LR: 0.7328\u00b10.0249, GB: 0.6734\u00b10.0317)."
+  },
+  "config": {
+    "data": "churn.csv",
+    "n_splits": 5,
+    "seed": 42,
+    "n_rows_after_dedup": 4000,
+    "n_duplicates_dropped": 200,
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets",
+      "signup_days"
+    ],
+    "target": "churned",
+    "leaked_columns_dropped": [
+      "account_status"
+    ]
+  }
+}

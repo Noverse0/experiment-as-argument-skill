@@ -1,0 +1,78 @@
+I have everything needed. Here's my review.
+
+## Review: Churn Prediction — GradientBoosting vs LogisticRegression
+
+**Inventory.** Clean, modular layout: `make_dataset.py` (generator with documented traps), `src/pipeline.py` (load/clean, feature engineering, pipeline factories), `src/evaluate.py` (CV + summarize), `run_experiment.py` (entrypoint with sanity checks + report writer), two test modules, `requirements.txt`, `results/metrics.json`, `REPORT.md`.
+
+**Executability.** `pytest` → 22 passed in 2.3s. `python run_experiment.py` → completes in ~2.2s, regenerates data if absent, and reproduces `metrics.json` values exactly (LR 0.7328±0.0223, GB 0.6734±0.0284). Both declared commands work from a clean state.
+
+**Leakage (strong).** The three planted traps are all caught:
+- `account_status` (derived from target) is in `LEAKAGE_COLS` and dropped in `make_features`; a test asserts its absence.
+- 200 exact duplicates removed via `drop_duplicates()` *before* the split, so they cannot straddle train/test.
+- `signup_date` handled deliberately with `TimeSeriesSplit` on date-sorted data, with an explicit justification.
+- `StandardScaler` lives inside the `Pipeline`, cloned per fold and fit on train only.
+
+Two minor caveats: `signup_age_days` uses a global `min_date` computed over the full frame — harmless here because the data is sorted by date and TimeSeriesSplit always keeps the earliest rows in train, but it's a fit-on-all-data pattern. And the label-shuffle sanity check returns **AUC 0.628**, which the report itself flags `WARN — possible remaining leakage`; this residual signal (likely temporal feature drift) is reported honestly but never chased down.
+
+**Methodology (solid).** Trivial baseline present (`DummyClassifier(stratified)` → 0.521). ROC-AUC is the appropriate primary metric for a 27% positive rate; F1 and accuracy also recorded. Tuning budget is equal — both use library defaults, explicitly documented. The growing TimeSeriesSplit train sizes confound the comparison somewhat, but this is acknowledged.
+
+**Reproducibility (strong).** Seeds fixed throughout (model `random_state=42`, generator seed, shuffle seed 99). Config + metrics + methodology written to `results/metrics.json`. Re-run reproduces committed numbers exactly.
+
+**Claims (weakest area).** The intervals genuinely do not overlap (LR lower bound 0.7105 > GB upper bound 0.7018), so the code's "LogisticRegression outperforms" headline follows its own logic. But there's an internal contradiction: limitation #3 reads "The null result should be interpreted as 'no strong evidence either way'" — clearly templated text that was *not* reconciled with this run, which declares a winner. Declaring a winner from 5 non-independent folds on a ±1-std-overlap heuristic (no formal paired test) is mildly overclaimed, though the report does hedge. The shuffle WARN is also not addressed in the conclusion.
+
+**Code quality (good).** Readable, documented, well-factored, tests are meaningful. Minor blemishes: `import numpy as np` in `run_experiment.py` is unused; `accuracy` is computed/stored but never surfaced in the report.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 90,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 90,
+  "claims_discipline_score": 68,
+  "executability_score": 95,
+  "code_quality_score": 85,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted traps (account_status leak, 200 duplicates, temporal column) are correctly handled.",
+    "pytest: 22 passed in 2.3s; run_experiment.py completes in ~2.2s and reproduces committed metrics.json exactly.",
+    "Trivial baseline (DummyClassifier stratified, AUC 0.521) present; ROC-AUC is appropriate primary metric for 27% positive rate; equal (default) tuning budget for both models.",
+    "Seeds fixed and logged; metrics + methodology written to results/metrics.json; re-run is deterministic.",
+    "Claims discipline is the weak point: limitation #3 references a 'null result' that contradicts the headline 'LogisticRegression outperforms' claim — templated text left unreconciled.",
+    "Winner declared from 5 non-independent (growing-train) folds using ±1-std non-overlap rather than a formal paired test; hedged but mildly overclaimed.",
+    "Label-shuffle sanity check returns AUC 0.628 (flagged WARN) — honestly reported but residual signal never investigated."
+  ],
+  "leakage_findings": [
+    "account_status dropped via LEAKAGE_COLS in make_features; absence asserted in tests — critical leak avoided.",
+    "200 exact duplicate rows removed with drop_duplicates() before any split, preventing train/test straddling.",
+    "TimeSeriesSplit on signup_date-sorted data is a deliberate, justified temporal split.",
+    "StandardScaler is inside the Pipeline, cloned and fit per-fold on train only — no test contamination.",
+    "Minor: signup_age_days uses a global min_date over the full frame (fit-on-all-data pattern); harmless here because the earliest rows always fall in the training fold, but not strictly train-only.",
+    "Minor: label-shuffle AUC of 0.628 (above the 0.60 threshold) hints at residual temporal signal/leakage that is flagged but not resolved."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*'",
+    "python -m pytest -q",
+    "python run_experiment.py",
+    "grep -n 'np\\.' run_experiment.py"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "LEAKAGE_COLS=['account_status'] dropped; drop_duplicates() in load_and_clean; signup_age_days from global min_date; StandardScaler inside LR Pipeline."},
+    {"path": "src/evaluate.py", "note": "TimeSeriesSplit CV, per-fold clone+fit on train indices only, returns roc_auc/f1/accuracy arrays for mean±std."},
+    {"path": "run_experiment.py", "note": "Sanity checks (dummy baseline, tiny-subset overfit, label-shuffle); writes metrics.json + REPORT.md; overlap heuristic chooses verdict; unused 'import numpy as np'."},
+    {"path": "make_dataset.py", "note": "Documents the three planted traps; account_status='closed' iff churned; appends 200 duplicate rows; temporal signup_date."},
+    {"path": "REPORT.md", "note": "Declares LR winner (intervals genuinely non-overlapping) but limitation #3 still says 'null result … no strong evidence either way' — internal contradiction; shuffle WARN reported honestly."},
+    {"path": "results/metrics.json", "note": "Full per-fold metrics, sanity checks, dataset balance, methodology config persisted; matches a fresh run."},
+    {"path": "tests/test_pipeline.py", "note": "Asserts leakage/id/target columns absent, dedup behavior, label-shuffle degrades AUC."},
+    {"path": "tests/test_evaluate.py", "note": "Validates fold count, metric keys, AUC range, summarize mean/std consistency."}
+  ]
+}
+```

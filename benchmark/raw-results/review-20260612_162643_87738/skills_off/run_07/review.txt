@@ -1,0 +1,76 @@
+All three planted traps are handled correctly. Here is my review.
+
+## Review
+
+**Leakage (excellent).** All three planted traps are defused:
+- `account_status` — confirmed it perfectly determines the target (closed ⟺ churned=1). Dropped in `src/data.py:21`. ✓
+- 200 exact duplicates — removed via `drop_duplicates()` at `src/data.py:15` *before* the split, so they cannot straddle train/test. ✓
+- `signup_date` — converted to `days_since_start`, rows sorted, and a genuine time-based split is used both for the hold-out (`temporal_split`) and the CV (`TimeSeriesSplit`). ✓
+
+`StandardScaler` lives inside the `Pipeline`, so it is fitted train-only per fold in CV and on `X_train` only for the hold-out — no fit-transform leakage. `customer_id` dropped. One nit: `days_since_start` uses a global `min_date` computed before the split, but it's a monotonic constant offset and the global min coincides with the train min under a temporal split, so there's no practical leak.
+
+**Methodology (good, one gap).** Metrics are appropriate for the 27% imbalance — ROC-AUC primary plus F1/precision/recall, never accuracy alone. Tuning budget is equal (zero/defaults) for both models and that's disclosed. The one real gap the rubric flags: **no trivial baseline** (no `DummyClassifier`/majority-class reference); LR serves as a de-facto simple baseline but a true null model is absent.
+
+**Reproducibility (excellent).** Seeds fixed (42 for models, 7 for data gen) and logged in the report; `results/metrics.json` and `results/meta.json` written. Re-running the entrypoint produced **byte-identical** metrics to the committed results.
+
+**Claims (good).** The report bases its conclusion on CV rather than the more dramatic test gap (-0.125), reports per-fold scores and variance, and has genuinely honest limitations (notably "the DGP is logistic, structurally favoring LR"). The weakness: the winner claim rests on a CV gap (0.028) that only barely clears the ad-hoc noise threshold (0.026) — comparing a mean difference to one std is not a real significance test, so "outperforms" is slightly stronger than "marginal/inconclusive" would be.
+
+**Executability (excellent).** 18/18 tests pass; entrypoint runs in ~2.3s; auto-generates the dataset if missing.
+
+**Code quality (excellent).** Clean `src/` module split, docstrings, no dead code, all four declared deps used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 78,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 80,
+  "executability_score": 98,
+  "code_quality_score": 92,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted leakage traps are correctly defused (account_status dropped, duplicates removed before split, temporal column handled with time-based split).",
+    "StandardScaler is inside the Pipeline, so it is fitted on train only in both CV folds and the hold-out — no fit-transform leakage.",
+    "Fully reproducible: re-running the entrypoint produced byte-identical metrics to the committed results/metrics.json.",
+    "Conclusion is drawn from CV (not the more dramatic test gap) with per-fold variance reported, and limitations are honest — including that the logistic DGP structurally favors LR.",
+    "Missing a trivial/dummy baseline (majority-class / DummyClassifier); LR is only a de-facto simple baseline.",
+    "Winner claim ('LR outperforms GB') rests on a CV gap (0.028) that barely exceeds an ad-hoc noise threshold (0.026), which is weaker than a proper significance test."
+  ],
+  "leakage_findings": [
+    "account_status (closed iff churned=1, verified via crosstab: 3067 active/0 churn, 1133 closed/all churn) is dropped in src/data.py:21 — leak avoided.",
+    "200 exact duplicate rows removed by drop_duplicates() at src/data.py:15 BEFORE the split, so they cannot straddle train/test.",
+    "signup_date converted to days_since_start, sorted, and split temporally (temporal_split + TimeSeriesSplit CV) — temporal leakage avoided.",
+    "StandardScaler fitted train-only within the Pipeline for both CV and hold-out; no scaler/transform leakage.",
+    "Minor: days_since_start uses a global min_date computed before the split, but it is a monotonic constant offset and global min equals train min under a temporal split, so no practical leak."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*'",
+    "python -c \"import sklearn, pandas, numpy; print(sklearn.__version__)\"  (sklearn 1.7.1)",
+    "python -m pytest -q  → 18 passed in 1.44s",
+    "python run_experiment.py  → completed in ~2.3s, wrote results + REPORT.md",
+    "diff /tmp/metrics_orig.json results/metrics.json  → IDENTICAL (reproducible)",
+    "python crosstab of account_status vs churned + duplicated().sum()  → perfect leak confirmed, 200 dupes confirmed"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops account_status and customer_id; removes duplicates before split; converts signup_date to days_since_start; provides temporal_split (earliest 80% train)."},
+    {"path": "src/pipeline.py", "note": "StandardScaler inside Pipeline for both LR and GB, so scaling is fit train-only; random_state passed to both models."},
+    {"path": "src/evaluate.py", "note": "TimeSeriesSplit CV with ROC-AUC/F1/precision/recall; holdout_metrics fits on train and evaluates once on test."},
+    {"path": "run_experiment.py", "note": "SEED=42 fixed; writes results/metrics.json and results/meta.json; conclusion logic compares CV gap to max-std noise threshold."},
+    {"path": "REPORT.md", "note": "Bases winner claim on CV; reports per-fold scores and variance; 5 honest limitations incl. DGP-favors-LR; no overclaiming beyond measured numbers."},
+    {"path": "tests/test_pipeline.py", "note": "Includes test_scaler_fitted_on_train_only and test_deterministic_with_same_seed — directly checks anti-leakage and reproducibility."},
+    {"path": "tests/test_data.py", "note": "Tests dedup count, account_status/customer_id drop, and temporal split non-overlap."},
+    {"path": "make_dataset.py", "note": "Documents the three planted traps; deterministic generation (seed default 7)."},
+    {"path": "results/metrics.json", "note": "Reproduced byte-identical on re-run, confirming determinism."}
+  ]
+}
+```

@@ -1,0 +1,20 @@
+{
+  "logistic_regression": {
+    "roc_auc_mean": 0.7359691614732197,
+    "roc_auc_std": 0.013653369382772717,
+    "f1_mean": 0.34865365868279097,
+    "f1_std": 0.03215988888650132,
+    "avg_precision_mean": 0.5054360409784101,
+    "avg_precision_std": 0.01981379279350088,
+    "n_folds": 15
+  },
+  "gradient_boosting": {
+    "roc_auc_mean": 0.7267417134371247,
+    "roc_auc_std": 0.013166956855498336,
+    "f1_mean": 0.3652447012698097,
+    "f1_std": 0.029460885674954328,
+    "avg_precision_mean": 0.49369724214598537,
+    "avg_precision_std": 0.022136143384992715,
+    "n_folds": 15
+  }
+}

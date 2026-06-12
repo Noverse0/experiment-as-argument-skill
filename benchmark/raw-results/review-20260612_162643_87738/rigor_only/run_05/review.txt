@@ -1,0 +1,76 @@
+All tests pass, the entrypoint runs cleanly, and re-running produces byte-identical metrics. Here is my assessment.
+
+## Summary
+
+A genuinely rigorous experiment that handles all four planted traps deliberately and reaches a conservative, defensible conclusion. The main weakness is in the variance/detectability machinery, not the pipeline hygiene.
+
+## Leakage (strong)
+- `account_status` correctly dropped (`src/data.py:25`) and asserted absent in both a sanity check and a unit test. ✓
+- Deduplication happens **before** the split (`prepare()` order in `src/data.py:75-79`), so the 200 planted duplicates can't straddle train/test. Verified `n_dupes_removed == 200`. ✓
+- `StandardScaler` fitted on train only, transform on test (`build_features`, `src/data.py:64-66`), with a dedicated test. ✓
+- Temporal column handled deliberately: chronological split on `signup_date`, with a written rationale and `signup_date` excluded from features. ✓
+- Minor smell: the label-shuffle check is a **single permutation** yielding AUC 0.6084, and the pass threshold was loosened from the function default (0.55) to 0.65 to accommodate it (`src/sanity.py:103`). A rigorous shuffle test should average over several permutations rather than tune the threshold to one noisy draw. Not actual leakage (features are i.i.d. of the target), but it weakens the check.
+
+## Methodology (the soft spot)
+- Trivial baseline present (`DummyClassifier`), and metrics are imbalance-appropriate (ROC-AUC primary, AP, F1 — not accuracy). ✓ Equal tuning budget (zero, for both) is fair and disclosed. ✓
+- **"5 seeds" is largely illusory.** The split is fixed and LogisticRegression/Dummy are deterministic, so only GBM has any seed-to-seed variance (LR std = 0.0000 across all 5 seeds). The seeds repeat the same LR fit five times.
+- **Asymmetric detectability bug** (`run_experiment.py:122`): `detectable = gap > max(lr_std, gb_std)` with `gap = gb_auc - lr_auc`. Because `gap` is signed, the "LR wins" branch (`elif detectable and lr_auc > gb_auc`) can never fire — a negative gap always yields `detectable=False`. Here LR actually leads by 0.0146 (≈6× GBM's std), yet the code reports "no detectable difference." The conclusion happens to be scientifically defensible (a single test set gives no real uncertainty estimate for the deterministic LR), but it's reached by a flawed mechanism, not by sound reasoning. Seed-variance ≠ sampling uncertainty; a bootstrap/paired test on the test set is what's needed (and is correctly named in the limitations).
+
+## Reproducibility (strong)
+Seeds fixed and logged; config + metrics + sanity results written to `results/metrics.json`; re-running the entrypoint reproduced the file exactly. Dataset generation is deterministic (`make_dataset.py`, seed 7).
+
+## Claims discipline (strong)
+The report does **not** declare a winner, matches the displayed numbers, and the Limitations section is honest and thorough (single split, few seeds, no tuning, dropped temporal feature, generalization-to-newer-cohorts caveat). Slight over-framing in presenting "5 seeds" as variance estimation when LR variance is structurally zero, but the 0.0000 std is shown plainly.
+
+## Executability / code quality (strong)
+`pytest`: 23 passed in ~3s. Entrypoint runs end-to-end. Dependencies all declared and used. Clean modular layout (`data`/`models`/`evaluate`/`sanity`), good docstrings. Minor: `train_df`/`test_df` returned by `prepare()` are unused downstream; `combined_spread` only surfaces in one conclusion branch.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 90,
+  "methodological_validity_score": 68,
+  "reproducibility_score": 93,
+  "claims_discipline_score": 84,
+  "executability_score": 95,
+  "code_quality_score": 88,
+  "verdict": "good",
+  "key_findings": [
+    "All four planted traps (account_status leak, duplicate straddle, temporal split, train-only scaling) handled deliberately and documented.",
+    "Tests (23) pass; entrypoint runs end-to-end; re-run reproduces results/metrics.json byte-for-byte.",
+    "'5 seeds' is largely illusory: split is fixed and LogisticRegression/Dummy are deterministic, so only GBM shows any variance (LR std=0.0000). Seed-variance is not a real uncertainty estimate.",
+    "Asymmetric detectability bug at run_experiment.py:122: `gap > max(std)` uses a signed gap, so the 'LR wins' branch can never fire; LR's 0.0146 lead (~6x GBM std) is reported as 'no detectable difference'. Conclusion is defensible but reached via flawed logic.",
+    "Conservative conclusion (no winner claimed) with an honest, thorough Limitations section that itself names the needed bootstrap/CI fix."
+  ],
+  "leakage_findings": [
+    "account_status excluded from features and asserted absent (src/data.py:25, src/sanity.py:82-87); confirmed not in metrics features list.",
+    "Deduplication occurs before the split (src/data.py:75-79); n_dupes_removed=200 verified, so planted duplicates cannot straddle train/test.",
+    "StandardScaler fit on train only and applied to test (src/data.py:64-66), covered by a unit test.",
+    "Time-based chronological split on signup_date with written justification; signup_date dropped as a feature.",
+    "Label-shuffle sanity check uses a single permutation (AUC 0.6084) and the pass threshold was relaxed from 0.55 to 0.65 to accommodate it (src/sanity.py:103) — high-variance check tuned to one draw rather than averaged."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  => 23 passed in 2.84s",
+    "python3 run_experiment.py  => ran clean; LR AUC 0.7323+-0.0000, GBM 0.7177+-0.0025, conclusion 'no detectable difference'",
+    "diff /tmp/metrics_before.json results/metrics.json  => identical (reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Dedup-before-split, account_status/customer_id/signup_date dropped, train-only StandardScaler, chronological split."},
+    {"path": "run_experiment.py", "note": "Line 122 detectability uses signed `gap > max(std)`, making the LR-wins branch unreachable; conservative conclusion otherwise."},
+    {"path": "src/sanity.py", "note": "Four sanity checks; label-shuffle is single-permutation with threshold loosened to 0.65 (line 103)."},
+    {"path": "src/evaluate.py", "note": "ROC-AUC/AP/F1 with ddof=1 std; appropriate for the ~27% imbalance."},
+    {"path": "results/metrics.json", "note": "Seeds, n_train/n_test, dupes, sanity, per-model mean/std logged; LR std=0.0000 reveals deterministic-fit / illusory-seed issue."},
+    {"path": "REPORT.md", "note": "No winner claimed; honest limitations naming the missing bootstrap CI and single-split caveat."},
+    {"path": "make_dataset.py", "note": "Deterministic generator (seed 7) planting the three documented traps."}
+  ]
+}
+```

@@ -1,0 +1,70 @@
+## Review
+
+This is a strong, deliberately rigorous submission. All three planted traps were caught and handled correctly.
+
+**Leakage prevention — excellent.**
+- `account_status` is explicitly identified as label leakage ("closed" iff `churned==1`) and dropped (`src/data.py:6,25`), with the reasoning documented in REPORT.md.
+- The 200 exact-duplicate rows are removed **before any split** via `drop_duplicates(subset=["customer_id"])` (`src/data.py:19`). Verified: dataset is 4200 rows / 4000 unique ids / 200 full dups → cleaned to 4000. Duplicates cannot straddle the split.
+- `StandardScaler` is fit on each training fold and only `.transform`-ed on the test fold (`src/evaluate.py:25-27`) — no test statistics leak.
+- The temporal column (`signup_date`) is handled deliberately: dropped with an explicit justification (tenure_months captures time-in-service; raw dates without a fixed reference would invite leakage). A time-based split is a defensible alternative, but the choice is reasoned, not ignored.
+
+**Methodology — good.** ROC-AUC is the primary metric with F1 and Average Precision as secondaries — appropriate for the 27% churn imbalance, not accuracy alone. Both models get an identical (zero) tuning budget, a fair comparison. The main gap: there's a "baseline floor" sanity check (model AUC > 0.52) but no trivial baseline classifier (e.g. DummyClassifier) sitting in the comparison table itself. The floor check partially covers this.
+
+**Reproducibility — strong.** CV seeds (0,1,2) and model/sanity seeds (42) are fixed and logged; metrics, per-fold CSVs, and sanity results are written to `results/`. Re-running reproduced the reported numbers exactly (LR AUC 0.7360, GB 0.7267).
+
+**Claims discipline — strong.** The report claims "no detectable difference" (gap −0.0092 within pooled SD 0.0134), backed by 15 folds with reported variance. It explicitly flags that this is a variance estimate, not a formal test, and recommends Wilcoxon/permutation for p-values. Limitations are honest (no tuning, synthetic data, no feature engineering). No claim exceeds what the code measured; the sanity table matches actual run output.
+
+**Executability — excellent.** `pytest` → 19 passed in ~1.5s; `python3 run_experiment.py` completes in ~5s and regenerates results + REPORT.md.
+
+**Code quality — good.** Clean module separation (data/evaluate/sanity/report), readable, declared deps all used. Minor nit: `import numpy as np` is unused in both `src/data.py` and `src/evaluate.py`.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 92,
+  "claims_discipline_score": 93,
+  "executability_score": 96,
+  "code_quality_score": 88,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps caught: account_status leak dropped, duplicates removed before split, temporal column handled with explicit justification.",
+    "Scaler fit on train fold only inside repeated stratified 5-fold CV (3 seeds = 15 folds) — no preprocessing leakage.",
+    "Metrics appropriate for 27% imbalance (ROC-AUC primary + Average Precision + F1), not accuracy alone; equal (zero) tuning budget for both models.",
+    "Honest conclusion 'no detectable difference' (gap -0.0092 < pooled SD 0.0134) with thorough limitations and no overclaiming.",
+    "Tests pass (19/19) and entrypoint reproduces reported numbers exactly in ~5s.",
+    "Main methodological gap: no trivial baseline (e.g. DummyClassifier) in the comparison table; only a 'baseline floor' sanity check partially covers it.",
+    "Minor: unused `import numpy as np` in src/data.py and src/evaluate.py."
+  ],
+  "leakage_findings": [
+    "account_status (derived from target, 'closed' iff churned==1) explicitly dropped in src/data.py:6,25 and documented in REPORT.md.",
+    "200 exact-duplicate rows removed before any split via drop_duplicates(subset=['customer_id']) at src/data.py:19; verified 4200->4000, no train/test straddle.",
+    "StandardScaler fit on each training fold and only transformed on test fold (src/evaluate.py:25-27); sanity checks also scale train-only.",
+    "signup_date temporal column dropped with explicit reasoning rather than a time-based split — a defensible, deliberate choice (not a CV time-split, the one soft spot)."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  => 19 passed in 1.57s",
+    "python3 run_experiment.py  => completes ~4.5s; baseline floor AUC=0.7374, label shuffle AUC=0.4860, overfit tiny acc=1.0000; LR AUC 0.7360, GB AUC 0.7267; conclusion -0.0092",
+    "python3 -c dup-check => rows 4200, unique ids 4000, full dups 200"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops account_status/customer_id/signup_date; dedups on customer_id before split; numpy import unused."},
+    {"path": "src/evaluate.py", "note": "Repeated stratified 5-fold x 3 seeds; scaler fit on train fold only; records AUC/F1/AP per fold."},
+    {"path": "src/sanity.py", "note": "Baseline-floor, label-shuffle, and overfit-tiny pipeline checks; train-only scaling."},
+    {"path": "src/report.py", "note": "Winner criterion gap > pooled SD; generates 'no detectable difference' conclusion from measured values."},
+    {"path": "REPORT.md", "note": "Documents excluded columns w/ reasons, methodology, sanity results, and honest limitations; numbers match run output."},
+    {"path": "results/summaries.json", "note": "Persisted per-model means/stds over 15 folds; matches REPORT.md and re-run."},
+    {"path": "make_dataset.py", "note": "Confirms the three planted traps (leak column, 200 dups, temporal column)."}
+  ]
+}
+```

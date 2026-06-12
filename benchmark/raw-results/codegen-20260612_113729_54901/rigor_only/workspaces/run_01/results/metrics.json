@@ -1,0 +1,122 @@
+{
+  "n_seeds": 3,
+  "seeds": [
+    42,
+    7,
+    123
+  ],
+  "train_size": 3200,
+  "test_size": 800,
+  "train_churn_rate": 0.2756,
+  "test_churn_rate": 0.25,
+  "sanity": {
+    "baseline_auc": 0.5,
+    "overfit_ok": false,
+    "shuffle_auc": 0.6094833333333334,
+    "warnings": [
+      "WARN: model could not overfit tiny subset \u2014 pipeline may be broken",
+      "WARN: label-shuffle AUC=0.609 > 0.6 \u2014 possible leakage"
+    ]
+  },
+  "logistic_regression": {
+    "roc_auc": {
+      "mean": 0.732333,
+      "std": 0.0,
+      "runs": [
+        0.732333,
+        0.732333,
+        0.732333
+      ]
+    },
+    "f1": {
+      "mean": 0.348123,
+      "std": 0.0,
+      "runs": [
+        0.348123,
+        0.348123,
+        0.348123
+      ]
+    },
+    "precision": {
+      "mean": 0.548387,
+      "std": 0.0,
+      "runs": [
+        0.548387,
+        0.548387,
+        0.548387
+      ]
+    },
+    "recall": {
+      "mean": 0.255,
+      "std": 0.0,
+      "runs": [
+        0.255,
+        0.255,
+        0.255
+      ]
+    },
+    "accuracy": {
+      "mean": 0.76125,
+      "std": 0.0,
+      "runs": [
+        0.76125,
+        0.76125,
+        0.76125
+      ]
+    }
+  },
+  "gradient_boosting": {
+    "roc_auc": {
+      "mean": 0.508969,
+      "std": 0.002348,
+      "runs": [
+        0.511967,
+        0.508708,
+        0.506233
+      ]
+    },
+    "f1": {
+      "mean": 0.352549,
+      "std": 0.002633,
+      "runs": [
+        0.356241,
+        0.351124,
+        0.350282
+      ]
+    },
+    "precision": {
+      "mean": 0.245266,
+      "std": 0.001624,
+      "runs": [
+        0.247563,
+        0.244141,
+        0.244094
+      ]
+    },
+    "recall": {
+      "mean": 0.626667,
+      "std": 0.006236,
+      "runs": [
+        0.635,
+        0.625,
+        0.62
+      ]
+    },
+    "accuracy": {
+      "mean": 0.424583,
+      "std": 0.001559,
+      "runs": [
+        0.42625,
+        0.4225,
+        0.425
+      ]
+    }
+  },
+  "conclusion": {
+    "verdict": "logistic_regression_wins",
+    "lr_roc_auc_mean": 0.732333,
+    "gb_roc_auc_mean": 0.508969,
+    "gap": 0.223364,
+    "noise_threshold": 0.002348
+  }
+}

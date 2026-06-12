@@ -1,0 +1,70 @@
+I have a complete picture. Let me synthesize the review.
+
+## Review
+
+**Inventory & execution.** Clean modular layout (`data_prep`, `models`, `evaluate`, `experiment`, `report`). `pytest` → **21 passed**. `run_experiment.py` runs end-to-end, writes `results/metrics.json` + `REPORT.md`, and re-running produces a byte-identical metrics file. `--regen-data` regenerates `churn.csv` and still works.
+
+**Leakage — strong.** Every planted trap is caught and documented:
+- `account_status` (the target-derived leak) is explicitly excluded; `FEATURES` is a fixed allow-list of three columns. A unit test asserts it's absent.
+- 200 planted duplicates dropped *before* the split (`4200 → 4000`), so they cannot straddle train/test.
+- `StandardScaler` lives inside the `Pipeline`, so it's fit on train folds only.
+- Temporal split on `signup_date` (chronological, train=earlier), with a sound justification.
+- One minor residual: the split cuts on sorted index, and `train.max_date == test.min_date == 2024-12-21`, so same-day customers straddle the boundary arbitrarily. Small, and the report doesn't flag this specific case.
+
+**Methodology — the weak link.** Baseline present (`DummyClassifier`, AUC 0.50), and metrics are imbalance-appropriate (ROC-AUC primary, plus F1/precision/recall — not accuracy). Tuning budget is symmetric (both use defaults). **But** the "3 seeds" only vary the model's `random_state` against a *fixed* data split. LR is deterministic, so all three runs are identical; GBM varies at the 5th decimal. The reported `± std ≈ 0` is therefore an artifact, not a real uncertainty estimate — the repetition exercises nothing that actually varies. Proper repetition would resample the split/data.
+
+**Claims — overconfident on a degenerate estimate.** REPORT declares "**Logistic regression outperforms gradient boosting** (ΔAUC=-0.0085, gap > noise threshold 0.0000)." The winner call passes the report's own `within_noise` test *only because* the noise threshold collapsed to ~0 — which is the artifact above, not evidence of separation. To its credit, limitations are honest and explicit (3 seeds noisy, "simple heuristic, not a formal hypothesis test," no tuning, single synthetic dataset, temporal residual), and it claims nothing the code didn't measure. The gap is declaring a winner on a 0.0085 difference with a fabricated-zero variance.
+
+**Reproducibility & executability — excellent.** Seeds fixed and logged, config+metrics persisted to `results/`, deterministic re-run, dependencies declared and all used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 70,
+  "reproducibility_score": 92,
+  "claims_discipline_score": 62,
+  "executability_score": 96,
+  "code_quality_score": 90,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted traps handled: account_status excluded as target leak, 200 duplicates dropped pre-split (4200->4000), chronological time-split on signup_date with justification.",
+    "21/21 tests pass; entrypoint runs end-to-end, writes results/metrics.json + REPORT.md, and re-runs reproduce a byte-identical metrics file.",
+    "Methodological flaw: '3 seeds' only vary model random_state on a fixed split; LR is deterministic (identical runs) and GBM varies ~1e-5, so reported std~=0 is an artifact, not real variance.",
+    "Claims discipline: report declares LR the winner (DeltaAUC=-0.0085) because the gap exceeds a 'noise threshold' of 0.0000 — but that threshold is zero only due to the degenerate seed design, making the winner call overconfident.",
+    "Limitations section is honest (notes only-3-seeds noise, heuristic not a formal test, no tuning, single synthetic dataset, temporal residual).",
+    "Trivial baseline present (DummyClassifier majority-class, AUC 0.50); metrics are imbalance-appropriate (ROC-AUC primary, not accuracy)."
+  ],
+  "leakage_findings": [
+    "account_status (closed iff churned==1) is excluded via a fixed FEATURES allow-list and asserted absent by a unit test — critical leak avoided.",
+    "Exact duplicates dropped before splitting (load_and_clean -> drop_duplicates), preventing train/test straddling; verified 4200->4000 at runtime.",
+    "StandardScaler is inside the sklearn Pipeline, so it is fit on train data only and applied to test — no preprocessing leak.",
+    "Temporal split on signup_date is deliberate and justified (train=earlier signups); avoids future-customer leakage.",
+    "Minor residual: split cuts on sorted index where train.max_date == test.min_date (2024-12-21), so same-day customers straddle the boundary arbitrarily; not flagged in the report."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (21 passed in 2.36s)",
+    "python run_experiment.py  (ran end-to-end, wrote metrics.json + REPORT.md)",
+    "diff /tmp/metrics_orig.json results/metrics.json  (IDENTICAL re-run)",
+    "python run_experiment.py --regen-data  (regenerated churn.csv, ran successfully)"
+  ],
+  "file_evidence": [
+    {"path": "src/data_prep.py", "note": "FEATURES allow-list excludes account_status/customer_id/signup_date; drop_duplicates before split; chronological time_split with index cutoff."},
+    {"path": "src/models.py", "note": "StandardScaler inside LR Pipeline (train-only fit); GBM unscaled; both parameterized by random_state with default hyperparameters (symmetric budget)."},
+    {"path": "src/experiment.py", "note": "SEEDS=[42,123,999] vary only model random_state over a fixed split; baseline_auc computed; metrics persisted to results/metrics.json."},
+    {"path": "src/evaluate.py", "note": "ROC-AUC primary plus F1/precision/recall; DummyClassifier majority-class baseline; sanity_overfit_check on train AUC."},
+    {"path": "src/report.py", "note": "within_noise = abs(gap) < max(std); with std~=0 this declares a winner on a 0.0085 AUC gap — overconfident given the degenerate variance estimate."},
+    {"path": "results/metrics.json", "note": "LR runs identical across seeds (std=1.1e-16); GBM std=2.1e-5 — confirms seeds capture no meaningful variance."},
+    {"path": "REPORT.md", "note": "Declares 'Logistic regression outperforms gradient boosting'; limitations honestly note 3-seed noise, heuristic-not-test, no tuning, single dataset, temporal residual."}
+  ]
+}
+```

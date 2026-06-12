@@ -1,0 +1,80 @@
+## Review
+
+I inventoried all files, ran the test suite (16 passed), and ran the entrypoint end-to-end (reproduced `results/metrics.json` byte-for-byte). Findings below.
+
+### Leakage prevention — strong
+- **`account_status` correctly dropped.** Listed in `DROP_COLS` (`src/pipeline.py:22`), and there's a defensive guard `check_no_leakage_columns` that *raises* if it survives (`src/sanity.py:47`), plus a unit test for the raise path. This is the planted critical leak and it's handled cleanly.
+- **Fit-transforms are train-only.** `StandardScaler` lives inside the `Pipeline` and is fit via `pipe.fit(X_train, ...)` — no fitting on full data. (GB has no scaler, which is correct: trees are scale-invariant.)
+- **Dedup before split.** `drop_duplicates()` runs in `load_and_clean` before `temporal_split`; the 200 planted exact duplicates are removed (4200→4000, confirmed in run output). No rows straddle the split.
+- **Temporal column handled deliberately** — time-ordered 80/20 split, justified in docstring and report.
+- **Residual concern (undiagnosed):** `signup_day` is kept as a feature *and* the split is temporal, so every test `signup_day` lies outside the train range. Trees can't extrapolate, which plausibly explains GB collapsing to chance (AUC 0.509, accuracy 0.42 — below the majority baseline). The label-shuffle sanity check fires (AUC 0.609 > 0.6, "possible leakage"), and the report surfaces the warning honestly but never investigates its cause. No critical leak remains, but this interaction is the real story behind the numbers and goes unexamined.
+
+### Methodology — adequate, one soft spot
+- Trivial baseline present (majority-class `DummyClassifier`, AUC 0.50). ✓
+- Metrics appropriate for ~27% positive rate: ROC-AUC primary plus F1/precision/recall, not accuracy alone. ✓
+- Equal tuning budget (both untuned, stated honestly). ✓
+- **Variance methodology is partly theater.** LR is deterministic on a fixed split, so its 3 seeds produce identical numbers (std = 0.0) — three copies of one run, zero information. The `noise_threshold = max(std)` therefore reflects only GB's seed jitter and ignores the dominant uncertainty (train/test split variance). The "winner requires gap > noise" rule looks rigorous but rests on an uncertainty estimate that excludes the main source. The report's Limitations do acknowledge this.
+
+### Reproducibility — strong
+Seeds fixed and logged (`SEEDS=[42,7,123]`), full config+metrics written to `results/metrics.json`, dataset generation deterministic. Re-running produced an identical metrics file.
+
+### Claims discipline — mostly honest, mild over-headline
+Limitations are thorough and candid (single split, fixed HP, 3-seed lower bound, synthetic data). Sanity warnings (overfit FAIL, shuffle leak) are reported, not buried. All report numbers trace to measured values. The deduction: the bold "**Logistic Regression Wins**" headline interprets a GB model that performs *below the trivial baseline* as "LR is the better churn model," when the honest reading is "GB is broken by the temporal-feature/extrapolation setup." Declaring a definitive winner from one split with a near-zero noise threshold slightly overstates confidence.
+
+### Executability — excellent
+`pytest` → 16 passed in 2.65s. `python3 run_experiment.py` → completed in ~5s, wrote metrics and REPORT.md. Dependencies declared in `requirements.txt` and all used.
+
+### Code quality — clean
+Typed, well-documented, modular (pipeline/experiment/sanity split), no dead code. Minor: `write_report` hardcodes the literal `4200` to back out the dup count (`run_experiment.py:60`) rather than recording original row count — brittle if `n` changes.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 87,
+  "methodological_validity_score": 72,
+  "reproducibility_score": 93,
+  "claims_discipline_score": 74,
+  "executability_score": 96,
+  "code_quality_score": 88,
+  "verdict": "good",
+  "key_findings": [
+    "All three planted traps handled: account_status dropped (with a raising guard + test), 200 exact duplicates removed before splitting, and an explicit time-based split.",
+    "StandardScaler is fit train-only inside the Pipeline; GB correctly omits scaling.",
+    "Fully reproducible: re-running the entrypoint reproduced results/metrics.json byte-for-byte; seeds fixed and logged.",
+    "Tests pass (16/16) and the entrypoint runs end-to-end in ~5s, writing metrics.json and REPORT.md.",
+    "Variance methodology is weak: LR is deterministic so its 3 seeds give std=0 (one run thrice); the noise threshold ignores split variance, the dominant uncertainty.",
+    "GB performs below the trivial baseline (AUC 0.509, accuracy 0.42), yet the report headlines 'Logistic Regression Wins' without diagnosing that GB is broken by signup_day extrapolation under the temporal split.",
+    "Report is honest about limitations and surfaces the sanity warnings (overfit FAIL, shuffle AUC 0.609) rather than hiding them."
+  ],
+  "leakage_findings": [
+    "account_status (target-derived: 'closed' iff churned==1) is dropped via DROP_COLS and enforced by check_no_leakage_columns raising on its presence.",
+    "200 exact duplicate rows removed by drop_duplicates() BEFORE temporal_split, so no row straddles train/test (4200->4000 confirmed at runtime).",
+    "StandardScaler fitted only on X_train (inside Pipeline.fit) — no fit-on-full-data leakage.",
+    "Temporal split is deliberate (sort by signup_date, last 20% = test), not random.",
+    "Residual/undiagnosed: signup_day kept as a feature while the split is temporal means all test signup_day values are out of the train range; trees cannot extrapolate, likely driving GB to chance. The label-shuffle check flags possible leakage (AUC 0.609) but the cause is never investigated."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (16 passed in 2.65s)",
+    "python3 run_experiment.py  (ran ~5s; wrote results/metrics.json and REPORT.md)",
+    "diff /tmp/metrics_orig.json results/metrics.json  (IDENTICAL — reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "DROP_COLS drops account_status/customer_id/signup_date; dedup before split; temporal_split; StandardScaler inside LR pipeline only."},
+    {"path": "src/sanity.py", "note": "Trivial baseline (DummyClassifier), overfit-subset, label-shuffle, and a raising leakage-column guard."},
+    {"path": "src/experiment.py", "note": "noise_threshold = max(lr_std, gb_std); LR std=0 because LR is deterministic on a fixed split, so seeds add no variance for LR."},
+    {"path": "results/metrics.json", "note": "GB roc_auc mean 0.509 and accuracy 0.425 (below 0.5 baseline); sanity warnings recorded; logged seeds [42,7,123]."},
+    {"path": "REPORT.md", "note": "Headlines 'Logistic Regression Wins' on a 0.223 gap; thorough honest Limitations; surfaces overfit-FAIL and shuffle-leak warnings."},
+    {"path": "run_experiment.py", "note": "Writes metrics.json to results/ and renders REPORT.md; hardcodes literal 4200 to derive dup count (brittle)."},
+    {"path": "tests/test_pipeline.py", "note": "Tests dedup, temporal ordering, leaky-column drop, no customer_id overlap across split — 16 tests pass."}
+  ]
+}
+```
