@@ -19,7 +19,15 @@ Does the skill actually make the argument stronger? The repo ships a complete is
 
 In keeping with its own claims discipline, the benchmark reports per-arm n, standard deviation, and significance, and declares a winner only when the difference clears the noise.
 
-First run (10 repeats per arm, codegen Haiku, review Opus): **no detectable difference** — `skills_off` 81.6 ± 4.6 vs `rigor_only` 78.9 ± 12.2, Mann-Whitney p=0.94. The Haiku baseline already caught the headline target-leak trap in almost every run, leaving little headroom, and one skill-arm run leaked anyway. Reported here as the null result it is, per the skill's own claims discipline; a weaker model or less obvious traps are needed to separate the arms. See [benchmark/README.md](benchmark/README.md) for the full table, per-run analysis, and reproduction commands.
+Three experiments so far — a capability ladder over the codegen model (10 repeats per arm each, review Opus): **no detectable skill effect at any level**, reported as the null results they are, per the skill's own claims discipline.
+
+| Codegen model | `skills_off` | `rigor_only` | p |
+| --- | ---: | ---: | ---: |
+| Haiku | 81.6 ± 4.6 | 78.9 ± 12.2 | 0.94 |
+| Sonnet | 88.8 ± 2.7 | 88.1 ± 3.1 | 0.65 |
+| Opus | 93.6 ± 0.8 | 93.6 ± 2.0 | 0.47 |
+
+Every model from Haiku up already catches this prompt's headline target-leak trap, so the binding constraint is prompt headroom, not capability. The planned `ml-experiment-v2` hides the leak inside a plausible engineered feature instead. Full per-run analysis lives in the append-only [benchmark/EXPERIMENTS.md](benchmark/EXPERIMENTS.md) ledger; method and reproduction commands in [benchmark/README.md](benchmark/README.md).
 
 ## Install
 
