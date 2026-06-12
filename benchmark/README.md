@@ -40,7 +40,11 @@ This is a null result, reported as one. It does not show the skill is useless; i
 ```bash
 MODEL=haiku REPEATS=10 ./run_codegen_experiment.sh
 MODEL=opus ./run_review_experiment.sh runs/codegen/<run_id>
-python3 analyze.py report runs/review/<run_id>
+python3 analyze.py report runs/review/<run_id>                    # text summary
+python3 analyze.py report runs/review/<run_id> --format markdown  # table for EXPERIMENTS.md
+python3 analyze.py report runs/review/<run_id> --format csv        # import into W&B / MLflow / a sheet
 ```
+
+Every run is logged in [EXPERIMENTS.md](EXPERIMENTS.md), an append-only ledger: the human records the hypothesis, what changed, and the honest conclusion; the result table and csv come straight from `analyze.py` so the numbers never drift. The `--format csv` output is the tool-neutral bridge to any experiment tracker — rather than binding the harness to one SaaS, it emits a standard row you can import where you like.
 
 `runs/` is gitignored; curated raw results are published by copying selected run folders into `raw-results/` explicitly.

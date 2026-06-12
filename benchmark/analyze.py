@@ -86,7 +86,8 @@ def validate(paths: list) -> int:
     return 1 if bad else 0
 
 
-def report(run_dirs: list) -> int:
+def aggregate(run_dirs: list):
+    """Collect per-arm stats and pairwise significance from review run dirs."""
     arms = defaultdict(list)
     failures = []
     for run_dir in run_dirs:
@@ -98,6 +99,7 @@ def report(run_dirs: list) -> int:
                 failures.append((str(review), str(e)))
                 continue
             arms[arm].append((recompute_weighted(d), d))
+    arm_stats = []
     for arm in sorted(arms):
         scores = [s for s, _ in arms[arm]]
         verdicts = defaultdict(int)
@@ -108,24 +110,94 @@ def report(run_dirs: list) -> int:
             c: statistics.mean(d[f"{c}_score"] for _, d in arms[arm])
             for c in REQUIRED_CATEGORIES
         }
-        cat_str = " ".join(f"{c}={v:.1f}" for c, v in cats.items())
-        print(
-            f"{arm}: n={len(scores)} mean={statistics.mean(scores):.1f} "
-            f"sd={sd:.1f} verdicts={dict(verdicts)}\n    {cat_str}"
-        )
-    arm_names = sorted(arms)
-    for i, a in enumerate(arm_names):
-        for b in arm_names[i + 1 :]:
-            sa = [s for s, _ in arms[a]]
-            sb = [s for s, _ in arms[b]]
+        arm_stats.append({
+            "arm": arm, "n": len(scores), "mean": statistics.mean(scores),
+            "sd": sd, "cats": cats, "verdicts": dict(verdicts), "scores": scores,
+        })
+    pairwise = []
+    by = {s["arm"]: s for s in arm_stats}
+    names = [s["arm"] for s in arm_stats]
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            sa, sb = by[a]["scores"], by[b]["scores"]
             if len(sa) > 1 and len(sb) > 1:
                 _, z, p = mann_whitney(sa, sb)
-                diff = statistics.mean(sa) - statistics.mean(sb)
-                print(f"{a} vs {b}: diff={diff:+.1f} MW z={z:.2f} p={p:.3f}")
+                pairwise.append({
+                    "a": a, "b": b, "diff": by[a]["mean"] - by[b]["mean"], "z": z, "p": p,
+                })
+    return arm_stats, pairwise, failures
+
+
+def render_text(arm_stats, pairwise, failures) -> str:
+    out = []
+    for s in arm_stats:
+        cat_str = " ".join(f"{c}={v:.1f}" for c, v in s["cats"].items())
+        out.append(
+            f"{s['arm']}: n={s['n']} mean={s['mean']:.1f} sd={s['sd']:.1f} "
+            f"verdicts={s['verdicts']}\n    {cat_str}"
+        )
+    for pw in pairwise:
+        out.append(
+            f"{pw['a']} vs {pw['b']}: diff={pw['diff']:+.1f} "
+            f"MW z={pw['z']:.2f} p={pw['p']:.3f}"
+        )
     if failures:
-        print(f"\nUNPARSEABLE ({len(failures)}):")
-        for path, err in failures:
-            print(f"  {path}: {err}")
+        out.append(f"\nUNPARSEABLE ({len(failures)}):")
+        out.extend(f"  {path}: {err}" for path, err in failures)
+    return "\n".join(out)
+
+
+def render_markdown(arm_stats, pairwise, failures) -> str:
+    cats = REQUIRED_CATEGORIES
+    header = (
+        "| Arm | n | Weighted mean | sd | "
+        + " | ".join(c.replace("_", " ") for c in cats)
+        + " | Verdicts |"
+    )
+    sep = "| " + " | ".join(["---"] * (4 + len(cats) + 1)) + " |"
+    rows = [header, sep]
+    for s in arm_stats:
+        verdicts = ", ".join(f"{k} {v}" for k, v in s["verdicts"].items())
+        cat_vals = " | ".join(f"{s['cats'][c]:.1f}" for c in cats)
+        rows.append(
+            f"| `{s['arm']}` | {s['n']} | {s['mean']:.1f} | {s['sd']:.1f} | "
+            f"{cat_vals} | {verdicts} |"
+        )
+    out = "\n".join(rows)
+    if pairwise:
+        out += "\n\n" + "\n".join(
+            f"- `{pw['a']}` − `{pw['b']}`: diff {pw['diff']:+.1f}, "
+            f"Mann-Whitney z={pw['z']:.2f}, p={pw['p']:.2f}"
+            for pw in pairwise
+        )
+    if failures:
+        out += f"\n\n**Unparseable: {len(failures)}** — rerun before trusting the table."
+    return out
+
+
+def render_csv(arm_stats) -> str:
+    cats = REQUIRED_CATEGORIES
+    lines = [",".join(["arm", "n", "weighted_mean", "sd"] + cats + ["verdicts"])]
+    for s in arm_stats:
+        verdicts = ";".join(f"{k}={v}" for k, v in s["verdicts"].items())
+        row = (
+            [s["arm"], str(s["n"]), f"{s['mean']:.1f}", f"{s['sd']:.1f}"]
+            + [f"{s['cats'][c]:.1f}" for c in cats]
+            + [verdicts]
+        )
+        lines.append(",".join(row))
+    return "\n".join(lines)
+
+
+RENDERERS = {"text": render_text, "markdown": render_markdown, "csv": render_csv}
+
+
+def report(run_dirs: list, fmt: str = "text") -> int:
+    arm_stats, pairwise, failures = aggregate(run_dirs)
+    if fmt == "csv":
+        print(render_csv(arm_stats))
+    else:
+        print(RENDERERS[fmt](arm_stats, pairwise, failures))
     return 1 if failures else 0
 
 
@@ -136,10 +208,14 @@ def main() -> int:
     v.add_argument("paths", nargs="+")
     r = sub.add_parser("report", help="aggregate review run directories")
     r.add_argument("run_dirs", nargs="+")
+    r.add_argument(
+        "--format", choices=["text", "markdown", "csv"], default="text",
+        help="text (default), markdown table, or csv for import into a tracker",
+    )
     args = parser.parse_args()
     if args.cmd == "validate":
         return validate(args.paths)
-    return report(args.run_dirs)
+    return report(args.run_dirs, args.format)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,14 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from analyze import REQUIRED_CATEGORIES, extract_review, mann_whitney, recompute_weighted
+from analyze import (
+    REQUIRED_CATEGORIES,
+    extract_review,
+    mann_whitney,
+    recompute_weighted,
+    render_csv,
+    render_markdown,
+)
 
 VALID = """Review prose here.
 ```json
@@ -76,3 +83,33 @@ def test_mann_whitney_separated_vs_identical():
     _, _, p_same = mann_whitney(lo, lo)
     assert p_sep < 0.01
     assert p_same > 0.9
+
+
+def _sample_stats():
+    return [
+        {"arm": "skills_off", "n": 10, "mean": 81.6, "sd": 4.6,
+         "cats": {c: 80.0 for c in REQUIRED_CATEGORIES}, "verdicts": {"good": 10}},
+        {"arm": "rigor_only", "n": 10, "mean": 78.9, "sd": 12.2,
+         "cats": {c: 75.0 for c in REQUIRED_CATEGORIES}, "verdicts": {"good": 9, "poor": 1}},
+    ]
+
+
+def test_render_markdown_has_table_and_significance():
+    md = render_markdown(
+        _sample_stats(),
+        [{"a": "rigor_only", "b": "skills_off", "diff": -2.7, "z": 0.08, "p": 0.94}],
+        [],
+    )
+    assert "| Arm |" in md
+    assert "skills_off" in md and "rigor_only" in md
+    assert "81.6" in md
+    assert "0.94" in md
+    assert "good 10" in md
+
+
+def test_render_csv_header_and_rows():
+    out = render_csv(_sample_stats())
+    lines = out.strip().splitlines()
+    assert lines[0].startswith("arm,n,weighted_mean,sd,")
+    assert any(line.startswith("skills_off,10,81.6,") for line in lines)
+    assert len(lines) == 3  # header + 2 arms
