@@ -25,8 +25,10 @@ for arm in $ARMS; do
     fi
     cp "$ROOT/prompts/ml-experiment-v1.txt" "$OUT/$arm/prompt_$i.txt"
     echo ">> codegen $arm run_$i"
-    # The CLI occasionally exits 0 with empty stdout (observed in smoke
-    # testing), so success is judged by output size, not exit code.
+    # Success means the agent actually produced project files, not that it
+    # exited 0 or printed text: in --print mode it sometimes emits only a plan
+    # ("Shall I proceed?") or empty stdout. Judge by workspace artifacts beyond
+    # the seeded make_dataset.py, and retry otherwise.
     attempt=0
     status=1
     while [ "$attempt" -lt 3 ]; do
@@ -39,10 +41,10 @@ for arm in $ARMS; do
           < "$ROOT/prompts/ml-experiment-v1.txt" ) \
         > "$OUT/$arm/run_$i.txt" 2> "$OUT/$arm/run_$i.stderr"
       status=$?
-      if [ "$(wc -c < "$OUT/$arm/run_$i.txt")" -ge 100 ]; then
+      if find "$ws" -type f ! -name 'make_dataset.py' -print -quit | grep -q .; then
         break
       fi
-      echo "!! empty codegen output, retrying ($arm run_$i attempt $attempt)" >&2
+      echo "!! no project files produced, retrying ($arm run_$i attempt $attempt)" >&2
     done
     printf '%s\trun_%s\t%s\t%s\n' "$arm" "$i" "$status" "$attempt" >> "$OUT/manifest.tsv"
   done
