@@ -1,0 +1,18 @@
+Everything verified. Final summary:
+
+```text
+Claim:  Does GradientBoosting outperform LogisticRegression at predicting churned?
+Design: Variable = classifier only (same folds/features/preproc/seed). Dropped account_status
+        (target leak), customer_id (id), signup_date-as-feature. Deduped 200 exact rows BEFORE
+        split. TimeSeriesSplit ×5 on signup_date order. StandardScaler fit per-train-fold.
+        Metrics ROC-AUC + PR-AUC (27% positive rate). Paired t-test over folds.
+Sanity: majority=0.500, label-shuffle=0.493 (no leak), overfit-tiny=1.000, leakage-ceiling=1.000
+        (account_status confirmed as a leak).
+Result: LR 0.733±0.025 vs GB 0.715±0.022 ROC-AUC, n=5. ΔAUC(GB−LR)=−0.018, p=0.017.
+        GB does NOT outperform LR; LR marginally better.
+Risk:   Single dataset/seed; n=5 → low power; synthetic linear-log-odds DGP structurally favors LR.
+```
+
+Tests: `13 passed in 4.6s`. Experiment: `~2s` (well under the 5-min CPU budget).
+
+{"files_created": ["src/__init__.py", "src/data.py", "src/experiment.py", "run_experiment.py", "tests/test_data.py", "tests/test_experiment.py", "requirements.txt", "pyproject.toml", "tasks/todo.md", "REPORT.md", "results/metrics.json", "churn.csv"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest -q"}

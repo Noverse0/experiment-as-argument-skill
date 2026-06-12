@@ -1,0 +1,152 @@
+{
+  "code_version": "e11943a",
+  "data_generation": "python3 make_dataset.py --out churn.csv  (default --seed 7)",
+  "audit": {
+    "n_raw": 4200,
+    "n_duplicates": 200,
+    "n_after_dedup": 4000,
+    "base_rate": 0.26976190476190476,
+    "leak_columns_dropped": [
+      "account_status"
+    ],
+    "id_columns_dropped": [
+      "customer_id"
+    ],
+    "time_span": [
+      "2023-01-01",
+      "2025-06-18"
+    ]
+  },
+  "sanity_checks": [
+    {
+      "check": "leakage_ceiling",
+      "auc_with_leak": 1.0,
+      "passed": true
+    },
+    {
+      "check": "clean_not_near_perfect",
+      "auc_clean": 0.7256976154236428,
+      "passed": true
+    },
+    {
+      "check": "label_shuffle",
+      "auc_shuffled": 0.511349568746829,
+      "passed": true
+    },
+    {
+      "check": "beats_baseline",
+      "aucs": {
+        "logistic_regression": 0.7294520547945205,
+        "gradient_boosting": 0.7256976154236428
+      },
+      "passed": true
+    }
+  ],
+  "experiment": {
+    "config": {
+      "seed": 20260612,
+      "n_splits": 5,
+      "n_repeats": 3,
+      "n_estimates": 15,
+      "features": [
+        "tenure_months",
+        "monthly_spend",
+        "support_tickets"
+      ],
+      "metric_primary": "roc_auc"
+    },
+    "majority_baseline": {
+      "roc_auc_mean": 0.5,
+      "accuracy_mean": 0.7295,
+      "n_estimates": 15
+    },
+    "arms": {
+      "logistic_regression": {
+        "name": "logistic_regression",
+        "roc_auc_mean": 0.7358514466854914,
+        "roc_auc_sd": 0.013338666375472633,
+        "avg_precision_mean": 0.5045256018378471,
+        "avg_precision_sd": 0.02702395932185263,
+        "accuracy_mean": 0.7496666666666667,
+        "accuracy_sd": 0.011044417896234589,
+        "n_estimates": 15,
+        "roc_auc_per_fold": [
+          0.7402492389649923,
+          0.741240169964485,
+          0.738283231861999,
+          0.723004323734695,
+          0.7362996103105659,
+          0.7596794140030441,
+          0.7249096270928462,
+          0.7220319634703196,
+          0.7334461035008814,
+          0.7387262767664473,
+          0.7569087709284628,
+          0.7407962328767124,
+          0.7272244419076611,
+          0.7088237386472324,
+          0.7461485562520256
+        ]
+      },
+      "gradient_boosting": {
+        "name": "gradient_boosting",
+        "roc_auc_mean": 0.7292203963677327,
+        "roc_auc_sd": 0.010700967784940552,
+        "avg_precision_mean": 0.49062729444192266,
+        "avg_precision_sd": 0.019727522742064102,
+        "accuracy_mean": 0.7481666666666666,
+        "accuracy_sd": 0.008811856190599645,
+        "n_estimates": 15,
+        "roc_auc_per_fold": [
+          0.7276009956874683,
+          0.731021689497717,
+          0.7421240804160324,
+          0.7186371145592082,
+          0.7307427812601275,
+          0.7442089992389651,
+          0.7263682775240995,
+          0.7160982686453576,
+          0.7292251266688272,
+          0.7294938780027034,
+          0.7481687595129376,
+          0.7337883688483005,
+          0.7178779807204465,
+          0.7095825659428824,
+          0.7333670589909178
+        ]
+      }
+    },
+    "comparison": {
+      "arm_a": "logistic_regression",
+      "arm_b": "gradient_boosting",
+      "metric": "roc_auc",
+      "mean_diff_b_minus_a": -0.006631050317758606,
+      "sd_diff": 0.005516577000847488,
+      "ci95_diff": [
+        -0.009686028833447975,
+        -0.0035760718020692375
+      ],
+      "t_statistic": -4.655413573416464,
+      "p_value": 0.0003712521119571166,
+      "n_pairs": 15,
+      "significant_at_0.05": true
+    }
+  },
+  "time_based_robustness": {
+    "split_time": "2024-12-21",
+    "n_train": 3200,
+    "n_test": 800,
+    "train_base_rate": 0.2759375,
+    "test_base_rate": 0.24875,
+    "arms": {
+      "logistic_regression": {
+        "roc_auc": 0.7311515982575105,
+        "avg_precision": 0.4908400249503365
+      },
+      "gradient_boosting": {
+        "roc_auc": 0.7241114056137594,
+        "avg_precision": 0.47777408001362914
+      }
+    }
+  }
+}

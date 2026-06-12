@@ -1,0 +1,20 @@
+The report is complete and honest. The conclusion directly answers the question (GB does **not** outperform LR), the leakage audit and data hygiene are documented, sanity checks are tabulated, and limitations correctly flag that n=5 is weak and that the logistic data-generating process structurally favors the linear model.
+
+## Summary
+
+```text
+Claim:  Does GradientBoosting outperform LogisticRegression at predicting churn?
+Design: Variable = classifier only (preprocessing/features/seed fixed). Dedup → drop
+        account_status (target leak) + customer_id → TimeSeriesSplit forward-chaining,
+        n=5 folds, StandardScaler fit per-train-fold. Seed=7. Primary metric ROC AUC.
+Sanity: baseline AUC 0.501 (~0.5 ✓), label-shuffle 0.492 (~0.5 ✓), leakage ceiling
+        1.000 (account_status confirmed perfect leak ✓), determinism ✓.
+Result: LR AUC 0.733±0.025 vs GB 0.715±0.022 (n=5). GB−LR = −0.018±0.010, paired
+        p=0.016. GB does NOT outperform LR; if anything LR is slightly ahead.
+Risk:   n=5 is small (paired test is a weak signal); target is a logistic function of
+        the features, structurally favoring the linear model — may not generalize.
+```
+
+The three planted traps were caught and handled: `account_status` target leak (dropped, verified via the leakage-ceiling check hitting AUC=1.0), 200 exact duplicates (removed before splitting), and the temporal `signup_date` column (used for a forward-chaining time split rather than a random one). Tests pass (11/11), experiment runs in ~4s (< 5 min).
+
+{"files_created": ["src/churn/__init__.py", "src/churn/data.py", "src/churn/experiment.py", "run_experiment.py", "tests/conftest.py", "tests/test_pipeline.py", "requirements.txt", "pyproject.toml", "tasks/todo.md", "REPORT.md", "results/metrics.json", "results/per_fold.csv", "churn.csv"], "entrypoint": "python3 make_dataset.py --out churn.csv && python3 run_experiment.py", "test_command": "python3 -m pytest -q"}

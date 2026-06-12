@@ -1,0 +1,71 @@
+All checks pass. The experiment runs in ~3.3s, tests pass (14), and results are reproducible across runs. Here is my review.
+
+## Review
+
+This is a rigorous, self-aware experiment that treats leakage as something to *measure*, not assume. Every claim in REPORT.md traces back to a value in `results/metrics.json`.
+
+**Leakage prevention — exemplary.** `account_status` (the perfect target leak, `"closed" iff churned`) is excluded via a feature whitelist (`data.py:29`), and `leakage_audit` (`data.py:49`) quantifies the leak at fraction 1.0 rather than just asserting it. `customer_id` dropped. `StandardScaler` is wrapped in a `Pipeline` so it refits on the train fold only inside CV (`models.py`, `evaluate.py:77`). Exact duplicates are removed *before* splitting (`data.py:70`), and the temporal column is handled deliberately: time-sort + forward-chaining `TimeSeriesSplit` (`data.py:74`, `evaluate.py:69`). Two independent guards — label-shuffle collapsing to 0.472 and prior baseline at 0.500 — confirm no residual leakage.
+
+**Methodology — strong.** Trivial baseline present (`DummyClassifier(strategy="prior")`). Metrics appropriate for the 27% imbalance (ROC-AUC primary, PR-AUC, F1 — not accuracy). Equal (zero) tuning budget for both arms, stated explicitly. Paired t-test across folds. Limited to n=5 folds on a single dataset/seed, which is thin, but acknowledged.
+
+**Reproducibility — strong.** Seeds fixed and logged (model 42, shuffle 123); config + per-fold metrics written to `results/`. I re-ran and `mean_diff` was bit-identical.
+
+**Claims discipline — strong.** Claims LR wins on ROC-AUC (p=0.011, sd reported) while transparently noting F1 favors GB but isn't significant (p=0.092). Limitations are honest and even flag the near-linear data generator as a best case for LR, plus a "test contact" note. Nothing claimed beyond what was measured.
+
+**Minor nits:** the hand-rolled t-test/betainc (deliberate, to avoid SciPy; validated against a known critical value in tests) adds complexity; the dataset generation seed (7) lives only in `make_dataset.py` defaults, not in `metrics.json`. Neither undermines the evidence.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 94,
+  "claims_discipline_score": 93,
+  "executability_score": 98,
+  "code_quality_score": 94,
+  "verdict": "excellent",
+  "key_findings": [
+    "All four leakage traps (account_status leak, exact duplicates, temporal column, train-only transforms) are correctly handled and verified, not just asserted.",
+    "Sanity checks (leak-excluded, prior baseline at 0.500, label-shuffle collapse to 0.472, tiny-slice overfit to 1.0) run before the comparison and all pass, arguing the signal is real.",
+    "Trivial baseline present; metrics (ROC-AUC/PR-AUC/F1) suit the 27% imbalance rather than relying on accuracy.",
+    "Winner claim (LR better on ROC-AUC, p=0.011) is backed by 5 paired folds with reported sd; F1's GB advantage is reported as non-significant (p=0.092) — honest both ways.",
+    "Re-running with the same seed reproduces mean_diff exactly; tests (14) pass and the entrypoint completes in ~3.3s.",
+    "Limited to n=5 folds on a single dataset/seed — low statistical power, which the report explicitly acknowledges.",
+    "Limitations section flags the near-linear data generator as a best case for LR, zero tuning budget, and a 'test contact' disclosure."
+  ],
+  "leakage_findings": [
+    "account_status excluded via FEATURES whitelist (data.py:29); leakage_audit measures leak fraction = 1.000, surfaced in the report as a fact.",
+    "customer_id dropped as an identifier.",
+    "StandardScaler wrapped in Pipeline and refit per training fold inside CV (models.py, evaluate.py:77) — no fit-on-full-data leak.",
+    "200 exact duplicate rows removed before splitting (4200 -> 4000, data.py:70), so no row straddles train/test.",
+    "signup_date time-sorted and evaluated with forward-chaining TimeSeriesSplit (data.py:74, evaluate.py:69); a random split would leak the future.",
+    "Label-shuffle sanity check yields ROC-AUC 0.472 and prior baseline 0.500, confirming no residual leakage path.",
+    "Minor: drop_duplicates() keys on all columns including customer_id; works here because planted dups are exact copies, but would miss near-duplicates with differing ids in real data."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (14 passed in 2.99s)",
+    "python3 run_experiment.py --data churn.csv  (~3.3s; sanity all passed: True)",
+    "re-ran run_experiment.py and diffed mean_diff values -> identical (reproducible)",
+    "inspected results/metrics.json (churn_rate 0.2705, 4200->4000 rows, 4 sanity checks pass)"
+  ],
+  "file_evidence": [
+    {"path": "src/churn_experiment/data.py", "note": "FEATURES whitelist excludes leak/id; dedup-before-split; time-sort; leakage_audit quantifies the leak at 1.0."},
+    {"path": "src/churn_experiment/models.py", "note": "Both arms share StandardScaler->clf Pipeline; only the classifier varies; seeded random_state."},
+    {"path": "src/churn_experiment/evaluate.py", "note": "Forward-chaining TimeSeriesSplit with clone-per-fold; paired t-test (hand-rolled betainc, no SciPy); crosses_zero guard."},
+    {"path": "src/churn_experiment/sanity.py", "note": "Four pre-comparison guards: leak-excluded, baseline floor, label-shuffle, tiny-slice overfit, each returning measured numbers."},
+    {"path": "run_experiment.py", "note": "Orchestrates sanity-then-compare; writes config+seeds+per-fold metrics to results/metrics.json; conclude() refuses a winner claim when the interval crosses zero."},
+    {"path": "REPORT.md", "note": "Winner claim backed by p=0.011 with sd; F1 counter-result reported as non-significant; honest limitations and test-contact note."},
+    {"path": "tests/test_pipeline.py", "note": "14 tests target rigor properties (leak exclusion, dedup, time-order, label-shuffle, determinism, t-test correctness), not just 'it runs'."},
+    {"path": "make_dataset.py", "note": "Deterministic generator documenting the planted traps; dataset seed (7) lives only here, not echoed into metrics.json."}
+  ]
+}
+```

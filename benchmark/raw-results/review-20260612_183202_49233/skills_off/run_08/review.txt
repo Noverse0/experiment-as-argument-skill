@@ -1,0 +1,84 @@
+I have a complete picture. Here is my review.
+
+## Review
+
+This is an exceptionally rigorous experiment that engages directly with every planted trap and handles each one deliberately and transparently.
+
+### Leakage prevention — excellent
+- **`account_status`** is correctly excluded as a perfect target leak, and — better than just dropping it — a dedicated `leakage_ceiling` sanity check *re-includes* it to demonstrate it drives AUC to 1.0, which is the empirical justification for the exclusion. The docstring even records the agreement counts (3067 active=0, 1133 closed=1).
+- **Scaler** lives inside each `Pipeline` and is `clone()`d and refit per fold on training rows only — genuine split-before-transform, verified in code.
+- **Duplicates** (200 planted) are removed via `drop_duplicates()` *before* any split, with the rationale that they would otherwise straddle train/test. Confirmed: `n_rows_used = 4000`.
+- **Temporal column** handled deliberately: rows sorted by `signup_date` (stable sort) and evaluated with `TimeSeriesSplit`, so training is on earlier signups and test on strictly later ones. `signup_date` is never a feature.
+- Tests assert the leak/id/temporal columns are absent from `X`, and that `account_status` ~perfectly determines the target.
+
+### Methodological validity — strong
+- Trivial baseline present (`DummyClassifier(most_frequent)` → AUC ~0.5), plus label-shuffle and overfit-tiny-subset checks — all pass.
+- Metrics are ROC-AUC + average precision, appropriate for the 27% churn imbalance; accuracy is explicitly rejected.
+- Fair single-variable design: same zero tuning budget for both arms, identical preprocessing.
+- Minor reservation: declaring an outright "winner" off n=5 *correlated* TimeSeriesSplit folds is slightly aggressive, but the report hedges this heavily and grounds the claim on sign-consistency + small spread rather than the (admittedly approximate) p-value.
+
+### Reproducibility — excellent
+Seeds fixed and logged (`random_state=42`, `label_shuffle_seed=0`, dataset `seed=7`). Config, seeds, environment, and full metrics written to `results/metrics.json` + `summary.csv`. I confirmed a re-run produces byte-identical metrics and the dataset regenerates identically.
+
+### Claims discipline — good
+Conclusion is backed by 5 folds with reported per-fold values and sd. Limitations section is honest and specific (small/correlated folds, single dataset+seed, no tuning, `signup_date` carries no engineered signal, test scored once). The report makes no claim the code didn't measure (accuracy is mentioned in the planning todo but not asserted in REPORT.md).
+
+### Executability — excellent
+`pytest` → 15 passed in ~3s. `run_experiment.py` runs clean in ~3s, well under any timeout, and the documented two-command reproduce flow works from a clean state.
+
+### Code quality — very good
+Clean four-module separation, good docstrings, single source of truth for features/seed, all declared deps used. Two trivial dead parameters: `_fold_indices(n, ...)` ignores `n`, and `roc_by_arm` is passed to `_comparison_conclusion` but unused. The `test_no_duplicate_rows_straddle` test is weaker than its name (it only asserts index disjointness, which `TimeSeriesSplit` guarantees) — the comment admits this.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 88,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 85,
+  "executability_score": 98,
+  "code_quality_score": 88,
+  "verdict": "excellent",
+  "key_findings": [
+    "Engages every planted trap deliberately: leak column dropped + proven via leakage-ceiling check, duplicates removed before split, temporal column used only for ordering via TimeSeriesSplit.",
+    "Four sanity checks (baseline floor, label shuffle, overfit tiny subset, leakage ceiling) all pass and are run before trusting the comparison.",
+    "Fully reproducible: seeds fixed/logged, artifacts written to results/, re-run yields byte-identical metrics, dataset regenerates identically.",
+    "Honest, well-caveated conclusion; declares a small LR edge but heavily qualifies it given n=5 correlated folds and a single dataset/seed.",
+    "Tests pass (15) and experiment runs in ~3s, far under the time budget; documented reproduce commands work from clean state.",
+    "Declaring an outright 'winner' off 5 correlated folds is mildly aggressive, though the report does not overstate it.",
+    "Two trivial dead parameters (_fold_indices 'n', roc_by_arm) and one test (no-straddle) weaker than its name implies."
+  ],
+  "leakage_findings": [
+    "account_status correctly excluded as a perfect target leak; leakage_ceiling check re-includes it to show AUC->1.0 as justification.",
+    "StandardScaler is inside each pipeline and refit per fold on train rows only — genuine split-before-transform, no test contamination.",
+    "200 planted exact-duplicate rows removed with drop_duplicates() before splitting, preventing train/test straddle (n 4200 -> 4000).",
+    "signup_date treated deliberately: stable-sorted for ordering and evaluated with TimeSeriesSplit; never used as a feature.",
+    "customer_id dropped as a bare identifier.",
+    "Residual feature-only duplicate collisions could still coincide across folds, but the planted full-row duplicates are removed; acknowledged."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (15 passed in ~3.2s)",
+    "python3 run_experiment.py  (ran in ~3s; all 4 sanity checks PASS; conclusion 'winner' for logistic_regression)",
+    "re-ran run_experiment.py and diffed metrics.json -> identical (deterministic)",
+    "python3 make_dataset.py --out /tmp/churn2.csv and diff vs churn.csv -> identical (deterministic dataset)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "prepare() dedups before split, drops leak/id, time-orders; EXCLUDED_COLUMNS documents reasons; leaky_features() isolated for the ceiling check only."},
+    {"path": "src/models.py", "note": "Both arms are Pipeline(StandardScaler, clf) with fixed RANDOM_STATE=42; identical preprocessing keeps the comparison single-variable."},
+    {"path": "src/evaluation.py", "note": "TimeSeriesSplit CV with per-fold clone+fit; baseline_floor/label_shuffle/overfit/leakage_ceiling checks; paired t-test with honest caveat about correlated folds."},
+    {"path": "src/experiment.py", "note": "Writes config/seeds/environment/metrics to results/; _comparison_conclusion declares winner only when separated AND p<0.05; roc_by_arm param passed but unused."},
+    {"path": "REPORT.md", "note": "Conclusion matches metrics.json; strong limitations section; reproduce commands verified working."},
+    {"path": "results/metrics.json", "note": "Full machine-readable record incl per-fold values, sd, and environment; reproduced exactly on re-run."},
+    {"path": "tests/test_data.py", "note": "Asserts leak/id/temporal exclusion, dedup count, imbalance, and leak-column~target agreement; no-straddle test weaker than its name."}
+  ]
+}
+```

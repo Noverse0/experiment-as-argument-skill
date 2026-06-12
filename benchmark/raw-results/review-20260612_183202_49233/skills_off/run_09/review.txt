@@ -1,0 +1,72 @@
+All checks pass. Tests green (11 passed), entrypoint runs and reproduces byte-identical metrics on rerun. Here's my assessment.
+
+## Review
+
+**Leakage prevention — excellent.** All four planted traps are handled deliberately, not accidentally:
+- `account_status` is excluded from `FEATURES` (`data.py:16,26`), documented as a target leak, *and* demonstrated empirically via a leakage-ceiling sanity check that drives AUC to 1.0000 (`experiment.py:117-123`). A test asserts it never reaches the feature matrix (`test_pipeline.py:16-22`).
+- `StandardScaler` is fit per-fold inside a `Pipeline` (`experiment.py:47,69`); a test confirms scaler means equal train-fold means, not full-data means (`test_pipeline.py:59-69`).
+- 200 exact duplicates are removed via full-record `drop_duplicates()` *before* splitting (`data.py:58`), with a test (`test_pipeline.py:25-39`). The dedup runs through a shared `_clean()` so the leaky-feature builder stays row-aligned.
+- Temporal column handled deliberately: data sorted by `signup_date` (stable mergesort) and evaluated with `TimeSeriesSplit` forward-chaining; a test asserts every train index precedes every test index in time (`test_pipeline.py:48-54`).
+
+**Methodological validity — strong.** Trivial `DummyClassifier` baseline + label-shuffle floor both land at ~0.50 (`experiment.py:100-115`). Metrics are imbalance-appropriate (ROC AUC primary, average precision, plus accuracy/F1), with base rate 0.27 reported. Neither model is tuned — both use defaults — so the "equal tuning budget" condition holds trivially and honestly. Comparison is paired per-fold, which is the correct test for this design.
+
+**Reproducibility — excellent.** Seed 7 fixed and logged in `config`; `results/metrics.json` + `per_fold.csv` written; a determinism check is built in; I reran the entrypoint and got byte-identical per-fold numbers.
+
+**Claims discipline — strong.** The verdict is generated mechanically from measured numbers (`conclusion_text`), claims LR > GB by +0.0181 (paired p=0.016, all 5 folds same direction), and immediately caveats n=5 as a weak signal, notes the mean±sd intervals overlap, and concedes the dataset's logistic-generated target structurally favors a linear model. It claims nothing the code didn't measure. The only mild tension: stating a "winner" off n=5 is slightly stronger than the overlapping intervals alone suggest — but it's well-hedged and the paired direction is consistent.
+
+**Executability — excellent.** Tests pass, entrypoint runs in seconds, deps resolve, reproduces from current state.
+
+**Code quality — strong.** Clean module separation, dataclasses, thorough docstrings, no dead code; `build_leaky_features` exists solely for the sanity check and is documented as such. All declared dependencies (incl. scipy for the t-test) are used.
+
+This is an exemplary, leakage-aware experiment that treats its own result skeptically.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 90,
+  "executability_score": 97,
+  "code_quality_score": 92,
+  "verdict": "excellent",
+  "key_findings": [
+    "All four planted rigor traps (account_status leak, duplicate straddle, temporal split, scaler leakage) are handled deliberately, documented, and guarded by tests.",
+    "Leakage-ceiling sanity check empirically demonstrates account_status drives AUC to 1.0000, justifying its exclusion rather than just asserting it.",
+    "Baseline (DummyClassifier) and label-shuffle checks both land at ~0.50, confirming the pipeline does not leak.",
+    "Verdict is generated mechanically from measured numbers; LR > GB by +0.0181 (paired, all 5 folds same direction) is stated with explicit n=5 weak-signal caveats and honest limitations.",
+    "Reran entrypoint: per-fold metrics reproduced byte-identical; 11/11 tests pass in ~8s.",
+    "Minor: declaring a 'winner' on n=5 folds is slightly stronger than the overlapping mean±sd intervals alone imply, though it is well-hedged."
+  ],
+  "leakage_findings": [
+    "account_status excluded from FEATURES (data.py:16,26); test_pipeline.py:16-22 asserts it never enters feature matrix.",
+    "StandardScaler fit per-fold inside Pipeline (experiment.py:47,69); test_pipeline.py:59-69 verifies scaler stats come from train fold only.",
+    "200 exact duplicates removed via full-record drop_duplicates BEFORE splitting (data.py:58); verified by test_pipeline.py:25-39.",
+    "Temporal handling deliberate: rows sorted by signup_date and evaluated with TimeSeriesSplit forward-chaining; test_pipeline.py:48-54 asserts no train index post-dates a test index.",
+    "No fit-like transform is fitted on full data; leaky-feature builder is isolated to the sanity check and shares the same _clean() path for row alignment."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (11 passed in 8.27s)",
+    "python3 run_experiment.py  (regenerated results/ + REPORT.md)",
+    "diff of per_fold metrics before/after rerun  (REPRODUCED IDENTICAL)",
+    "python3 -c 'import sklearn,pandas,numpy,scipy'  (deps present: sklearn 1.7.1, pandas 2.3.1, numpy 1.26.4, scipy 1.16.0)"
+  ],
+  "file_evidence": [
+    {"path": "src/churn/data.py", "note": "Leakage-aware prep: FEATURES whitelist, documented drops, dedup-before-split, time-sort; single source of truth for what the model sees."},
+    {"path": "src/churn/experiment.py", "note": "Per-fold TimeSeriesSplit eval, in-Pipeline scaler, baseline/label-shuffle/leakage-ceiling/determinism sanity checks, paired t-test, data-driven conclusion_text."},
+    {"path": "tests/test_pipeline.py", "note": "11 invariant tests guarding rigor: leak absence, dedup count, time-sort, no future leak, train-only scaling, determinism, baseline/ceiling behavior."},
+    {"path": "REPORT.md", "note": "States winner with variance, paired p, n=5 caveat, honest limitations (dataset favors linear model); claims match measured outputs."},
+    {"path": "results/per_fold.csv", "note": "Per-fold metrics with n_train/n_test/test_churn_rate; matches regenerated run exactly."},
+    {"path": "make_dataset.py", "note": "Deterministic seeded generator documenting the planted traps; confirms account_status == closed iff churned."}
+  ]
+}
+```

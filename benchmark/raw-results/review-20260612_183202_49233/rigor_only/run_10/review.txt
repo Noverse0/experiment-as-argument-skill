@@ -1,0 +1,66 @@
+All commands work, metrics reproduce identically, all 8 tests pass. This is a strong, rigorous experiment. Let me note a couple of verification points.
+
+The dataset's planted traps are all handled correctly:
+- `account_status` (target leak) is dropped and a test *proves* it's a leak (`test_account_status_would_leak_if_used`).
+- 200 exact duplicates removed *before* the split (verified: 4200→4000).
+- Temporal split by `signup_date`; `TimeSeriesSplit` operates on the already-time-ordered dev set, so folds respect time.
+- Scaling is fold-local via sklearn `Pipeline` + `clone` per fold — no fit-on-test leakage.
+
+Sanity checks (baseline floor, label-shuffle→0.52, overfit-tiny→1.0) all pass and meaningfully guard the traps. The winner claim is backed by 5 paired temporal folds with a reported CI that excludes 0, confirmed by the held-out test direction, and limitations (single seed, defaults-only) are stated honestly.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 90,
+  "executability_score": 98,
+  "code_quality_score": 93,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps (target-derived account_status, 200 exact duplicates, temporal signup_date) are correctly handled and explicitly justified in code docstrings and REPORT.md.",
+    "Preprocessing (StandardScaler) is wrapped in an sklearn Pipeline and cloned per fold, so it is fitted on training folds only — no fit-on-test leakage.",
+    "Trivial baseline (DummyClassifier prior, AUC=0.5), label-shuffle (AUC=0.52), and overfit-tiny (train AUC=1.0) sanity checks all pass and guard the traps.",
+    "Metrics are imbalance-aware (ROC-AUC primary + PR-AUC) for the 27% churn rate; accuracy is deliberately avoided.",
+    "Both arms use library defaults to hold tuning budget equal; only the estimator family varies.",
+    "Winner claim (logreg) is backed by 5 paired temporal folds with a 95% CI [-0.042, -0.004] excluding 0, and confirmed in direction by the once-touched held-out test (0.746 vs 0.737).",
+    "Limitations are honest: single data-generation seed, defaults-only, dataset-specific conclusion.",
+    "Re-running the entrypoint reproduced cross-validation metrics identically; 8/8 tests pass in ~2s."
+  ],
+  "leakage_findings": [
+    "account_status is dropped (LEAK_COLS) and test_account_status_would_leak_if_used proves it equals the target >99% of the time, justifying the drop.",
+    "deduplicate() runs before temporal_split(), confirmed removing 200 exact duplicate rows so memorized rows cannot straddle train/test.",
+    "Temporal handling is deliberate: rows sorted by signup_date, latest 25% held out; TimeSeriesSplit CV preserves time order within dev.",
+    "StandardScaler fitted inside per-fold cloned Pipelines (fold-local), never on held-out data.",
+    "customer_id dropped as a non-generalizable identifier.",
+    "Minor: the final-test refit scales on full dev and transforms test within the same fitted Pipeline (correct); no fit leakage observed anywhere."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "head -3 churn.csv && wc -l churn.csv",
+    "python3 -m pytest -q  (8 passed in 1.95s)",
+    "python3 run_experiment.py  (sanity PASS x3; conclusion: logreg better)",
+    "diff of cross_validation metrics before/after rerun (identical → reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/churn_experiment/data.py", "note": "Drops account_status/customer_id, dedups before split, temporal sort-and-hold-out split with clear leak-surface docstring."},
+    {"path": "src/churn_experiment/models.py", "note": "Both arms are sklearn Pipelines (fold-local scaling), seed threaded, defaults-only for equal tuning budget."},
+    {"path": "src/churn_experiment/evaluate.py", "note": "Paired TimeSeriesSplit CV with per-fold scores + variance; test set touched exactly once in final_test_evaluation."},
+    {"path": "src/churn_experiment/sanity.py", "note": "Baseline floor, label-shuffle leak detector, and overfit-tiny pipeline check — all gate belief in results."},
+    {"path": "run_experiment.py", "note": "Computes paired CI without scipy, logs full config (seed, git rev, python), writes results/metrics.json, exits non-zero if sanity fails."},
+    {"path": "tests/test_pipeline.py", "note": "8 tests encoding rigor invariants: dedup, leak/id exclusion, temporal non-overlap, label-shuffle, leak proof, determinism, beats-chance."},
+    {"path": "REPORT.md", "note": "Auto-generated; claims a winner backed by 5 folds + CI, reports variance, and lists honest limitations (single seed, defaults, dataset-specific)."},
+    {"path": "results/metrics.json", "note": "Machine-readable record; CV metrics reproduced identically on rerun with seed 0."}
+  ]
+}
+```

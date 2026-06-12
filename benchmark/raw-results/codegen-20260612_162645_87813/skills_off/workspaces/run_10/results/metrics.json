@@ -1,0 +1,82 @@
+{
+  "config": {
+    "seed": 7,
+    "n_splits": 5,
+    "cv": "TimeSeriesSplit (forward-chaining on signup_date order)",
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "primary_metric": "roc_auc",
+    "sklearn_models": {
+      "logistic_regression": "LogisticRegression(max_iter=1000)",
+      "gradient_boosting": "GradientBoostingClassifier(defaults)"
+    }
+  },
+  "data": {
+    "n_raw": 4200,
+    "n_after_dedup": 4000,
+    "n_duplicates_removed": 200,
+    "churn_rate": 0.2705
+  },
+  "arms": {
+    "logistic_regression": {
+      "name": "logistic_regression",
+      "roc_auc_mean": 0.7328795185434686,
+      "roc_auc_sd": 0.02520427977991526,
+      "roc_auc_per_fold": [
+        0.7344442032132003,
+        0.7372289156626506,
+        0.6950785340314136,
+        0.7658869036654999,
+        0.7317590361445783
+      ],
+      "average_precision_mean": 0.5013905475609909,
+      "average_precision_sd": 0.041535947284234785,
+      "accuracy_mean": 0.7489489489489489,
+      "n_folds": 5
+    },
+    "gradient_boosting": {
+      "name": "gradient_boosting",
+      "roc_auc_mean": 0.7148016566689661,
+      "roc_auc_sd": 0.022055900984489656,
+      "roc_auc_per_fold": [
+        0.7031752062527139,
+        0.7137289156626505,
+        0.6876274455772939,
+        0.7464887640449438,
+        0.722987951807229
+      ],
+      "average_precision_mean": 0.4782105719711575,
+      "average_precision_sd": 0.03023445652405924,
+      "accuracy_mean": 0.7417417417417418,
+      "n_folds": 5
+    }
+  },
+  "sanity_checks": {
+    "baseline_floor_auc": 0.5,
+    "label_shuffle_auc": 0.48776309777792753,
+    "leakage_ceiling_auc": 1.0
+  },
+  "comparison": {
+    "gbm_minus_logreg_mean": -0.01807786187450231,
+    "gbm_minus_logreg_sd": 0.010058493693013721,
+    "per_fold_diff": [
+      -0.03126899696048635,
+      -0.023500000000000076,
+      -0.007451088454119681,
+      -0.019398139620556143,
+      -0.0087710843373493
+    ],
+    "detectable_difference": true,
+    "conclusion": "Logistic regression outperforms gradient boosting by 0.0181 AUC (+/-0.0101) across 5 folds."
+  },
+  "provenance": {
+    "python": "3.12.4",
+    "numpy": "1.26.4",
+    "sklearn": "1.7.1",
+    "code_version": "e11943a",
+    "data_command": "python3 make_dataset.py --out churn.csv"
+  }
+}

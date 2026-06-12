@@ -1,0 +1,71 @@
+Reproduced bit-for-bit identical (modulo the git rev string). I have everything I need.
+
+## Review
+
+This is an unusually rigorous experiment. It correctly identifies and neutralizes every planted trap, and its claims are tightly bounded to what the code measured.
+
+**Leakage** — fully handled, mechanically and verifiably:
+- `account_status` is dropped (`data.py:28`), justified in code, and a dedicated *leakage-ceiling* sanity check re-introduces it and shows ROC-AUC → 1.0000, proving it's a leak.
+- 200 exact duplicates removed via `drop_duplicates()` **before** any split (`data.py:65`); a test asserts `n_duplicates == 200`.
+- Temporal column handled deliberately: rows sorted by `signup_date` and split with `TimeSeriesSplit` so every test fold lies strictly after its train rows; a test asserts `tr.max() < te.min()`.
+- Scaler is fit inside the `Pipeline` per training fold only — never on held-out rows.
+
+**Methodology** — trivial baselines (AUC 0.5, AP = prevalence), label-shuffle, and overfit-tiny checks all present. Metrics (ROC-AUC + Average Precision) are appropriate for the 27% imbalance; accuracy is explicitly avoided. Both arms get the same (zero) tuning budget — symmetric and acknowledged.
+
+**One real statistical weakness** (claims): the verdict rests on "15 matched (seed, time-fold) cells," but LogisticRegression is deterministic, so its 5 fold scores are *identical* across all 3 seeds (visible in `per_fold`), and gboost varies only trivially. The 15 "pairs" are effectively 5 distinct folds triplicated — pseudo-replication. The reported `± 0.0094` sd is computed over near-duplicated values and understates true fold-to-fold variance, slightly overstating confidence in the "logreg" verdict. The report is otherwise admirably honest (calls it a coarse band, not a p-value; flags the near-logistic synthetic DGP and lack of tuning) but does not acknowledge this non-independence.
+
+**Reproducibility / executability** — seeds fixed and logged; config, provenance (git rev, library versions), sanity results, and per-fold metrics all written to `results/metrics.json`. 12/12 tests pass; clean-state regeneration + re-run produced a bit-identical artifact.
+
+**Code quality** — clean package layout, typed dataclasses, justifications in code rather than in someone's head, no dead code, dependencies all declared and used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 98,
+  "claims_discipline_score": 87,
+  "executability_score": 98,
+  "code_quality_score": 95,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps neutralized: account_status dropped, 200 duplicates removed before split, time-based TimeSeriesSplit on signup_date.",
+    "Sanity suite (baseline floor, leakage ceiling=1.0, label shuffle→~0.5, overfit tiny, determinism) runs before the comparison and is recorded in the artifact.",
+    "Metrics (ROC-AUC + Average Precision) suit the 27% imbalance; accuracy deliberately avoided. Trivial baselines explicit.",
+    "Pseudo-replication: logreg is deterministic so its 5 fold scores repeat identically across the 3 seeds; n=15 paired cells are effectively 5 independent folds tripled, so the ±0.0094 sd understates true variance and the verdict band is narrower than the data warrant.",
+    "Both arms run at default hyperparameters with no tuning (acknowledged in limitations) — symmetric but neither model is at its ceiling.",
+    "Clean-state re-run (regenerate CSV + run_experiment.py) reproduced results/metrics.json bit-for-bit; 12/12 tests pass."
+  ],
+  "leakage_findings": [
+    "account_status (='closed' iff churned) dropped in LEAK_COLUMNS (data.py:28) and confirmed as a leak by leakage_ceiling check yielding ROC-AUC 1.0000.",
+    "Full-row deduplication done before splitting (data.py:65); test asserts exactly 200 duplicates removed so no copy straddles train/test.",
+    "Temporal handling deliberate: sorted by signup_date and split with TimeSeriesSplit; test_time_split_test_after_train asserts test indices follow train indices.",
+    "StandardScaler fit inside the Pipeline per training fold only (pipeline.py) — no fit on held-out data.",
+    "Minor: the leakage_ceiling and label_shuffle/overfit sanity checks use a plain 70/30 positional cut rather than the time split, but they are diagnostics, not the comparison, so this does not affect the headline result."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (12 passed in 3.48s)",
+    "rm -f churn.csv && python3 make_dataset.py --out churn.csv",
+    "python3 run_experiment.py  (verdict: logreg; wrote results/metrics.json and REPORT.md)",
+    "diff of regenerated vs original metrics.json (identical modulo git_rev)"
+  ],
+  "file_evidence": [
+    {"path": "src/churn_experiment/data.py", "note": "Drops account_status + customer_id with in-code justification; dedups before split; time-orders by signup_date."},
+    {"path": "src/churn_experiment/pipeline.py", "note": "Preprocessing (StandardScaler) lives inside the Pipeline, fit on train folds only; gboost scale-invariant so omitted."},
+    {"path": "src/churn_experiment/evaluate.py", "note": "TimeSeriesSplit over 3 seeds; paired gboost−logreg diffs; verdict uses mean±1sd band excluding zero."},
+    {"path": "src/churn_experiment/sanity.py", "note": "Baseline floor, leakage ceiling, label shuffle, overfit-tiny, determinism checks recorded in artifact."},
+    {"path": "results/metrics.json", "note": "Full config, provenance (git/lib versions), sanity, per-fold metrics; per_fold shows logreg scores identical across seeds (pseudo-replication)."},
+    {"path": "REPORT.md", "note": "Claims logreg winner from 15 paired cells; honest limitations (coarse band, synthetic DGP, no tuning) but omits the seed non-independence caveat."},
+    {"path": "tests/test_pipeline.py", "note": "12 tests covering leak drop, dedup, time ordering, shuffle collapse, leakage ceiling, baseline beat — all pass."}
+  ]
+}
+```

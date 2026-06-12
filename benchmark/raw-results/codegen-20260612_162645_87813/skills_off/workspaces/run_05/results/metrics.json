@@ -1,0 +1,95 @@
+{
+  "config": {
+    "data_path": "churn.csv",
+    "seed": 7,
+    "n_splits": 5,
+    "feature_columns": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "dropped_leak_columns": [
+      "account_status"
+    ],
+    "dropped_id_columns": [
+      "customer_id"
+    ],
+    "time_column": "signup_date",
+    "split_strategy": "TimeSeriesSplit (time-ordered)"
+  },
+  "environment": {
+    "python": "3.12.4",
+    "code_revision": "e11943a"
+  },
+  "dataset": {
+    "n_raw_rows": 4200,
+    "n_duplicates_dropped": 200,
+    "n_rows_used": 4000,
+    "churn_base_rate": 0.2705
+  },
+  "sanity_checks": {
+    "baseline_floor": {
+      "strategy": "prior",
+      "roc_auc_mean": 0.5
+    },
+    "label_shuffle_roc_auc": {
+      "logistic_regression": 0.498961667479349,
+      "gradient_boosting": 0.49162220819048413
+    },
+    "overfit_tiny_subset_train_roc_auc": {
+      "logistic_regression": 0.9031339031339032,
+      "gradient_boosting": 1.0
+    }
+  },
+  "arms": {
+    "logistic_regression": {
+      "model": "logistic_regression",
+      "roc_auc_mean": 0.7328666102886515,
+      "roc_auc_sd": 0.025221998124120362,
+      "pr_auc_mean": 0.5014164231654628,
+      "pr_auc_sd": 0.0413261569949812,
+      "accuracy_mean": 0.7489489489489489,
+      "accuracy_sd": 0.023027374790006987,
+      "n_folds": 5,
+      "roc_auc_per_fold": [
+        0.7338254450716457,
+        0.7377831325301205,
+        0.6950785340314136,
+        0.7658869036654999,
+        0.7317590361445783
+      ]
+    },
+    "gradient_boosting": {
+      "model": "gradient_boosting",
+      "roc_auc_mean": 0.7150699484204273,
+      "roc_auc_sd": 0.02214258359191376,
+      "pr_auc_mean": 0.4783062244603726,
+      "pr_auc_sd": 0.02979665054802494,
+      "accuracy_mean": 0.7408408408408409,
+      "accuracy_sd": 0.019623194297542994,
+      "n_folds": 5,
+      "roc_auc_per_fold": [
+        0.702534737299175,
+        0.7156626506024096,
+        0.6876274455772939,
+        0.7464887640449438,
+        0.7230361445783132
+      ]
+    }
+  },
+  "comparison": {
+    "metric": "roc_auc",
+    "arm_a": "gradient_boosting",
+    "arm_b": "logistic_regression",
+    "mean_diff_a_minus_b": -0.017796661868224484,
+    "sd_diff": 0.009908501684453692,
+    "per_fold_diff": [
+      -0.03129070777247067,
+      -0.022120481927710878,
+      -0.007451088454119681,
+      -0.019398139620556143,
+      -0.008722891566265045
+    ],
+    "band_excludes_zero": true
+  }
+}

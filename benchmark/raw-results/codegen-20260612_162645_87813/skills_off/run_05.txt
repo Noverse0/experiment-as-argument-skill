@@ -1,0 +1,17 @@
+Everything works end to end:
+
+- **11 tests pass** in ~5s; full experiment runs in **~3.3s** (well under the 5-minute budget, CPU-only).
+- **All sanity checks pass:** baseline floor = 0.500, label-shuffle collapses to ~0.49 (no leak survives), tiny-subset overfits.
+- **Conclusion is honest:** GB does *not* outperform LR — LR is slightly higher (0.018 ± 0.010 ROC-AUC), consistent in sign across all 5 folds. This is the expected result since the target is a linear function of the features (favoring the linear model), and the report flags that as a limitation.
+
+The three planted traps were all handled and documented in code + report: `account_status` perfect leak dropped, 200 duplicates removed before splitting (4200→4000), and `signup_date` temporal column drives a time-ordered split instead of a random one.
+
+```text
+Claim: Does GradientBoosting beat LogisticRegression at predicting churned?
+Design: variable = classifier only; identical scaler + paired TimeSeriesSplit (5 folds, time-ordered); seed=7 logged
+Sanity: floor=0.500 ✓ | label-shuffle 0.49/0.49 ✓ (no leak) | tiny-subset 0.90/1.00 ✓
+Result: LR 0.733±0.025 vs GB 0.715±0.022 ROC-AUC; diff -0.018±0.010, n=5. Answer: No, GB does not outperform LR.
+Risk: n=5 is small (band, not a formal test); synthetic linear target favors LR; defaults un-tuned.
+```
+
+{"files_created": ["requirements.txt", "src/churn_experiment/__init__.py", "src/churn_experiment/data.py", "src/churn_experiment/pipeline.py", "src/churn_experiment/evaluate.py", "run_experiment.py", "tests/conftest.py", "tests/test_data.py", "tests/test_sanity.py", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py --data churn.csv", "test_command": "python3 -m pytest tests/ -q"}

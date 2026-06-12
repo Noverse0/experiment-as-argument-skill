@@ -1,0 +1,69 @@
+## Review
+
+This is an unusually rigorous experiment that anticipates and defuses every planted trap. I confirmed it both by static reading and by executing from a clean copy.
+
+**What it gets right**
+
+- **Leakage:** `account_status` is dropped with an explicit, correct justification (`"closed"` iff `churned==1`), and a dedicated leakage-ceiling sanity check *demonstrates* it drives AUC to 1.000. `customer_id` dropped. The `StandardScaler` lives inside the `Pipeline`, so it is fit on the train fold only — no transform leakage. Exact duplicates (200) are removed **before** splitting, so they cannot straddle. `signup_date` is used deliberately for a time-based split (sorted, last 20% held out, `TimeSeriesSplit` forward-chaining on dev) rather than as a raw feature. This is textbook.
+- **Methodology:** trivial baseline present (`DummyClassifier(prior)` → 0.5), threshold-free metrics (ROC-AUC + PR-AUC) appropriate to the 27% imbalance, accuracy explicitly rejected, identical folds/preprocessing/seeds across arms, equal tuning budget (defaults for both).
+- **Reproducibility:** seeds `[0,1,2]` fixed and logged to `results/metrics.json`; a clean re-run reproduced delta=-0.0213 and p=2.14e-8 bit-for-bit. `code_version` recorded via git.
+- **Claims:** the `conclude()` gate only declares a winner past α=0.05; limitations are honest (single dataset, no tuning, normality caveat, "most recent cohort only"). The report renderer only emits measured values.
+- **Executability:** `pytest` → 13 passed; `make_dataset.py` + `run_experiment.py` run clean and regenerate artifacts. The git-version lookup fails gracefully to "unknown".
+
+**The one real flaw — pseudo-replication inflates the significance.** The CV is repeated over 3 seeds and the resulting 15 (seed, fold) pairs are fed to the paired t-test as if independent. But LogisticRegression is deterministic: its 15 CV scores are just 5 distinct fold values repeated 3× (I verified: 5 unique of 15). GBM varies only at the 4th decimal across seeds. So there are effectively **5 independent folds, not 15**. The t-statistic (-11.2) and p=2e-8 are therefore overstated — the honest df is ~4. The report acknowledges n=15 and that seeds "expose GBM variance," but does not flag that this replication adds almost no independent information and inflates the test. The *direction* of the result (LogReg consistently ahead by ~0.021 AUC on every fold) is robust and almost certainly real; it's the *strength* of evidence that's oversold. A Wilcoxon/t-test over the 5 fold-means, or simply reporting n=5, would have been the disciplined choice.
+
+Minor: `random_state` on the `prior` DummyClassifier and on LogisticRegression (lbfgs) is inert — harmless but cosmetic.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 78,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 76,
+  "executability_score": 100,
+  "code_quality_score": 92,
+  "verdict": "good",
+  "key_findings": [
+    "All planted traps handled correctly: target-leak column dropped, duplicates removed before split, temporal column used for a deliberate time-based split.",
+    "Strong methodology: trivial baseline, imbalance-appropriate metrics (ROC/PR-AUC, accuracy explicitly rejected), paired identical folds, equal (default) tuning budget for both arms.",
+    "Four sanity checks (baseline floor, label-shuffle, tiny-subset overfit, leakage ceiling) run before the comparison and all land where expected.",
+    "Reproducible: clean-state re-run reproduced delta=-0.0213 and p=2.14e-8 exactly; seeds logged to results/metrics.json.",
+    "Main flaw: repeating CV over 3 seeds yields 15 t-test pairs but only 5 are independent (LogReg deterministic → 5 unique scores repeated 3x); the paired t-test treats them as independent, inflating t=-11.2 / p=2e-8. The winner's direction is robust; the significance is overstated.",
+    "Conclusion declares LogisticRegression the winner (held-out test 0.731 vs 0.724 ROC-AUC), consistent across every fold, so the effect is likely real even if the reported p-value is too small."
+  ],
+  "leakage_findings": [
+    "account_status DROPPED with correct justification; leakage-ceiling check confirms it forces AUC=1.000.",
+    "StandardScaler is inside the sklearn Pipeline, so it is fit on the train fold only — no fit-on-full-data leakage.",
+    "200 exact duplicate rows removed via drop_duplicates() BEFORE any split, preventing train/test straddle (verified n_duplicates_dropped=200, 4000 of 4200 used).",
+    "Temporal handling is deliberate: rows sorted by signup_date (stable mergesort), last 20% held out once, TimeSeriesSplit forward-chaining on the development set.",
+    "customer_id dropped as a non-predictive identifier.",
+    "No residual leak detected: label-shuffle AUC = 0.495 (~0.5 as required)."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*'",
+    "python3 -c 'import sklearn,pandas,numpy,scipy' (sklearn 1.7.1)",
+    "python3 -m pytest -q  -> 13 passed in 12.5s",
+    "cp -r run_04 /tmp/clean_run; rm churn.csv results; python3 make_dataset.py --out churn.csv; python3 run_experiment.py  -> reproduced conclusion",
+    "python3 -c 'check reproduced delta/p and LogReg CV uniqueness' -> delta=-0.0213, p=2.14e-8, 5 of 15 CV scores unique"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "prepare() drops account_status & customer_id, dedups before split, sorts by signup_date; load_leaky_features() exists solely for the leakage-ceiling check."},
+    {"path": "src/models.py", "note": "Both arms wrap StandardScaler+clf in a Pipeline so scaling is fit per-fold; equal default hyperparameters (no tuning) hold budget fixed."},
+    {"path": "src/experiment.py", "note": "Time-based holdout + TimeSeriesSplit; folds precomputed once for paired comparison; conclude() gates winner on alpha. paired_comparison feeds 15 (seed,fold) pairs to ttest_rel — the pseudo-replication source."},
+    {"path": "src/sanity.py", "note": "Four pre-comparison checks: baseline_floor, label_shuffle, overfit_tiny_subset, leakage_ceiling — all serialized to metrics.json."},
+    {"path": "results/metrics.json", "note": "delta=-0.0213, p=2.14e-8, n_pairs=15; LogReg cv_roc_auc shows only 5 distinct values repeated 3x, confirming seed reps are not independent."},
+    {"path": "REPORT.md", "note": "Honest limitations (single dataset, no tuning, normality caveat) but does not flag that the 15 t-test pairs collapse to 5 independent folds; significance overstated."},
+    {"path": "tests/test_pipeline.py", "note": "13 validity-guarding tests (dedup count, dropped leak/id cols, time-ordering, baseline~0.5, leakage ceiling>0.99, determinism, conclude-respects-significance); all pass."}
+  ]
+}
+```

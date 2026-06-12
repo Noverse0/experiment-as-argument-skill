@@ -1,0 +1,159 @@
+{
+  "config": {
+    "seed": 42,
+    "n_splits": 5,
+    "split": "TimeSeriesSplit (expanding window, ordered by signup_date)",
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "dropped_columns": {
+      "account_status": "target leak (closed iff churned)",
+      "customer_id": "identifier, no signal",
+      "signup_date": "temporal; used only for split ordering, not a feature"
+    },
+    "models": {
+      "logreg": "LogisticRegression(max_iter=1000) + StandardScaler",
+      "gboost": "GradientBoostingClassifier(defaults) + StandardScaler"
+    },
+    "tuning": "none (library defaults for both arms \u2014 equal budget)",
+    "data": {
+      "csv": "churn.csv",
+      "generation": "python3 make_dataset.py --out churn.csv (seed=7)",
+      "n_raw": 4200,
+      "n_duplicates_dropped": 200,
+      "n_clean": 4000,
+      "positive_rate": 0.2705
+    },
+    "env": {
+      "python": "3.12.4",
+      "sklearn": "1.7.1",
+      "numpy": "1.26.4",
+      "code_version": "e11943a"
+    }
+  },
+  "sanity_checks": [
+    {
+      "check": "baseline_floor",
+      "auc": 0.5,
+      "expected": "~0.5",
+      "passed": true
+    },
+    {
+      "check": "leakage_ceiling_audit",
+      "auc_with_leak": 1.0,
+      "expected": "~1.0",
+      "passed": true
+    },
+    {
+      "check": "label_shuffle",
+      "auc": 0.4449809892031509,
+      "expected": "~0.5",
+      "passed": true
+    },
+    {
+      "check": "overfit_tiny_subset",
+      "train_auc": 1.0,
+      "expected": "~1.0",
+      "passed": true
+    }
+  ],
+  "sanity_all_passed": true,
+  "arms": {
+    "logreg": {
+      "roc_auc": {
+        "mean": 0.7328666102886515,
+        "sd": 0.025221998124120362,
+        "n": 5,
+        "values": [
+          0.7338254450716457,
+          0.7377831325301205,
+          0.6950785340314136,
+          0.7658869036654999,
+          0.7317590361445783
+        ]
+      },
+      "pr_auc": {
+        "mean": 0.5014164231654628,
+        "sd": 0.0413261569949812,
+        "n": 5,
+        "values": [
+          0.5321117724429678,
+          0.4558315430283017,
+          0.4732847541833845,
+          0.5552876212411811,
+          0.49056642493147884
+        ]
+      },
+      "brier": {
+        "mean": 0.17114435972097714,
+        "sd": 0.011100464306611026,
+        "n": 5,
+        "values": [
+          0.17911558139824893,
+          0.16617149381581603,
+          0.18645744533897007,
+          0.16087813758178449,
+          0.16309914047006616
+        ]
+      }
+    },
+    "gboost": {
+      "roc_auc": {
+        "mean": 0.7149474359831067,
+        "sd": 0.022127187671256494,
+        "n": 5,
+        "values": [
+          0.7025130264871907,
+          0.7151686746987953,
+          0.6876384678974924,
+          0.7464772517959108,
+          0.7229397590361446
+        ]
+      },
+      "pr_auc": {
+        "mean": 0.4783109346811038,
+        "sd": 0.02976935502184282,
+        "n": 5,
+        "values": [
+          0.4827515073775056,
+          0.4380567444487902,
+          0.46928445183532896,
+          0.5209540506984955,
+          0.48050791904539847
+        ]
+      },
+      "brier": {
+        "mean": 0.17723074238187111,
+        "sd": 0.013872199775872248,
+        "n": 5,
+        "values": [
+          0.195093014703444,
+          0.17203053469360646,
+          0.18871963805205172,
+          0.16525427860523606,
+          0.1650562458550172
+        ]
+      }
+    }
+  },
+  "comparison": {
+    "metric": "roc_auc",
+    "arm_a": "gboost",
+    "arm_b": "logreg",
+    "per_fold_diff": [
+      -0.03131241858445499,
+      -0.022614457831325208,
+      -0.00744006613392123,
+      -0.019409651869589095,
+      -0.008819277108433665
+    ],
+    "mean_diff": -0.01791917430554484,
+    "sd_diff": 0.009953216064940065,
+    "n": 5,
+    "t_stat": -4.025682913586698,
+    "p_value": 0.0157898990606284,
+    "detectable_difference": true
+  }
+}

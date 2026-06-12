@@ -1,0 +1,16 @@
+Done. Summary of what I built and verified:
+
+**Claim:** Does GradientBoostingClassifier outperform LogisticRegression at predicting churn?
+
+**Design:** One variable (the classifier); identical preprocessing and folds across arms. I handled the dataset's three traps explicitly:
+- **Perfect leak** — dropped `account_status` (measured leak fraction = 1.000, `"closed"` ⟺ churned).
+- **200 exact duplicates** — deduped *before* splitting (4200→4000 rows).
+- **Temporal column** — sorted by `signup_date` and used forward-chaining `TimeSeriesSplit` (5 folds) so every test fold is strictly in the future; scaler fit on the train fold only.
+
+**Sanity (all passed):** leak-excluded, prior-baseline ≈0.50, label-shuffle collapses to ≈0.5, tiny-slice overfit ≈1.0.
+
+**Result (ROC-AUC, primary, 5 folds):** LR 0.733±0.025 vs GB 0.711±0.020; paired mean(gb−lr) = −0.022, p=0.011 → **logistic regression is the better model here**, consistent with the near-linear (logistic) data-generating process. F1 favors GB (+0.032, p=0.092) — reported transparently. Limitations (weak near-linear signal, n=5 folds, no tuning, single test contact) are stated in REPORT.md.
+
+**Verification:** `pytest` → 14 passed; full run → ~4s on CPU (under the 5-min budget), sanity all passed, artifacts written.
+
+{"files_created": ["src/churn_experiment/__init__.py", "src/churn_experiment/data.py", "src/churn_experiment/models.py", "src/churn_experiment/evaluate.py", "src/churn_experiment/sanity.py", "run_experiment.py", "tests/test_pipeline.py", "requirements.txt", "pyproject.toml", "results/metrics.json", "REPORT.md", "tasks/todo.md"], "entrypoint": "python3 run_experiment.py --data churn.csv", "test_command": "python3 -m pytest -q"}

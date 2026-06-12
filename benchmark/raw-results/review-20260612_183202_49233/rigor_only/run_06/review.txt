@@ -1,0 +1,74 @@
+Reproduction is byte-identical (git clean after full regeneration), confirming determinism. This is an exemplary experiment. Here is my review.
+
+## Review
+
+**Leakage prevention — outstanding.** Every planted trap is caught:
+- `account_status` is correctly identified as target-derived (`"closed"` iff `churned==1`), dropped from features (`src/data.py:26`, `split_xy` excludes it), and *quantified* via a leak probe showing ROC-AUC=1.0 — turning the trap into evidence.
+- `StandardScaler` is inside the `Pipeline` and `.fit()` is called per-fold (`src/experiment.py:79-80`), so it never sees test data. A dedicated test (`test_preprocessing_fit_per_fold_no_global_leak`) enforces this.
+- Exact duplicates (200 rows) are removed *before* splitting (`load_clean`, `src/data.py:53-54`), guarded by `test_dedup_happens_before_split`.
+- The temporal column is handled deliberately: `TimeSeriesSplit` over rows sorted by `signup_date`, with explicit forward-chaining justification; the date is used only to order, never as a feature.
+- Label-shuffle check collapses to ~0.5, confirming no residual leak.
+
+**Methodology — strong.** Trivial baseline present (`DummyClassifier`, ~0.50). Metrics appropriate for 27% imbalance (ROC-AUC primary, PR-AUC, Brier — accuracy never read in isolation). Single-variable design: identical features/preprocessing/splits/seed, only the estimator differs. Paired Wilcoxon across folds. Both models use sklearn defaults with *zero* tuning on either side — fair, and honestly disclosed as "compares default-configured estimators, not tuned ones."
+
+**Reproducibility — excellent.** Seed=7 fixed and logged in `metrics.json` config; environment block records Python version and git rev. Re-running from clean state produced byte-identical output (git stayed clean).
+
+**Claims discipline — excellent.** Reports a null result and refuses to declare a winner. The "overlap" heuristic is conservative, and the report transparently surfaces the tension (all 5 folds favor LogReg, Wilcoxon p=0.062) rather than hiding it, letting the reader judge. Limitations are candid: small non-i.i.d. fold sample, synthetic near-linear data favoring the linear model, no tuning. No claim exceeds what the code measured.
+
+**Executability — verified.** `pytest` → 10 passed. `make_dataset.py` + `run_experiment.py` ran clean and reproduced the committed REPORT.md numbers exactly.
+
+**Code quality — high.** Clean `src`/`tests` separation, dataclasses for auditable stats, thorough docstrings explaining *why* each decision exists, no dead code. All five declared dependencies are used (`scipy` for Wilcoxon, `pytest` for the rigor tests).
+
+Minor notes (not faults): n=5 time folds gives rough variance, but this is explicitly acknowledged; the synthetic generator is admittedly linear-friendly, also disclosed.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 98,
+  "methodological_validity_score": 92,
+  "reproducibility_score": 97,
+  "claims_discipline_score": 95,
+  "executability_score": 98,
+  "code_quality_score": 95,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps (target-leak column, pre-split duplicates, temporal column) are caught and handled deliberately.",
+    "Sanity-check suite (majority baseline ~0.50, label-shuffle ~0.50, overfit-tiny ~1.0, leak-probe 1.0) is run before the comparison and reported, turning traps into evidence.",
+    "Reports an honest null result (no winner), backed by 5 time folds with variance and a paired Wilcoxon (p=0.062), with candid limitations.",
+    "Declared commands reproduce committed REPORT.md numbers byte-for-byte from a clean state; 10/10 tests pass.",
+    "Single-variable design: identical features/preprocessing/splits/seed; only the estimator differs; both use sklearn defaults (fair, disclosed)."
+  ],
+  "leakage_findings": [
+    "account_status correctly identified as target-derived and dropped from features (src/data.py:26, split_xy); leak probe quantifies it at ROC-AUC=1.0.",
+    "StandardScaler fit per-fold inside the Pipeline (src/experiment.py:79-80); test_preprocessing_fit_per_fold_no_global_leak enforces no train/test contamination.",
+    "200 exact duplicate rows removed before splitting (src/data.py:53-54); test_dedup_happens_before_split guards it so no row straddles the split.",
+    "Temporal handling deliberate: TimeSeriesSplit forward-chaining over rows sorted by signup_date; date used only to order, never as a feature; label-shuffle check collapses to ~0.5 confirming no residual leak.",
+    "customer_id dropped as a non-predictive identifier."
+  ],
+  "commands_run": [
+    "python3 -c \"import sklearn, scipy, pandas, numpy\" (deps present, sklearn 1.7.1)",
+    "python3 -m pytest -q  -> 10 passed in 1.81s",
+    "rm -rf results churn.csv && python3 make_dataset.py --out churn.csv  -> wrote churn.csv",
+    "python3 run_experiment.py  -> reproduced 'No detectable difference' and wrote results/metrics.json + REPORT.md",
+    "git status --short  -> clean (regeneration byte-identical, confirming determinism)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Leak/ID columns dropped; dedup before split; time-sorted load with auditable LoadStats."},
+    {"path": "src/experiment.py", "note": "Per-fold scaler in Pipeline; TimeSeriesSplit CV; ROC-AUC/PR-AUC/Brier; baseline, label-shuffle, overfit-tiny sanity checks."},
+    {"path": "run_experiment.py", "note": "Runs sanity checks before comparison; paired Wilcoxon; writes config/seed/git-rev/metrics to results/; renders REPORT.md from measured values."},
+    {"path": "tests/test_pipeline.py", "note": "10 tests pinning rigor properties: dedup-before-split, no leak column, per-fold fit, determinism, baseline/shuffle floors."},
+    {"path": "REPORT.md", "note": "Honest null result, n=5 folds with sd and Wilcoxon p, candid limitations, exact reproduce commands; numbers match metrics.json."},
+    {"path": "results/metrics.json", "note": "Full machine-readable record: config, environment, data stats, sanity, per-fold + aggregate, comparison."},
+    {"path": "make_dataset.py", "note": "Deterministic seeded generator; documents the planted traps (out of the agent prompt)."}
+  ]
+}
+```

@@ -1,0 +1,168 @@
+{
+  "config": {
+    "models": [
+      "logreg",
+      "gbm"
+    ],
+    "seed": 7,
+    "n_splits": 5,
+    "cv": "TimeSeriesSplit (forward-chaining, sorted by signup_date)",
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "dropped_leak_cols": [
+      "account_status"
+    ],
+    "dropped_id_cols": [
+      "customer_id"
+    ],
+    "primary_metric": "roc_auc",
+    "secondary_metrics": [
+      "pr_auc",
+      "brier"
+    ]
+  },
+  "environment": {
+    "python": "3.12.4",
+    "git_rev": "e11943a",
+    "dataset_command": "python3 make_dataset.py --out churn.csv"
+  },
+  "data": {
+    "n_raw": 4200,
+    "n_exact_duplicates_removed": 200,
+    "n_after_dedup": 4000,
+    "churn_rate": 0.2705
+  },
+  "sanity": {
+    "majority_baseline_roc_auc": 0.501239187469164,
+    "label_shuffle_roc_auc": {
+      "logreg": 0.492266384549894,
+      "gbm": 0.5107976614263674
+    },
+    "overfit_tiny_train_roc_auc": {
+      "logreg": 0.8495212038303693,
+      "gbm": 1.0
+    },
+    "leak_probe_with_account_status_roc_auc": 1.0
+  },
+  "results": {
+    "logreg": {
+      "n_folds": 5,
+      "folds": [
+        {
+          "fold": 0,
+          "n_train": 670,
+          "n_test": 666,
+          "roc_auc": 0.7344442032132003,
+          "pr_auc": 0.5324876631156812,
+          "brier": 0.17898916484370433
+        },
+        {
+          "fold": 1,
+          "n_train": 1336,
+          "n_test": 666,
+          "roc_auc": 0.7372289156626506,
+          "pr_auc": 0.45532627433322914,
+          "brier": 0.16625600428180234
+        },
+        {
+          "fold": 2,
+          "n_train": 2002,
+          "n_test": 666,
+          "roc_auc": 0.6950785340314136,
+          "pr_auc": 0.4732847541833845,
+          "brier": 0.18645744533897002
+        },
+        {
+          "fold": 3,
+          "n_train": 2668,
+          "n_test": 666,
+          "roc_auc": 0.7658869036654999,
+          "pr_auc": 0.5552876212411811,
+          "brier": 0.16087813758178449
+        },
+        {
+          "fold": 4,
+          "n_train": 3334,
+          "n_test": 666,
+          "roc_auc": 0.7317590361445783,
+          "pr_auc": 0.49056642493147884,
+          "brier": 0.16309914047006616
+        }
+      ],
+      "roc_auc_mean": 0.7328795185434686,
+      "roc_auc_sd": 0.02520427977991526,
+      "pr_auc_mean": 0.5013905475609909,
+      "pr_auc_sd": 0.041535947284234785,
+      "brier_mean": 0.17113597850326548,
+      "brier_sd": 0.011068514986660172
+    },
+    "gbm": {
+      "n_folds": 5,
+      "folds": [
+        {
+          "fold": 0,
+          "n_train": 670,
+          "n_test": 666,
+          "roc_auc": 0.7031752062527139,
+          "pr_auc": 0.48350394782596007,
+          "brier": 0.1948325617380906
+        },
+        {
+          "fold": 1,
+          "n_train": 1336,
+          "n_test": 666,
+          "roc_auc": 0.7137289156626505,
+          "pr_auc": 0.4367851451486835,
+          "brier": 0.17253174388237935
+        },
+        {
+          "fold": 2,
+          "n_train": 2002,
+          "n_test": 666,
+          "roc_auc": 0.6876274455772939,
+          "pr_auc": 0.46928089443279714,
+          "brier": 0.1887101659224574
+        },
+        {
+          "fold": 3,
+          "n_train": 2668,
+          "n_test": 666,
+          "roc_auc": 0.7464887640449438,
+          "pr_auc": 0.5209575783010114,
+          "brier": 0.1652484140752322
+        },
+        {
+          "fold": 4,
+          "n_train": 3334,
+          "n_test": 666,
+          "roc_auc": 0.722987951807229,
+          "pr_auc": 0.4805252941473353,
+          "brier": 0.16504531779685666
+        }
+      ],
+      "roc_auc_mean": 0.7148016566689661,
+      "roc_auc_sd": 0.022055900984489656,
+      "pr_auc_mean": 0.4782105719711575,
+      "pr_auc_sd": 0.03023445652405924,
+      "brier_mean": 0.17727364068300325,
+      "brier_sd": 0.013745302461344117
+    }
+  },
+  "comparison": {
+    "metric": "roc_auc",
+    "mean_diff_gbm_minus_logreg": -0.01807786187450231,
+    "sd_diff": 0.010058493693013721,
+    "per_fold_diff": [
+      -0.03126899696048635,
+      -0.023500000000000076,
+      -0.007451088454119681,
+      -0.019398139620556143,
+      -0.0087710843373493
+    ],
+    "wilcoxon_stat": 0.0,
+    "wilcoxon_pvalue": 0.0625
+  }
+}

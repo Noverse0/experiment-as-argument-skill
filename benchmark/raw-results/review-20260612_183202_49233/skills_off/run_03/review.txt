@@ -1,0 +1,74 @@
+All checks pass: 10/10 tests, entrypoint runs in ~11s, and metrics reproduce identically. This is a strong, rigor-aware experiment. Here is my review.
+
+## Review
+
+**Leakage prevention — excellent.** The two planted traps are caught deliberately and defensively:
+- `account_status` (the perfect target leak) and `customer_id` are dropped via an explicit `LEAK_COLUMNS` dict with justifications (`data.py:20`), AND there's a runtime guard `assert_no_leak_columns()` invoked inside `evaluate_model` (`evaluate.py:63`) that hard-fails if a leak column ever reaches the feature matrix. A test (`test_account_status_would_be_a_perfect_leak`) documents the trap.
+- Duplicate rows are dropped *before* the split in `load_dataset` (`data.py:67`), so they cannot straddle train/test. A test asserts the fixture contains planted dupes and that none remain post-load.
+- `StandardScaler` lives inside the `Pipeline` and is cloned + refit per fold (`evaluate.py:72-73`), so it's fit on train only.
+- The temporal column is handled deliberately: rows are sorted by `signup_date` and evaluated with `TimeSeriesSplit` (`data.py:72`, `evaluate.py:65`), with an explicit "a random split would be leakage" justification.
+
+**Methodological validity — strong.** Trivial baseline present (majority-class accuracy ≈ 0.73 reported alongside, AUC 0.5 floor checked). Metrics are appropriate for the 27% imbalance: ROC-AUC is primary, PR-AUC and accuracy are secondary, and accuracy is explicitly contextualized against the baseline so it can't masquerade as skill. Both arms share an identical pipeline and the same (zero) tuning budget — fair. Five sanity checks (dedup, baseline floor, leakage ceiling, label-shuffle averaged over 20 repeats, overfit-tiny) gate the result. Minor caveat: `TimeSeriesSplit` folds share nested training data, so the paired t-test's independence assumption is technically imperfect — the report flags the low power of n=5 but doesn't name the non-independence specifically.
+
+**Reproducibility — excellent.** Seed fixed (42) and logged in config + metrics; `np.random.seed` set globally; git revision and data-generation command recorded. I re-ran from the existing CSV and the per-fold metrics were byte-identical.
+
+**Claims discipline — strong.** The report declares a winner (LR) backed by n=5 folds, p=0.006, with paired sd reported, and the rendering logic adapts prose to significance so it can't contradict the test. Limitations are honest and notably include that the synthetic DGP is logistic-in-features and therefore *structurally favors* the linear model — a rare bit of self-skepticism. No claims exceed what the code measured.
+
+**Executability — excellent.** `pytest` → 10 passed; `python3 run_experiment.py` runs clean in ~11s (auto-generates the dataset if missing), well under budget. Deps declared in `pyproject.toml`.
+
+**Code quality — strong.** Clean module separation, thorough docstrings, no meaningful dead code, all declared deps used. Tiny nit: `baseline_auc(dataset)` ignores its argument and returns the constant 0.5.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 88,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 92,
+  "executability_score": 98,
+  "code_quality_score": 91,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps (account_status target leak, 200 duplicate rows, temporal signup_date) are handled deliberately and defensively, with both declarative config and a runtime guard.",
+    "Tests pass 10/10 and the entrypoint runs in ~11s; metrics reproduce byte-identically across runs with the same seed.",
+    "Metrics fit the 27% class imbalance: ROC-AUC primary, PR-AUC secondary, accuracy only reported against the majority-class baseline.",
+    "Both arms share an identical pipeline and the same zero-tuning budget; the single varied factor is the estimator.",
+    "Report declares a winner (LR by 0.0272 AUC, p=0.006, n=5) and honestly notes the synthetic DGP is logistic and structurally favors the linear model.",
+    "Five sanity checks gate the result, including a label-shuffle averaged over 20 repeats to fix a documented high-variance false-positive.",
+    "Minor: TimeSeriesSplit folds share nested training data, so the paired t-test independence assumption is imperfect; low power is acknowledged but non-independence is not named."
+  ],
+  "leakage_findings": [
+    "account_status correctly excluded via LEAK_COLUMNS (data.py:20) and enforced by assert_no_leak_columns in evaluate_model (evaluate.py:63).",
+    "customer_id dropped as a row identifier.",
+    "Exact duplicates removed in load_dataset before any split (data.py:67); 200 removed, 0 remain — verified by test and sanity check.",
+    "StandardScaler is inside the Pipeline and cloned+refit per fold (evaluate.py:72), so it is fit on train data only.",
+    "Temporal column handled with TimeSeriesSplit on sorted signup_date (evaluate.py:65); a random split is explicitly identified as leakage.",
+    "No leakage detected; leakage_ceiling sanity check (<0.95 AUC) passes with observed AUCs ~0.71-0.73."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -m pytest -q  (10 passed in ~16s)",
+    "python3 run_experiment.py  (ran in ~11s, all sanity checks PASS)",
+    "diff of arms metrics before/after rerun (METRICS IDENTICAL — reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/churn_experiment/data.py", "note": "LEAK_COLUMNS with reasons; dedup before split; sort by signup_date; assert_no_leak_columns guard."},
+    {"path": "src/churn_experiment/evaluate.py", "note": "TimeSeriesSplit CV, per-fold clone+fit so scaler is train-only; paired t-test with conservative conclusion wording."},
+    {"path": "src/churn_experiment/models.py", "note": "Identical StandardScaler pipeline for both arms; only the estimator varies; seed wired into both."},
+    {"path": "src/churn_experiment/sanity.py", "note": "Five sanity checks; label_shuffle averaged over 20 repeats with documented rationale; minor baseline_auc(dataset) ignores its arg."},
+    {"path": "REPORT.md", "note": "Declares LR winner with n=5/p=0.006/sd; honest limitations incl. logistic DGP favoring linear model and single data seed."},
+    {"path": "results/metrics.json", "note": "Machine-readable config, seeds, per-fold metrics, comparison, sanity report; git revision and data-gen command logged."},
+    {"path": "tests/test_experiment.py", "note": "Encodes rigor rules: leak exclusion, dedup-before-split, time ordering, reproducibility, sanity behavior."},
+    {"path": "tasks/todo.md", "note": "Documents the captured lesson about single-shuffle false-positive leak detection and the averaging fix."}
+  ]
+}
+```

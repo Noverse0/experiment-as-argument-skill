@@ -1,0 +1,24 @@
+Done. Summary in the experiment-as-argument shape:
+
+```text
+Claim:  Does GradientBoosting beat LogisticRegression at predicting `churned`?
+Design: Single variable = model type. Dropped account_status (target leak,
+        verified: status maps 1:1 to churn) and customer_id (id). signup_date
+        used only to order a chronological split (forward-looking task), not as
+        a feature. Deduped 200 exact dupes BEFORE splitting. Variance from
+        5-fold TimeSeriesSplit CV; test set scored once. Metrics: ROC-AUC +
+        PR-AUC (churn rate 27%). Seed=17 logged.
+Sanity: baseline floor AUC=0.500 ✓; label-shuffle AUC=0.495 ✓; leakage demo
+        (re-add account_status) AUC=1.000 ✓; honest models 0.70–0.73 (not
+        near-perfect → no hidden leak). Re-run with same seed is identical.
+Result: LR 0.727±0.024 vs GBM 0.702±0.021 ROC-AUC (n=5 folds). Paired GBM−LR
+        = −0.0249, 95% CI [−0.0368, −0.0130] excludes zero → LogisticRegression
+        wins. Confirmed on holdout (0.745 vs 0.732). GB does NOT outperform.
+Risk:   Synthetic data is logistic by construction, favoring the linear model;
+        no tuning (defaults, equal budget); 5-fold normal-approx CI is
+        indicative, not a large-sample test. All noted in REPORT.md.
+```
+
+Tests: 12 passed in 5.4s. Experiment: ~2s wall-clock (well under 5 min). All traps caught (leak excluded, dupes removed, time-respecting split).
+
+{"files_created": ["pyproject.toml", "requirements.txt", "run_experiment.py", "REPORT.md", "src/churn_experiment/__init__.py", "src/churn_experiment/config.py", "src/churn_experiment/data.py", "src/churn_experiment/models.py", "src/churn_experiment/evaluation.py", "src/churn_experiment/experiment.py", "tests/conftest.py", "tests/test_data.py", "tests/test_pipeline.py", "results/metrics.json", "results/cv_scores.csv"], "entrypoint": "python3 run_experiment.py --data churn.csv", "test_command": "python3 -m pytest -q"}

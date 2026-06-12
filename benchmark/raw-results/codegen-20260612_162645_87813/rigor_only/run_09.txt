@@ -1,0 +1,24 @@
+Everything is verified and consistent. The report renders correctly, leads with the honest verdict, reports effect size with uncertainty, and the limitations section flags that the coarse mean±1sd band is not a p-value and that the synthetic DGP being logistic-in-features makes a linear model well-specified.
+
+## Summary
+
+```
+Claim:  Does GradientBoosting beat LogisticRegression at predicting churn?
+Design: Variable = model only. Dropped account_status (perfect target leak,
+        confirmed AUC=1.0 in sanity) + customer_id (id). Removed 200 exact
+        duplicate rows BEFORE splitting. Time-ordered split (TimeSeriesSplit,
+        5 folds) since churn is forward-looking. Scaler fit on train only,
+        inside each fold. 3 seeds × 5 folds = 15 paired measurements/arm.
+Sanity: baseline floor (beaten), leakage ceiling (acct_status→1.0, confirmed),
+        label-shuffle→0.49/0.51 (chance), overfit-tiny (gboost→1.0),
+        determinism (identical). All pass.
+Result: LogReg AUC 0.733±0.023 vs GBoost 0.715±0.020 (n=15).
+        Paired diff gb−lr = −0.018±0.009 → verdict: LogReg modestly ahead,
+        band excludes zero. Expected: the DGP is logistic in its features.
+Risk:   Coarse mean±sd band (not a formal test); folds repeat across seeds;
+        default hyperparameters (neither arm tuned to ceiling).
+```
+
+**Verification:** `pytest` → 12 passed; full experiment → ~4s wall-clock (budget 5 min), writes `results/metrics.json` + `REPORT.md`.
+
+{"files_created": ["src/churn_experiment/__init__.py", "src/churn_experiment/data.py", "src/churn_experiment/pipeline.py", "src/churn_experiment/evaluate.py", "src/churn_experiment/sanity.py", "run_experiment.py", "tests/test_pipeline.py", "requirements.txt", "pyproject.toml", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 make_dataset.py --out churn.csv && python3 run_experiment.py", "test_command": "python3 -m pytest -q"}

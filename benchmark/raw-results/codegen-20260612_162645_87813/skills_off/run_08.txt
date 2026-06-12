@@ -1,0 +1,24 @@
+Everything is in place and verified. Here's the summary in the required shape:
+
+```text
+Claim: For predicting churn on this dataset, does GradientBoostingClassifier
+       outperform LogisticRegression?
+Design: Variable = classifier only (identical StandardScaler preprocessing, features,
+        seeds). Features = tenure_months, monthly_spend, support_tickets. Dropped
+        account_status (perfect leak), customer_id (id), signup_date (split-ordering only).
+        200 exact duplicates removed before splitting. TimeSeriesSplit n=5 folds
+        (train past → test future). Seeds fixed/logged (random_state=42).
+Sanity: baseline_floor AUC=0.50 PASS; label_shuffle AUC=0.50 PASS (no leak around
+        labels); overfit_tiny_subset AUC=1.0 PASS; leakage_ceiling AUC=1.0 PASS
+        (re-including account_status → near-perfect, confirms the dropped leak).
+Result: LogReg 0.7329 ± 0.0252 vs GB 0.7148 ± 0.0220 ROC-AUC (n=5).
+        Answer: NO — GB does not outperform LogReg. LogReg is slightly but
+        consistently better (negative GB−LR diff on all 5 folds, mean −0.018,
+        paired p=0.016). This matches the dataset's true linear-logit generator.
+Risk: TimeSeriesSplit folds are correlated → paired p is approximate (claim rests
+      on consistent sign + small spread). Single dataset/seed, no tuning. Effect is small.
+```
+
+Verification: 15/15 pytest tests pass; full experiment runs CPU-only in ~3.3s (budget 5 min); artifacts written to `results/metrics.json`, `results/summary.csv`, and `REPORT.md`.
+
+{"files_created": ["src/__init__.py", "src/data.py", "src/models.py", "src/evaluation.py", "src/experiment.py", "run_experiment.py", "tests/conftest.py", "tests/test_data.py", "tests/test_evaluation.py", "tests/test_experiment.py", "requirements.txt", "pyproject.toml", "REPORT.md", "results/metrics.json", "results/summary.csv", "tasks/todo.md"], "entrypoint": "python3 make_dataset.py --out churn.csv && python3 run_experiment.py", "test_command": "python3 -m pytest -q"}

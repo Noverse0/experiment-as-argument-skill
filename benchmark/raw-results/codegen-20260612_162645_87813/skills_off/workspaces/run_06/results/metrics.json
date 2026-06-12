@@ -1,0 +1,109 @@
+{
+  "config": {
+    "seed": 17,
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "dropped_id_cols": [
+      "customer_id"
+    ],
+    "dropped_leak_cols": [
+      "account_status"
+    ],
+    "time_col_used_for_split_only": "signup_date",
+    "test_fraction": 0.3,
+    "n_cv_splits": 5,
+    "cv_scheme": "TimeSeriesSplit (forward-chaining)",
+    "scoring": [
+      "roc_auc",
+      "average_precision"
+    ]
+  },
+  "data_audit": {
+    "n_rows_raw": 4200,
+    "n_duplicate_rows": 200,
+    "n_rows_deduped": 4000,
+    "churn_rate": 0.26976190476190476,
+    "majority_class_rate": 0.7302380952380952,
+    "time_min": "2023-01-01",
+    "time_max": "2025-06-18",
+    "account_status_is_leak": true
+  },
+  "split_sizes": {
+    "train": 2800,
+    "test": 1200
+  },
+  "sanity_checks": {
+    "baseline_floor": {
+      "strategy": "prior",
+      "roc_auc_mean": 0.5,
+      "majority_class_rate": 0.7210714285714286
+    },
+    "label_shuffle": {
+      "roc_auc_mean": 0.4953562772812141
+    },
+    "leakage_demonstration": {
+      "feature_set": "FEATURES + account_status (intentionally leaked)",
+      "holdout_roc_auc": 1.0,
+      "note": "near 1.0 confirms account_status is a target leak; excluded from the real experiment"
+    }
+  },
+  "cv_scores": {
+    "logistic_regression": {
+      "model": "logistic_regression",
+      "roc_auc_mean": 0.7271741897506898,
+      "roc_auc_sd": 0.023520126606517328,
+      "average_precision_mean": 0.4962460715412222,
+      "average_precision_sd": 0.05105556456498836,
+      "n_folds": 5,
+      "roc_auc_per_fold": [
+        0.7348529125267874,
+        0.7241462084015274,
+        0.7463993871297242,
+        0.6879413900072602,
+        0.7425310506881503
+      ]
+    },
+    "gradient_boosting": {
+      "model": "gradient_boosting",
+      "roc_auc_mean": 0.7022837055646568,
+      "roc_auc_sd": 0.02085276446108752,
+      "average_precision_mean": 0.4654931973823547,
+      "average_precision_sd": 0.07438893683156442,
+      "n_folds": 5,
+      "roc_auc_per_fold": [
+        0.6937828755113968,
+        0.6884779050736496,
+        0.7236721144024516,
+        0.6801751259542823,
+        0.7253105068815039
+      ]
+    }
+  },
+  "paired_difference": {
+    "metric": "roc_auc",
+    "comparison": "gradient_boosting - logistic_regression",
+    "mean_diff": -0.024890484186033058,
+    "sd_diff": 0.013552543115742876,
+    "ci95_low": -0.03676981199455382,
+    "ci95_high": -0.013011156377512293,
+    "n_folds": 5,
+    "verdict": "logistic_regression better"
+  },
+  "final_holdout": {
+    "logistic_regression": {
+      "roc_auc": 0.744858628450216,
+      "average_precision": 0.4998472921604949,
+      "brier_score": 0.16151190668093665,
+      "accuracy": 0.7691666666666667
+    },
+    "gradient_boosting": {
+      "roc_auc": 0.7321904367717545,
+      "average_precision": 0.4947725259099738,
+      "brier_score": 0.16347837384377445,
+      "accuracy": 0.7675
+    }
+  }
+}

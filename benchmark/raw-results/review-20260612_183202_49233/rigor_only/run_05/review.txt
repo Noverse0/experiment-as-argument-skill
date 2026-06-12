@@ -1,0 +1,77 @@
+I have everything I need. This is a strong experiment that handles all three planted traps deliberately.
+
+## Review
+
+**Leakage prevention — excellent.** The three planted traps are all caught and handled correctly:
+- `account_status` (derived from target) is dropped from features; `FEATURE_COLUMNS` is exactly `{tenure_months, monthly_spend, support_tickets}`, verified at runtime. A dedicated **leakage-ceiling** check re-adds it and confirms AUC → 1.0000, demonstrating it was a genuine leak.
+- The 200 exact duplicate rows are removed via `drop_duplicates()` **before** any split, so they cannot straddle train/test (4200 → 4000, verified).
+- The temporal column `signup_date` is handled deliberately: rows are time-sorted and evaluated with `TimeSeriesSplit` (train past → score future), and the date is used only for ordering, not as a feature.
+- `StandardScaler` is inside a `Pipeline`, refit per-fold on training rows only — no fit-on-test leakage. A label-shuffle check confirms AUC collapses to ~0.51.
+
+**Methodological validity — strong.** Trivial majority-class baseline (`DummyClassifier`) present and beaten. ROC-AUC chosen as primary for the 27% imbalance, with PR-AUC and accuracy (shown next to baseline so accuracy is interpretable). The single manipulated variable is the classifier; everything else held fixed. Tuning budget is symmetric — neither model is tuned (defaults), which is fair and disclosed. The only mild concern: declaring a "statistically detectable" winner from 5 *non-independent* expanding-window folds with a ~0.02 AUC effect is somewhat aggressive — but the report explicitly flags the non-independence and labels the p-value approximate, which largely defuses it.
+
+**Reproducibility — excellent.** Seed (7) fixed and logged in `config`; `results/metrics.json` and `REPORT.md` written programmatically; code version captured via git rev. I re-ran `make_dataset.py` + `run_experiment.py` from scratch and the `results` block was byte-identical.
+
+**Claims discipline — strong.** REPORT.md's conclusion is computed from the test (not hardcoded), reports mean ± sd over 5 folds plus the paired per-fold difference and t-test. Limitations are honest and specific: synthetic data, no tuning, linear-friendly generative process, non-independent folds, approximate p-value. No claim exceeds what the code measured.
+
+**Executability — full marks.** `pytest` → 13 passed in 6s. `make_dataset.py` and `run_experiment.py` both run cleanly and reproduce the reported numbers.
+
+**Code quality — strong.** Clean module separation (data/experiment/runner), thorough docstrings, no dead code, all five declared dependencies used. Minor nit: `make_models()` is called to build the `models` dict whose estimators are then discarded (fresh ones rebuilt per fold) — correct for avoiding cross-fold state, just slightly redundant.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 98,
+  "claims_discipline_score": 91,
+  "executability_score": 100,
+  "code_quality_score": 93,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps (target-derived account_status, 200 duplicate rows, temporal signup_date) are handled deliberately and correctly.",
+    "Per-fold StandardScaler inside a Pipeline; refit fresh each fold — no fit-on-test leakage.",
+    "Trivial majority baseline present and beaten; ROC-AUC chosen as primary metric for the 27% class imbalance, with PR-AUC and accuracy reported alongside.",
+    "Three sanity checks (leakage-ceiling AUC=1.0, label-shuffle AUC=0.51, overfit-tiny acc=1.0) validate the pipeline before trusting the comparison.",
+    "Reproducibility confirmed: re-running make_dataset.py + run_experiment.py produced a byte-identical results block.",
+    "13/13 tests pass; entrypoint runs cleanly well under 120s.",
+    "Conclusion (LogReg slightly ahead, paired t p=0.016) is computed from data, not hardcoded; limitations are honest and acknowledge fold non-independence.",
+    "Minor over-reach: a ~0.02 AUC 'statistically detectable' winner rests on 5 non-independent TimeSeriesSplit folds — but the report explicitly flags this caveat."
+  ],
+  "leakage_findings": [
+    "account_status is dropped (LEAK_COLUMNS); feature matrix verified to contain only tenure_months, monthly_spend, support_tickets.",
+    "Leakage-ceiling sanity check re-adds account_status and gets mean ROC-AUC 1.0000, confirming the leak.",
+    "200 exact duplicate rows removed via drop_duplicates() BEFORE splitting (4200→4000), preventing train/test straddle.",
+    "StandardScaler fit per-fold on training rows only via Pipeline; GBM needs none — no statistic from eval rows reaches the fit.",
+    "Temporal signup_date handled with TimeSeriesSplit on time-ordered rows; used for ordering only, not as a feature.",
+    "Label-shuffle check yields ROC-AUC 0.5113 (~chance), confirming features do not leak the target around the labels."
+  ],
+  "commands_run": [
+    "python3 -c 'import numpy, pandas, sklearn, scipy' (deps ok, sklearn 1.7.1)",
+    "python3 -m pytest -q (13 passed in 6.10s)",
+    "python3 make_dataset.py --out churn.csv",
+    "python3 run_experiment.py (wrote results/metrics.json and REPORT.md)",
+    "diff of original vs re-run results block (IDENTICAL — reproducible)",
+    "python3 -c 'prepare(churn.csv)' to verify features exclude account_status"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops account_status (leak) and customer_id (id); dedups before split; time-sorts by signup_date. with_leak_feature() isolates the leak for the ceiling check only."},
+    {"path": "src/experiment.py", "note": "Per-fold StandardScaler in Pipeline, TimeSeriesSplit, DummyClassifier baseline, paired t-test on per-fold ROC-AUC diffs, and three sanity checks. Fresh estimators per fold avoid cross-fold state."},
+    {"path": "run_experiment.py", "note": "Runs sanity checks first, then arms; logs seed, n_splits, feature/leak/id columns, git rev, python version to results/metrics.json; renders REPORT.md with a data-driven verdict."},
+    {"path": "make_dataset.py", "note": "Deterministic generator (seeded); documents the three planted traps. account_status = 'closed' iff churned; 200 duplicates appended."},
+    {"path": "results/metrics.json", "note": "Full per-fold scores, summaries, paired diff (mean -0.0181, t=-4.00, p=0.016), sanity results; re-run reproduced it byte-for-byte."},
+    {"path": "REPORT.md", "note": "Conclusion computed from the paired test; mean±sd over 5 folds; honest limitations including fold non-independence and approximate p-value; no claims beyond what was measured."},
+    {"path": "tests/test_data.py", "note": "Asserts dedup-before-split, leak/id columns dropped, time-ordering, imbalance, and that the leak column equals the target."},
+    {"path": "tests/test_experiment.py", "note": "Asserts determinism for same seed, both arms beat baseline, variance reported over 5 folds, paired test present, and all three sanity-check behaviors."}
+  ]
+}
+```

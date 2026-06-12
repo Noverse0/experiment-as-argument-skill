@@ -1,0 +1,151 @@
+{
+  "meta": {
+    "claim": "Does GradientBoosting outperform LogisticRegression at predicting churned?",
+    "seed": 7,
+    "n_splits": 5,
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "split_strategy": "TimeSeriesSplit forward chaining on signup_date",
+    "primary_metric": "roc_auc",
+    "n_raw": 4200,
+    "n_duplicates": 200,
+    "n_final": 4000,
+    "positive_rate": 0.2705,
+    "sklearn_version": "1.7.1",
+    "code_version": "e11943a"
+  },
+  "arms": {
+    "logistic_regression": {
+      "name": "logistic_regression",
+      "roc_auc": {
+        "mean": 0.7328795185434686,
+        "sd": 0.02520427977991526,
+        "n": 5,
+        "values": [
+          0.7344442032132003,
+          0.7372289156626506,
+          0.6950785340314136,
+          0.7658869036654999,
+          0.7317590361445783
+        ]
+      },
+      "avg_precision": {
+        "mean": 0.5013905475609909,
+        "sd": 0.041535947284234785,
+        "n": 5,
+        "values": [
+          0.5324876631156812,
+          0.45532627433322914,
+          0.4732847541833845,
+          0.5552876212411811,
+          0.49056642493147884
+        ]
+      },
+      "accuracy": {
+        "mean": 0.7489489489489489,
+        "sd": 0.023027374790006987,
+        "n": 5,
+        "values": [
+          0.7207207207207207,
+          0.7612612612612613,
+          0.7282282282282282,
+          0.7732732732732732,
+          0.7612612612612613
+        ]
+      }
+    },
+    "gradient_boosting": {
+      "name": "gradient_boosting",
+      "roc_auc": {
+        "mean": 0.7148016566689661,
+        "sd": 0.022055900984489656,
+        "n": 5,
+        "values": [
+          0.7031752062527139,
+          0.7137289156626505,
+          0.6876274455772939,
+          0.7464887640449438,
+          0.722987951807229
+        ]
+      },
+      "avg_precision": {
+        "mean": 0.4782105719711575,
+        "sd": 0.03023445652405924,
+        "n": 5,
+        "values": [
+          0.48350394782596007,
+          0.4367851451486835,
+          0.46928089443279714,
+          0.5209575783010114,
+          0.4805252941473353
+        ]
+      },
+      "accuracy": {
+        "mean": 0.7417417417417418,
+        "sd": 0.01960595323903993,
+        "n": 5,
+        "values": [
+          0.7177177177177178,
+          0.7432432432432432,
+          0.7267267267267268,
+          0.7642642642642643,
+          0.7567567567567568
+        ]
+      }
+    },
+    "baseline_majority": {
+      "name": "baseline_majority",
+      "roc_auc": {
+        "mean": 0.5,
+        "sd": 0.0,
+        "n": 5,
+        "values": [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      "avg_precision": {
+        "mean": 0.2693693693693694,
+        "sd": 0.020848714663915646,
+        "n": 5,
+        "values": [
+          0.29429429429429427,
+          0.24924924924924924,
+          0.28678678678678676,
+          0.2672672672672673,
+          0.24924924924924924
+        ]
+      },
+      "accuracy": {
+        "mean": 0.7306306306306306,
+        "sd": 0.02084871466391565,
+        "n": 5,
+        "values": [
+          0.7057057057057057,
+          0.7507507507507507,
+          0.7132132132132132,
+          0.7327327327327328,
+          0.7507507507507507
+        ]
+      }
+    }
+  },
+  "paired_test_gb_vs_lr": {
+    "test": "wilcoxon",
+    "mean_diff": -0.01807786187450231,
+    "statistic": 0.0,
+    "p_value": 0.0625
+  },
+  "sanity_checks": {
+    "label_shuffle_auc": 0.492266384549894,
+    "leak_ceiling_auc": 1.0
+  },
+  "verdict": "no detectable difference between the two models",
+  "verdict_detail": "GradientBoosting ROC AUC = 0.7148 +/- 0.0221, LogisticRegression ROC AUC = 0.7329 +/- 0.0252 (n=5 time-series folds). Mean gap (GB - LR) = -0.0181; paired Wilcoxon p = 0.062. Spreads overlap."
+}

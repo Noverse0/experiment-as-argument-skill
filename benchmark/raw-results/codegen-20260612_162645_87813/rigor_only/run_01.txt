@@ -1,0 +1,23 @@
+Done. Summary of the experiment:
+
+```text
+Claim:  For predicting churn, does GradientBoosting outperform LogisticRegression?
+        Answer: No — LogReg has a small, consistent edge.
+Design: Single variable = model family. Both arms, library defaults (equal budget),
+        StandardScaler fit per-fold. Split = TimeSeriesSplit (5 expanding folds,
+        ordered by signup_date). Dropped account_status (target leak), customer_id (id);
+        signup_date used only for ordering. Deduped 200 exact dupes BEFORE splitting.
+        Seed=42, all config/seeds/env logged to results/metrics.json.
+Sanity: All 4 passed — baseline floor ~0.5; leakage-ceiling audit (account_status) ~1.0
+        confirming the leak; label-shuffle collapses to ~0.5; tiny-subset overfit ~1.0.
+Result: LogReg ROC-AUC 0.7329 ± 0.0252 (n=5)  vs  GB 0.7149 ± 0.0221 (n=5).
+        Paired per-fold diff (GB−LR) = −0.0179 ± 0.0100, all 5 folds favor LR (p≈0.016).
+        Small but consistent edge to LogReg; GB does not outperform.
+Risk:   n=5 time folds (not independent re-seeds), low-power t-test; GB is effectively
+        deterministic at default hyperparams; synthetic logistic DGP structurally favors
+        a linear model. No claim beyond this dataset.
+```
+
+Caught all three planted traps: the `account_status` perfect leak (dropped + audited), the 200 straddling duplicates (deduped before split), and the temporal column (time-based split instead of random). Tests: **10 passed**. Full run: **~3 s** (well under 5 min).
+
+{"files_created": ["tasks/todo.md", "src/__init__.py", "src/data.py", "src/models.py", "src/evaluate.py", "src/sanity.py", "run_experiment.py", "tests/__init__.py", "tests/test_pipeline.py", "requirements.txt", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 make_dataset.py --out churn.csv && python3 run_experiment.py", "test_command": "python3 -m pytest -q"}

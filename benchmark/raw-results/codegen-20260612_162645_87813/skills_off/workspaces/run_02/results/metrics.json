@@ -1,0 +1,156 @@
+{
+  "generated_at_utc": "2026-06-12T11:06:36.437929+00:00",
+  "code_version": "e11943a",
+  "config": {
+    "random_state": 42,
+    "n_splits": 5,
+    "split_strategy": "TimeSeriesSplit (expanding window) on signup_date",
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "dropped_leak_columns": [
+      "account_status"
+    ],
+    "dropped_id_columns": [
+      "customer_id"
+    ],
+    "preprocessing": "StandardScaler fit on train fold only (in Pipeline)"
+  },
+  "data_provenance": {
+    "csv_path": "churn.csv",
+    "generation_command": "python3 make_dataset.py --out churn.csv",
+    "n_rows_raw": 4200,
+    "n_duplicates_removed": 200,
+    "n_rows_used": 4000,
+    "churn_rate": 0.2705
+  },
+  "sanity_checks": {
+    "baseline_floor": {
+      "mean_roc_auc": 0.5,
+      "passed": true
+    },
+    "label_shuffle": {
+      "mean_roc_auc": 0.49275030418075794,
+      "passed": true
+    },
+    "leakage_ceiling": {
+      "mean_roc_auc": 1.0,
+      "passed": true
+    }
+  },
+  "results": {
+    "primary_metric": "roc_auc",
+    "n_splits": 5,
+    "arms": {
+      "logistic_regression": {
+        "roc_auc": {
+          "mean": 0.7328795185434686,
+          "sd": 0.02520427977991526,
+          "per_fold": [
+            0.7344442032132003,
+            0.7372289156626506,
+            0.6950785340314136,
+            0.7658869036654999,
+            0.7317590361445783
+          ]
+        },
+        "average_precision": {
+          "mean": 0.501390547560991,
+          "sd": 0.041535947284234785,
+          "per_fold": [
+            0.5324876631156812,
+            0.45532627433322914,
+            0.4732847541833845,
+            0.5552876212411811,
+            0.49056642493147884
+          ]
+        },
+        "accuracy": {
+          "mean": 0.7489489489489489,
+          "sd": 0.023027374790006987,
+          "per_fold": [
+            0.7207207207207207,
+            0.7612612612612613,
+            0.7282282282282282,
+            0.7732732732732732,
+            0.7612612612612613
+          ]
+        },
+        "f1": {
+          "mean": 0.36936032647335737,
+          "sd": 0.04006200423869276,
+          "per_fold": [
+            0.3716216216216216,
+            0.38132295719844356,
+            0.3169811320754717,
+            0.42585551330798477,
+            0.3510204081632653
+          ]
+        }
+      },
+      "gradient_boosting": {
+        "roc_auc": {
+          "mean": 0.7147948068822483,
+          "sd": 0.022035191402676162,
+          "per_fold": [
+            0.7031534954407296,
+            0.7138734939759036,
+            0.6876384678974924,
+            0.7464772517959108,
+            0.7228313253012048
+          ]
+        },
+        "average_precision": {
+          "mean": 0.4778577628307071,
+          "sd": 0.030818006057724404,
+          "per_fold": [
+            0.48348238025455725,
+            0.43508313623698447,
+            0.46928445183532896,
+            0.5209540506984955,
+            0.4804847951281692
+          ]
+        },
+        "accuracy": {
+          "mean": 0.742042042042042,
+          "sd": 0.019646158839394745,
+          "per_fold": [
+            0.7177177177177178,
+            0.7447447447447447,
+            0.7267267267267268,
+            0.7642642642642643,
+            0.7567567567567568
+          ]
+        },
+        "f1": {
+          "mean": 0.40151023029743105,
+          "sd": 0.03648458620925844,
+          "per_fold": [
+            0.43373493975903615,
+            0.39285714285714285,
+            0.36363636363636365,
+            0.4452296819787986,
+            0.37209302325581395
+          ]
+        }
+      }
+    },
+    "comparison": {
+      "definition": "gradient_boosting minus logistic_regression on roc_auc, paired per fold",
+      "per_fold_diff": [
+        -0.03129070777247067,
+        -0.02335542168674698,
+        -0.00744006613392123,
+        -0.019409651869589095,
+        -0.008927710843373515
+      ],
+      "mean_diff": -0.018084711661220297,
+      "sd_diff": 0.010013657253960645,
+      "paired_t_stat": -4.038349186754646,
+      "paired_p_value": 0.015625303788218223,
+      "verdict": "logistic_regression_better"
+    }
+  }
+}

@@ -1,0 +1,75 @@
+I have a complete picture. This is a rigorously constructed experiment that handled every planted trap deliberately.
+
+## Review
+
+**Leakage prevention — excellent.** The three traps planted in `make_dataset.py` are all caught and handled correctly:
+- `account_status` (perfect target leak, "closed" iff churned) is in `LEAK_COLUMNS`, dropped from features, and *never* referenced in `experiment.py`. They go further and include a leakage-ceiling sanity check that confirms AUC=1.0 when it's added — demonstrating *why* it was dropped rather than just asserting it.
+- `StandardScaler` is inside a `Pipeline` and fitted on the train fold only (`pipe.fit(Xtr, ytr)` inside the CV loop). No test-statistic leakage.
+- The 200 duplicate rows are removed via `clean()` on the full frame *before* any split, with an explicit (correct) justification that dedup learns nothing so it doesn't leak.
+- `signup_date` is excluded as a feature and used deliberately to construct a time-ordered robustness split.
+
+**Methodology — strong.** Trivial majority baseline present (DummyClassifier, AUC≈0.5). Metrics are appropriate for the ~0.27 imbalance: ROC-AUC and average precision are primary, accuracy clearly secondary. Both arms share identical pipelines, identical folds (paired), and zero tuning budget (library defaults), so the model is the only varied factor. Minor: the *primary* evaluation uses random `RepeatedStratifiedKFold` rather than a time-based split for temporal data — but this is an explicit, documented choice with a time-based cross-check provided alongside, which is defensible.
+
+**Reproducibility — excellent.** Seeds fixed and logged (`DEFAULT_SEED=20260612`, in `metrics.json`), `code_version` captured from git, config + metrics written to `results/`. I re-ran the entrypoint and the metrics were byte-identical (modulo the git hash field).
+
+**Claims discipline — excellent.** The report's winner claim (LR by 0.0066 AUC) is backed by 15 paired folds with a 95% CI, p-value, and per-fold variance. It explicitly hedges that the difference is statistically detectable but practically negligible. Limitations are unusually honest: synthetic linear-favoring generative process, repeated-KFold non-independence inflating the p-value, defaults-only tuning. Nothing is claimed that the code didn't measure. The only nit: the phrase "the gap between them is within noise" is slightly imprecise given the CI excludes 0 — but the surrounding text correctly reconciles it.
+
+**Executability — excellent.** 11/11 tests pass (7.7s); entrypoint runs in ~5.4s; reproducible re-run confirmed.
+
+**Code quality — strong.** Clean module separation (`data`/`experiment`/`sanity`), dataclasses, thorough docstrings, no dead code, all five declared dependencies used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 97,
+  "claims_discipline_score": 92,
+  "executability_score": 98,
+  "code_quality_score": 93,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps (account_status leak, 200 duplicates, temporal column) are caught and handled deliberately, with documented justifications.",
+    "Trivial majority baseline present (AUC~0.5); imbalance-appropriate metrics (ROC-AUC + average precision) are primary, accuracy secondary.",
+    "Paired comparison over 15 folds (5x3 RepeatedStratifiedKFold), identical folds for both arms, with CI, p-value, and per-fold variance reported.",
+    "Both models use identical pipelines and zero tuning budget (defaults), isolating the model as the only varied factor.",
+    "Re-running the entrypoint produced byte-identical metrics; seeds fixed and logged, code_version captured.",
+    "REPORT.md limitations are honest (synthetic linear-favoring data, repeated-KFold non-independence inflating p, defaults-only) and claim nothing the code didn't measure.",
+    "Minor: primary evaluation is random K-fold rather than time-based for temporal data, but a time-based robustness split is provided as a documented cross-check.",
+    "Minor wording imprecision: 'within noise' describes a difference whose CI actually excludes 0 (reconciled by surrounding 'practically negligible' text)."
+  ],
+  "leakage_findings": [
+    "account_status: identified as a perfect target leak, placed in LEAK_COLUMNS, dropped from features, never referenced in experiment.py; verified by a leakage-ceiling sanity check (AUC=1.0 when included).",
+    "StandardScaler is fitted on the train fold only inside a sklearn Pipeline (pipe.fit(Xtr) within the CV loop) for both CV and the time-based split — no fit-on-test leakage.",
+    "200 exact duplicate rows are removed via drop_duplicates() on the full frame before any split, preventing train/test straddling; justified as non-fitted (no leak).",
+    "signup_date excluded as a feature and used only to build a time-ordered train-early/test-late robustness split; temporal handling is deliberate.",
+    "customer_id dropped as a non-generalizable identifier.",
+    "label-shuffle sanity check (AUC=0.511) and clean-not-near-perfect check (AUC=0.726<0.95) confirm no residual hidden leakage."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  -> 11 passed in 7.66s",
+    "python3 run_experiment.py  -> ALL PASS, ~5.4s wall time, wrote results/metrics.json + REPORT.md",
+    "diff of re-run metrics.json vs original (excluding code_version)  -> identical (reproducible)",
+    "grep checks confirming scipy/pandas/numpy usage and that account_status is absent from experiment.py"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "FEATURE_COLUMNS excludes account_status/customer_id/signup_date; clean() dedups full frame before split with non-leak justification; audit() reports facts without mutating."},
+    {"path": "src/experiment.py", "note": "Scaler-in-Pipeline fit on train fold only; RepeatedStratifiedKFold(5x3) identical folds both arms; paired t-test with CI; DummyClassifier majority baseline; identical pipelines/defaults for both models."},
+    {"path": "src/sanity.py", "note": "Four sanity checks: leakage ceiling (AUC>0.99), clean-not-near-perfect (<0.95), label shuffle (~0.5), beats-baseline (>0.55)."},
+    {"path": "run_experiment.py", "note": "Writes results/metrics.json with code_version (git hash), seed, and all metrics; regenerates REPORT.md from measured values; exits non-zero if sanity fails."},
+    {"path": "REPORT.md", "note": "Winner claim backed by 15 folds + CI + p-value; honest limitations; statistically-significant-but-practically-negligible framing; one minor 'within noise' wording imprecision."},
+    {"path": "results/metrics.json", "note": "Full per-fold AUCs, variance, CI, sanity results; re-run reproduced identically."},
+    {"path": "tests/test_pipeline.py", "note": "11 tests asserting dedup-before-split, leak/id exclusion, time-sort, determinism, variance/CI presence, and time-split order; all pass."},
+    {"path": "make_dataset.py", "note": "Generator documents the planted traps; deterministic per seed; conftest uses n=1500 for fast tests preserving traps."}
+  ]
+}
+```

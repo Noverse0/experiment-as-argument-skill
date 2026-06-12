@@ -1,0 +1,74 @@
+Everything passes and reproduces exactly. The committed `metrics.json` matches the fresh run (ROC AUC 0.7148 / 0.7329 identical). I have enough to score.
+
+## Audit summary
+
+**Leakage prevention — excellent.** Every planted trap is caught:
+- `account_status` is explicitly dropped (`data.py:27`, `LEAK_COLUMNS`) and identified as a perfect target function. A *leak-ceiling sanity check* even fits it deliberately to show AUC→1.000, demonstrating *why*.
+- `StandardScaler` lives inside a `Pipeline` (`experiment.py:38-50`), fit per training fold only — no scaler leakage.
+- 200 exact duplicates removed *before* splitting (`data.py:64`), preventing straddle.
+- Temporal column handled deliberately: `TimeSeriesSplit` forward-chaining on `signup_date`, with explicit justification that a random split would leak. `signup_date`/`customer_id` excluded from features (asserted at `data.py:75`).
+- Bonus: label-shuffle check collapses to 0.492 (~0.5), confirming no label leakage.
+
+**Methodology — strong.** Dummy `strategy="prior"` baseline present (ROC AUC 0.500). ROC AUC primary + avg precision, with class imbalance (27%) explicitly motivating the choice over accuracy. Paired Wilcoxon across shared folds is appropriate. Neither model is tuned — equal (zero) budget, honestly stated. n=5 is small but acknowledged.
+
+**Reproducibility — excellent.** Seed 7 fixed and logged; full config/metrics/sanity written to `results/metrics.json`; determinism asserted in tests and confirmed by my clean re-run matching committed values bit-for-bit.
+
+**Claims discipline — excellent.** Reports an honest null ("no detectable difference"), backed by per-fold variance and p=0.062. Note: Wilcoxon statistic=0 means LR actually beat GB on all 5 folds — they conservatively decline to claim a winner at α=0.05 rather than overstating. Limitations are thorough and candid (low power, progressive training windows, synthetic near-linear structure favoring LR, single test touch). No claim exceeds what the code measured.
+
+**Executability — verified.** `pytest` → 10 passed; clean `make_dataset.py` + `run_experiment.py` runs in seconds and reproduces the report.
+
+**Code quality — clean.** Sensible module split (data vs experiment), documented leak-surface rationale, no dead code, all 5 declared dependencies used.
+
+Minor nits only: the leak-ceiling *test* (`test_pipeline.py:90`) fits and scores on the same rows (train=test) — defensible for demonstrating a perfect leak, and `run_experiment.py` uses proper CV for the reported number anyway.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 95,
+  "executability_score": 100,
+  "code_quality_score": 93,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps (account_status leak, 200 duplicates, temporal column) are correctly identified and handled, with sanity checks that actively demonstrate each risk.",
+    "Preprocessing (StandardScaler) is inside a sklearn Pipeline, guaranteeing per-fold fitting with no test-set contamination.",
+    "Honest null-result claim: 'no detectable difference', backed by n=5 folds with reported sd and a paired Wilcoxon test (p=0.062), declining to over-claim despite LR winning all 5 folds.",
+    "Clean-state run reproduces committed metrics.json exactly (ROC AUC 0.7148/0.7329); 10/10 tests pass; determinism asserted.",
+    "Limitations section is thorough and candid (low statistical power, progressive training windows, synthetic data favoring LR, single test touch).",
+    "Neither model is hyperparameter-tuned — equal (zero) budget, explicitly disclosed; arguably a light, equal tuning pass would strengthen the comparison."
+  ],
+  "leakage_findings": [
+    "account_status DROPPED as a perfect target function (data.py:27 LEAK_COLUMNS); leak-ceiling check confirms AUC=1.000 if retained.",
+    "StandardScaler fit on training folds only via Pipeline (experiment.py:38-50) — no fit-on-scored-data.",
+    "200 exact duplicates removed before splitting (data.py:64); test_duplicates_removed_before_split asserts n_duplicates==200.",
+    "Temporal leakage avoided: TimeSeriesSplit forward-chaining on signup_date with explicit justification; signup_date and customer_id excluded from features (asserted data.py:75).",
+    "Label-shuffle sanity check yields AUC 0.492 (~0.5), confirming no residual label leakage.",
+    "Minor: test_leak_ceiling_if_account_status_kept fits and scores on identical rows (train=test); harmless for the demonstration since the reported leak-ceiling uses proper CV in run_experiment.py."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (10 passed in 4.83s)",
+    "rm -f churn.csv && python3 make_dataset.py --out churn.csv",
+    "python3 run_experiment.py  (reproduced committed metrics exactly)"
+  ],
+  "file_evidence": [
+    {"path": "src/churn_experiment/data.py", "note": "Leakage-aware prep: dedup before split, drops account_status/customer_id, time-sort, asserts feature contract."},
+    {"path": "src/churn_experiment/experiment.py", "note": "Pipeline with per-fold StandardScaler, TimeSeriesSplit, Dummy baseline, label-shuffle sanity, ddof=1 variance."},
+    {"path": "run_experiment.py", "note": "Entrypoint writes meta+metrics+sanity to results/, runs leak-ceiling via proper CV, conservative conclusion logic."},
+    {"path": "tests/test_pipeline.py", "note": "Encodes rigor guarantees: dedup, dropped leak cols, baseline beat, label-shuffle, leak-ceiling, determinism, overfit-tiny."},
+    {"path": "REPORT.md", "note": "Honest null verdict with variance, Wilcoxon p, thorough limitations; all claims traceable to measured outputs."},
+    {"path": "results/metrics.json", "note": "Seed=7, sklearn/code version logged; matches fresh run bit-for-bit (reproducible)."},
+    {"path": "make_dataset.py", "note": "Deterministic generator documenting the three planted traps; confirms account_status is target-derived."}
+  ]
+}
+```

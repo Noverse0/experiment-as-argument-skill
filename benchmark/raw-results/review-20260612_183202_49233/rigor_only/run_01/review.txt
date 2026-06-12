@@ -1,0 +1,76 @@
+I have everything I need. This is a near-textbook rigorous experiment.
+
+## Review
+
+**Summary.** This is an unusually rigorous experiment. It is structured explicitly as an argument: a single variable (model family) is varied while features, folds, seed, and tuning budget are held fixed, and the conclusion is hedged to the strength of the evidence. All declared commands run cleanly and fast from a clean state, all 10 tests pass, and a re-run reproduces the numbers exactly.
+
+**Leakage (the planted traps).** All three planted traps are caught and handled correctly:
+- `account_status` (the perfect target leak — `closed` iff `churned==1`) is excluded from `FEATURES` (`src/data.py:20,26`), documented, asserted by a test (`test_account_status_is_a_perfect_leak`), and demonstrated via a `leakage_ceiling` audit that re-adds it and confirms AUC→1.0.
+- The 200 exact duplicates are dropped **before** any split (`drop_duplicates()` at `src/data.py:56`), verified by `test_duplicates_dropped_before_split` (n_dropped==200, no residual dupes). This prevents train/test straddle.
+- `signup_date` is handled deliberately: rows are time-sorted and split with `TimeSeriesSplit` (expanding window), so train always precedes test; the column is used only for ordering, never as a feature.
+- The scaler is inside a `Pipeline` and `clone`d per fold (`src/evaluate.py:51`), so it learns train-fold statistics only — no fit-on-full-data leak.
+
+The one nit: signup_date has ties (up to 11 rows share a date), so a fold boundary can place same-date rows on both sides. Since these are distinct customers, it's not a real leak — just a minor temporal-ordering imperfection not mentioned in limitations.
+
+**Methodology.** Trivial baseline present (`DummyClassifier`, baseline_floor sanity check). Metrics are appropriate for the 0.27 positive rate: ROC-AUC primary, PR-AUC and Brier alongside, accuracy deliberately avoided with justification. Equal tuning budget (defaults for both). Four sanity checks (floor, leakage ceiling, label-shuffle, overfit-tiny) gate trust in the comparison.
+
+**Reproducibility.** Seed (42) and generation seed (7) fixed and logged; env (python/sklearn/numpy/git SHA) captured in `results/metrics.json`; a determinism test asserts identical metrics across re-instantiation; re-run reproduced numbers exactly.
+
+**Claims discipline.** The report claims a winner (LogReg edge, mean diff −0.0179 ± 0.0100, all 5 folds negative, p=0.016) but honestly down-weights the p-value as low-power (n=5), and critically admits the synthetic data is a noisy *logistic* function that structurally favors the linear model — so it does not overclaim generality. Nothing in the report is claimed that the code didn't measure.
+
+**Executability & code quality.** Clean modular structure (`data`/`models`/`evaluate`/`sanity`), no dead code, all declared deps used (scipy optional with graceful fallback). Commands work as documented.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 92,
+  "executability_score": 98,
+  "code_quality_score": 95,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps (account_status leak, 200 duplicates, temporal column) are caught, handled, documented in code comments, and guarded by tests.",
+    "Both arms run through identical TimeSeriesSplit folds with StandardScaler fit inside a per-fold cloned Pipeline — split-before-transform is correct.",
+    "Four gating sanity checks (baseline floor, leakage-ceiling audit, label-shuffle, overfit-tiny) all pass and are cited in the report instead of asserted.",
+    "Conclusion is evidence-proportional: reports effect size +/- sd with n=5, treats p=0.016 cautiously, and admits the synthetic logistic data structurally favors the linear model.",
+    "Declared commands run from clean state in ~7s total; 10/10 tests pass; re-run reproduces metrics exactly.",
+    "Minor unaddressed threat: signup_date ties (up to 11 rows/date) can straddle a fold boundary; harmless here (distinct customers) but unmentioned in limitations."
+  ],
+  "leakage_findings": [
+    "account_status excluded from FEATURES (src/data.py:20,26); leak proven by leakage_ceiling audit (AUC=1.0) and asserted by test_account_status_is_a_perfect_leak.",
+    "200 exact duplicates dropped before any split (src/data.py:56); test_duplicates_dropped_before_split confirms n=200 and zero residual duplicates — no train/test straddle.",
+    "StandardScaler is cloned and fit per training fold only (src/evaluate.py:51), never on full data.",
+    "signup_date used solely to time-sort rows for TimeSeriesSplit (expanding window); train strictly precedes test; column never enters X.",
+    "customer_id dropped as an identifier; label_shuffle sanity check (AUC=0.44) confirms no signal leaks around the labels.",
+    "Residual minor concern: same-date ties can split across a fold boundary, but rows are distinct customers so this is ordering imprecision, not leakage."
+  ],
+  "commands_run": [
+    "python3 -c 'import numpy,pandas,sklearn,scipy' (deps import OK, sklearn 1.7.1)",
+    "rm -f churn.csv && python3 make_dataset.py --out churn.csv (regenerated 4201-line CSV from clean state)",
+    "python3 run_experiment.py (wrote metrics.json + REPORT.md; sanity all passed; GB 0.7149+/-0.0221, LR 0.7329+/-0.0252)",
+    "python3 -m pytest -q (10 passed in 4.48s)",
+    "python3 run_experiment.py (re-run; identical ROC-AUC numbers — reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Leak-prevention policy: LEAK_COLUMNS/ID_COLUMNS/TIME_COLUMN constants, dedup-before-split, time-sort; features_target exposes only allowed columns."},
+    {"path": "src/evaluate.py", "note": "TimeSeriesSplit evaluation with per-fold clone(pipe); paired_comparison reports per-fold diffs, mean+/-sd, cautious paired-t, detectable=|mean|>sd."},
+    {"path": "src/models.py", "note": "Both arms are Pipelines (StandardScaler + clf) with equal tuning budget (library defaults); single variable is model family."},
+    {"path": "src/sanity.py", "note": "Four gating checks including leakage_ceiling audit that re-adds account_status to demonstrate AUC->1.0."},
+    {"path": "tests/test_pipeline.py", "note": "10 tests guarding the argument: dedup, leak exclusion, time-sort, perfect-leak proof, determinism, baseline floor, sanity checks."},
+    {"path": "results/metrics.json", "note": "Full artifact: config, seeds (42 run / 7 gen), env (python/sklearn/numpy/git SHA), per-fold values, sanity results."},
+    {"path": "REPORT.md", "note": "Conclusion proportional to evidence; effect size +/- sd with n=5; honest limitations incl. synthetic data favoring the linear model."},
+    {"path": "make_dataset.py", "note": "Deterministic generator; docstring documents the planted traps (leak, duplicates, temporal column) kept out of the agent-facing prompt."}
+  ]
+}
+```

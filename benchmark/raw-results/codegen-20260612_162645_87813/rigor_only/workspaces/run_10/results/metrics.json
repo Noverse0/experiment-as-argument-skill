@@ -1,0 +1,147 @@
+{
+  "config": {
+    "data_path": "churn.csv",
+    "seed": 0,
+    "n_splits": 5,
+    "test_frac": 0.25,
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "dropped_leak_columns": [
+      "account_status"
+    ],
+    "dropped_id_columns": [
+      "customer_id"
+    ],
+    "split_strategy": "temporal (sorted by signup_date)",
+    "models": {
+      "logreg": "StandardScaler + LogisticRegression(max_iter=1000), defaults",
+      "gradient_boosting": "GradientBoostingClassifier, defaults"
+    },
+    "code_version": "e11943a",
+    "python": "3.12.4"
+  },
+  "data": {
+    "n_rows_raw": 4200,
+    "n_duplicates_removed": 200,
+    "n_rows_after_dedup": 4000,
+    "n_dev": 3000,
+    "n_test": 1000,
+    "base_rate_raw": 0.26976190476190476,
+    "base_rate_dev": 0.2776666666666667,
+    "base_rate_test": 0.249
+  },
+  "sanity_checks": [
+    {
+      "name": "baseline_floor",
+      "passed": true,
+      "detail": {
+        "auc": 0.5
+      }
+    },
+    {
+      "name": "label_shuffle",
+      "passed": true,
+      "detail": {
+        "auc": 0.5161860578527244
+      }
+    },
+    {
+      "name": "overfit_tiny_subset",
+      "passed": true,
+      "detail": {
+        "train_auc": 1.0
+      }
+    }
+  ],
+  "sanity_ok": true,
+  "cross_validation": {
+    "n_splits": 5,
+    "per_arm": {
+      "logreg": {
+        "roc_auc": {
+          "mean": 0.7253879448562457,
+          "sd": 0.039317436222964526,
+          "folds": [
+            0.7283815322171486,
+            0.7238888888888888,
+            0.7405913978494625,
+            0.6631795147420148,
+            0.7708983905837136
+          ]
+        },
+        "pr_auc": {
+          "mean": 0.4948208674280254,
+          "sd": 0.06775868153082258,
+          "folds": [
+            0.46814741099512613,
+            0.4978924364835924,
+            0.47376257882202566,
+            0.4271417039557551,
+            0.6071602068836275
+          ]
+        }
+      },
+      "gradient_boosting": {
+        "roc_auc": {
+          "mean": 0.7024006100267076,
+          "sd": 0.03703766090645523,
+          "folds": [
+            0.6985286656519534,
+            0.6795535714285715,
+            0.7210076444892473,
+            0.6586494164619165,
+            0.7542637521018498
+          ]
+        },
+        "pr_auc": {
+          "mean": 0.47301043482502225,
+          "sd": 0.07373879448954353,
+          "folds": [
+            0.44888510602669063,
+            0.42448272184678904,
+            0.45554458937628617,
+            0.43307897845433113,
+            0.6030607784210144
+          ]
+        }
+      }
+    },
+    "paired_roc_auc": {
+      "metric": "roc_auc",
+      "mean_diff_gbm_minus_lr": -0.022987334829537943,
+      "sd_diff": 0.014962307535632812,
+      "n_folds": 5,
+      "per_fold_diff": [
+        -0.029852866565195257,
+        -0.04433531746031727,
+        -0.019583753360215228,
+        -0.004530098280098205,
+        -0.01663463848186375
+      ]
+    }
+  },
+  "interpretation": {
+    "mean_diff_gbm_minus_lr": -0.022987334829537943,
+    "sd_diff": 0.014962307535632812,
+    "ci95": [
+      -0.04156251507310037,
+      -0.00441215458597552
+    ],
+    "detectable": true,
+    "winner": "logreg",
+    "conclusion": "logreg is better (95% CI on roc_auc diff excludes 0)."
+  },
+  "final_test": {
+    "logreg": {
+      "roc_auc": 0.7463943657452713,
+      "pr_auc": 0.4978343530624625
+    },
+    "gradient_boosting": {
+      "roc_auc": 0.7367606243883658,
+      "pr_auc": 0.49067201687860373
+    }
+  }
+}

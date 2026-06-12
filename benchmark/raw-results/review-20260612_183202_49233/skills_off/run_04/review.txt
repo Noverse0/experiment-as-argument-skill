@@ -1,0 +1,75 @@
+All three planted traps are handled correctly. Here's my review.
+
+## Review
+
+This is a rigorous, well-constructed experiment that catches and disarms every planted trap, and—notably—uses its own evidence to **refute** the claim it was asked to test rather than rubber-stamping it.
+
+**Leakage prevention (excellent).** All three planted traps are explicitly handled and verified:
+- `account_status` is dropped as a documented target leak (`src/data.py:29`, `clean_churn`). I confirmed it equals the target perfectly (`closed` iff `churned`). Better still, a `leakage_ceiling` sanity check *quantifies* the fake signal (ROC-AUC 1.000) to justify the drop empirically.
+- The 200 exact duplicates are dropped **before** any split, on a subset excluding `customer_id` (4200→4000 confirmed). A test asserts this.
+- `signup_date` is handled deliberately via `TimeSeriesSplit` on date-sorted rows; a test asserts `train.max() < test.min()` per fold. The scaler lives inside the `Pipeline`, so it is re-fit on the training fold only.
+
+**Methodology (strong, minor asymmetry).** Trivial baseline present (`DummyClassifier`, 0.500). Imbalance (27% positive) addressed with ROC-AUC + average precision and explicit reasoning against accuracy. Paired identical folds across 3 seeds. One blemish: `logreg` uses `class_weight="balanced"` while `gboost` does not, yet the config describes the budget as "library defaults" (balanced is *not* the logreg default). The asymmetry is defensible (GBC has no equivalent knob) but is the kind of thing that could nudge the declared winner (logreg) and is mildly inconsistent with the "defaults" framing.
+
+**Reproducibility (excellent).** Seeds `[0,1,2]` fixed/logged, config + per-fold metrics + sanity checks written to `results/metrics.json`, library versions recorded. I re-ran twice and the metrics were byte-identical.
+
+**Claims discipline (strong).** The report refutes the original claim and reports `-0.0177 ± 0.0093 (n=15)` with honest limitations (synthetic logistic data favoring the linear model, untuned, fold-size variance, "descriptive spread not a significance test"). Nothing in the report exceeds what the code measured. The one soft spot: it does declare a winner ("logistic regression wins") off a `mean ± 1sd` rule applied to 15 *correlated* (seed, overlapping-fold) measurements, which understates variance—though the report itself flags this as descriptive and recommends a formal paired test.
+
+**Executability (excellent).** Clean-state `make_dataset.py` + `run_experiment.py` both work; 12/12 tests pass in ~4s; full run ~4s.
+
+**Code quality (excellent).** Clean module separation (data/pipeline/evaluate), thorough rationale comments, declared deps all used. Trivial: the `seed` param is accepted but unused in `baseline_floor`/`leakage_ceiling` (interface consistency, harmless).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 88,
+  "executability_score": 100,
+  "code_quality_score": 92,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps (target-leak column, duplicate rows, temporal column) are explicitly detected, handled, justified in code, and guarded by tests.",
+    "Experiment refutes its own seed claim: reports logreg edges gboost (-0.0177 +/- 0.0093, n=15) instead of confirming the stated 'gboost wins' hypothesis.",
+    "Four sanity checks (baseline floor, leakage ceiling, overfit-tiny, label-shuffle) run before the comparison and assert expected ranges, failing loudly otherwise.",
+    "Fully reproducible: seeds logged, config+metrics persisted to results/metrics.json, byte-identical across reruns (verified), versions recorded.",
+    "Minor: logreg uses class_weight='balanced' but gboost does not, while the report labels the budget 'library defaults' (balanced is not the logreg default) - a small fairness/consistency gap that could favor the declared winner.",
+    "Minor: 'winner' is declared via a mean +/- 1sd non-crossing-zero rule over 15 correlated (seed, overlapping-fold) pairs; the report honestly flags this as descriptive, not a significance test."
+  ],
+  "leakage_findings": [
+    "account_status dropped before any split (src/data.py:29,66-67); confirmed it equals the target exactly (closed iff churned) - a critical leak correctly removed.",
+    "leakage_ceiling sanity check fits logreg on account_status alone and reports ROC-AUC 1.000, empirically demonstrating why it was dropped (src/evaluate.py:120-134).",
+    "StandardScaler is inside the sklearn Pipeline, so it is fit on the training fold only every fit (src/pipeline.py:15-44, src/evaluate.py:71-74) - no scaler leakage.",
+    "200 exact duplicate rows dropped before splitting on a subset excluding customer_id (4200->4000 confirmed); test_duplicates_removed_before_split asserts it - no duplicate straddling.",
+    "Temporal column handled deliberately via TimeSeriesSplit on signup_date-sorted rows; test asserts train_idx.max() < test_idx.min() per fold - no temporal leakage. signup_date/customer_id correctly excluded as features."
+  ],
+  "commands_run": [
+    "find . -type f (inventory)",
+    "python3 -c 'import sklearn,pandas,numpy,pytest' (versions: sklearn 1.7.1, pandas 2.3.1, numpy 1.26.4)",
+    "python3 -m pytest -q  (12 passed in 4.42s)",
+    "rm -f churn.csv results/metrics.json && python3 make_dataset.py --out churn.csv && python3 run_experiment.py (clean run, all sanity checks passed)",
+    "re-ran run_experiment.py and diffed metrics.json (byte-identical -> reproducible)",
+    "python3 -c '... verify leak drop, dedup count, time-sort, account_status==churned'"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Data-contact policy: drops account_status leak, dedups before split on non-id columns, sorts by signup_date; features exclude id and time axis."},
+    {"path": "src/pipeline.py", "note": "Both arms share StandardScaler inside a Pipeline (fit on train fold only). logreg sets class_weight='balanced'; gboost has no equivalent - asymmetry vs the 'defaults' claim."},
+    {"path": "src/evaluate.py", "note": "TimeSeriesSplit forward CV with paired identical folds; ROC-AUC + average precision; four sanity checks (baseline/leakage-ceiling/overfit/label-shuffle)."},
+    {"path": "run_experiment.py", "note": "Asserts sanity checks land in expected ranges before believing the comparison; conclude() only claims a winner when mean+/-1sd does not straddle zero; writes config+metrics to results/."},
+    {"path": "REPORT.md", "note": "Refutes the seed claim; reports n=15 with sd; honest limitations (synthetic logistic data favors linear model, untuned, fold-size variance, descriptive not significance)."},
+    {"path": "tests/test_pipeline.py", "note": "12 tests guarding rigor invariants: leak dropped, dupes removed, forward-only split, sanity ranges, determinism. All pass."},
+    {"path": "results/metrics.json", "note": "Persisted config, seeds, versions, per-fold metrics, paired difference; byte-identical across reruns."},
+    {"path": "make_dataset.py", "note": "Deterministic generator; documents the three planted traps. churn generated from a logistic relationship independent of signup_date."}
+  ]
+}
+```

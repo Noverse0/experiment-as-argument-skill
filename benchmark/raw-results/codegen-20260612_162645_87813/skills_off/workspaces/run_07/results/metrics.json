@@ -1,0 +1,168 @@
+{
+  "claim": "Does GradientBoostingClassifier outperform LogisticRegression at predicting churn?",
+  "config": {
+    "seed": 42,
+    "n_splits": 5,
+    "cv": "TimeSeriesSplit (forward-chaining, time-sorted by signup_date)",
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "dropped_leak_columns": [
+      "account_status"
+    ],
+    "dropped_id_columns": [
+      "customer_id"
+    ],
+    "primary_metric": "roc_auc"
+  },
+  "data": {
+    "path": "churn.csv",
+    "n_rows_raw": 4200,
+    "n_duplicates_dropped": 200,
+    "n_rows_used": 4000,
+    "churn_rate": 0.2705,
+    "signup_date_min": "2023-01-01",
+    "signup_date_max": "2025-06-18"
+  },
+  "environment": {
+    "python": "3.12.4",
+    "sklearn": "1.7.1"
+  },
+  "sanity_checks": [
+    {
+      "name": "leak_excluded",
+      "account_status_leak_fraction": 1.0,
+      "account_status_in_features": false,
+      "passed": true
+    },
+    {
+      "name": "baseline_floor",
+      "baseline_roc_auc": 0.5,
+      "passed": true
+    },
+    {
+      "name": "label_shuffle",
+      "shuffled_roc_auc": 0.4715199898940008,
+      "passed": true
+    },
+    {
+      "name": "overfit_tiny",
+      "train_roc_auc": 1.0,
+      "n": 60,
+      "passed": true
+    }
+  ],
+  "sanity_all_passed": true,
+  "results": {
+    "logistic_regression": {
+      "roc_auc": {
+        "mean": 0.7328795185434686,
+        "std": 0.02520427977991526,
+        "n": 5,
+        "values": [
+          0.7344442032132003,
+          0.7372289156626506,
+          0.6950785340314136,
+          0.7658869036654999,
+          0.7317590361445783
+        ]
+      },
+      "pr_auc": {
+        "mean": 0.5013905475609909,
+        "std": 0.041535947284234785,
+        "n": 5,
+        "values": [
+          0.5324876631156812,
+          0.45532627433322914,
+          0.4732847541833845,
+          0.5552876212411811,
+          0.49056642493147884
+        ]
+      },
+      "f1": {
+        "mean": 0.36936032647335737,
+        "std": 0.04006200423869276,
+        "n": 5,
+        "values": [
+          0.3716216216216216,
+          0.38132295719844356,
+          0.3169811320754717,
+          0.42585551330798477,
+          0.3510204081632653
+        ]
+      }
+    },
+    "gradient_boosting": {
+      "roc_auc": {
+        "mean": 0.7105675306683958,
+        "std": 0.01983957291551352,
+        "n": 5,
+        "values": [
+          0.6968627876682587,
+          0.7142771084337349,
+          0.6878589143014605,
+          0.7396159513722601,
+          0.7142228915662651
+        ]
+      },
+      "pr_auc": {
+        "mean": 0.47487639899573697,
+        "std": 0.02707703305458352,
+        "n": 5,
+        "values": [
+          0.4816665758897601,
+          0.4372004882341482,
+          0.47121096235974486,
+          0.5128492667366891,
+          0.47145470175834236
+        ]
+      },
+      "f1": {
+        "mean": 0.4013748328955816,
+        "std": 0.033541731432171346,
+        "n": 5,
+        "values": [
+          0.42318840579710143,
+          0.36764705882352944,
+          0.38926174496644295,
+          0.4483985765124555,
+          0.3783783783783784
+        ]
+      }
+    }
+  },
+  "comparisons": {
+    "roc_auc": {
+      "metric": "roc_auc",
+      "comparison": "gradient_boosting - logistic_regression",
+      "mean_diff": -0.02231198787507267,
+      "std_diff": 0.011178399313612,
+      "n_folds": 5,
+      "t_stat": -4.46317224873698,
+      "p_value": 0.01113305064222889,
+      "crosses_zero": false
+    },
+    "pr_auc": {
+      "metric": "pr_auc",
+      "comparison": "gradient_boosting - logistic_regression",
+      "mean_diff": -0.026514148565254046,
+      "std_diff": 0.019792038589138812,
+      "n_folds": 5,
+      "t_stat": -2.995519551481244,
+      "p_value": 0.04011889651144445,
+      "crosses_zero": false
+    },
+    "f1": {
+      "metric": "f1",
+      "comparison": "gradient_boosting - logistic_regression",
+      "mean_diff": 0.032014506422224163,
+      "std_diff": 0.03241394588789891,
+      "n_folds": 5,
+      "t_stat": 2.2085127455254447,
+      "p_value": 0.09177798382526331,
+      "crosses_zero": true
+    }
+  }
+}

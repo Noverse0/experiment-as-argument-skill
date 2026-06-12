@@ -1,0 +1,23 @@
+Everything is in place and verified. Here's the summary following the skill's response shape:
+
+```text
+Claim:   Does GradientBoostingClassifier outperform LogisticRegression at predicting churned?
+Design:  Variable = classifier only (same features/folds/scaler/seed). Drop account_status
+         (perfect target leak), drop customer_id (id), dedup 200 exact duplicates before split.
+         TimeSeriesSplit forward-chaining on signup_date (churn is forward-looking), n=5 folds.
+         Scaler fit inside Pipeline (train-fold only). Primary metric ROC AUC (27% imbalance).
+Sanity:  Dummy floor 0.50 ✓; label-shuffle 0.492 (~0.5, no label leak) ✓;
+         leak-ceiling 1.000 with account_status kept (why it's dropped) ✓; determinism ✓;
+         overfit-tiny-subset ✓ — all 10 pytest tests pass.
+Result:  GB 0.7148 ± 0.0221 vs LR 0.7329 ± 0.0252 (n=5). Gap (GB−LR) = −0.018,
+         paired Wilcoxon p = 0.062, spreads overlap → NO DETECTABLE DIFFERENCE.
+         (LR nominally higher, consistent with the near-linear log-odds data; not significant.)
+Risk:    n=5 folds → low power, small true differences could be missed; synthetic linear-ish
+         data may favor LR; later folds train on more data (inherent to forward chaining).
+```
+
+The honest conclusion is **no detectable difference** — gradient boosting does not outperform logistic regression here; if anything LR is nominally ahead, but within noise. The full run finishes in ~2 seconds.
+
+`__pycache__` dirs are build artifacts, excluded from the manifest below.
+
+{"files_created": ["requirements.txt", "src/churn_experiment/__init__.py", "src/churn_experiment/data.py", "src/churn_experiment/experiment.py", "run_experiment.py", "tests/__init__.py", "tests/test_pipeline.py", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -q"}

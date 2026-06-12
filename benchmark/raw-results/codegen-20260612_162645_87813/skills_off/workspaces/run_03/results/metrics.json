@@ -1,0 +1,166 @@
+{
+  "claim": "Does GradientBoosting outperform LogisticRegression at predicting churn?",
+  "config": {
+    "seed": 42,
+    "n_splits": 5,
+    "split": "TimeSeriesSplit on signup_date (forward-looking)",
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "target": "churned",
+    "dropped_columns": {
+      "account_status": "deterministic function of the label (closed iff churned)",
+      "customer_id": "row identifier, no predictive signal"
+    },
+    "models": {
+      "logistic_regression": "StandardScaler + LogisticRegression(max_iter=1000)",
+      "gradient_boosting": "StandardScaler + GradientBoostingClassifier(n_estimators=200, max_depth=3, lr=0.1)"
+    }
+  },
+  "data": {
+    "path": "churn.csv",
+    "generation_command": "python3 make_dataset.py --out churn.csv --seed 7",
+    "data_seed": 7,
+    "n_raw_rows": 4200,
+    "n_rows_after_dedup": 4000,
+    "n_duplicates_removed": 200,
+    "target_rate": 0.2705
+  },
+  "code_version": "e11943a",
+  "primary_metric": "roc_auc",
+  "arms": {
+    "logistic_regression": {
+      "n": 5,
+      "metrics": {
+        "roc_auc": {
+          "mean": 0.7329,
+          "sd": 0.0252,
+          "per_fold": [
+            0.7344,
+            0.7372,
+            0.6951,
+            0.7659,
+            0.7318
+          ]
+        },
+        "pr_auc": {
+          "mean": 0.5014,
+          "sd": 0.0415,
+          "per_fold": [
+            0.5325,
+            0.4553,
+            0.4733,
+            0.5553,
+            0.4906
+          ]
+        },
+        "accuracy": {
+          "mean": 0.7489,
+          "sd": 0.023,
+          "per_fold": [
+            0.7207,
+            0.7613,
+            0.7282,
+            0.7733,
+            0.7613
+          ]
+        },
+        "baseline_accuracy": {
+          "mean": 0.7306,
+          "sd": 0.0208,
+          "per_fold": [
+            0.7057,
+            0.7508,
+            0.7132,
+            0.7327,
+            0.7508
+          ]
+        }
+      }
+    },
+    "gradient_boosting": {
+      "n": 5,
+      "metrics": {
+        "roc_auc": {
+          "mean": 0.7057,
+          "sd": 0.019,
+          "per_fold": [
+            0.6922,
+            0.7142,
+            0.6843,
+            0.7328,
+            0.7048
+          ]
+        },
+        "pr_auc": {
+          "mean": 0.4704,
+          "sd": 0.0238,
+          "per_fold": [
+            0.4698,
+            0.4397,
+            0.4687,
+            0.5066,
+            0.4673
+          ]
+        },
+        "accuracy": {
+          "mean": 0.7318,
+          "sd": 0.029,
+          "per_fold": [
+            0.6847,
+            0.7402,
+            0.7252,
+            0.7553,
+            0.7538
+          ]
+        },
+        "baseline_accuracy": {
+          "mean": 0.7306,
+          "sd": 0.0208,
+          "per_fold": [
+            0.7057,
+            0.7508,
+            0.7132,
+            0.7327,
+            0.7508
+          ]
+        }
+      }
+    }
+  },
+  "comparison": {
+    "metric": "roc_auc",
+    "mean_diff_challenger_minus_baseline": -0.0272,
+    "sd_diff": 0.0117,
+    "t_stat": -5.2055,
+    "p_value": 0.0065,
+    "conclusion": "logistic_regression outperforms gradient_boosting on roc_auc (mean diff -0.0272, p=0.006, n=5)"
+  },
+  "sanity_checks": {
+    "all_passed": true,
+    "checks": {
+      "dedup": {
+        "passed": true,
+        "detail": "200 exact duplicates removed at load; 0 remain"
+      },
+      "baseline_floor": {
+        "passed": true,
+        "detail": "all arms above AUC 0.5 baseline: logistic_regression=0.733, gradient_boosting=0.706"
+      },
+      "leakage_ceiling": {
+        "passed": true,
+        "detail": "all arms below AUC 0.95 (would imply leakage): logistic_regression=0.733, gradient_boosting=0.706"
+      },
+      "label_shuffle": {
+        "passed": true,
+        "detail": "shuffled-label AUC near 0.5: logistic_regression=0.476, gradient_boosting=0.490"
+      },
+      "overfit_tiny_subset": {
+        "passed": true,
+        "detail": "tiny-subset train AUC near 1.0: logistic_regression=0.903, gradient_boosting=1.000"
+      }
+    }
+  }
+}

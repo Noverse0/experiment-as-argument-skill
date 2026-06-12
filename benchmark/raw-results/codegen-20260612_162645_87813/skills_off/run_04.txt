@@ -1,0 +1,17 @@
+Everything is in place and verified. Summary:
+
+```text
+Claim: Does gradient boosting outperform logistic regression for churn prediction?
+Design: Variable = estimator only (shared StandardScaler, features, folds, untuned defaults).
+        Forward-looking TimeSeriesSplit (5 folds) on signup_date-sorted rows, paired across 3 seeds = 15 measurements/arm.
+        Dropped account_status (target leak), removed 200 exact duplicates before splitting, scaler fit on train fold only.
+Sanity: baseline floor AUC 0.500 ✓ | leakage ceiling (account_status alone) 1.000 ✓ (justifies the drop)
+        | overfit-tiny train AUC 1.000 ✓ | label-shuffle 0.512 ✓ — all pass before trusting the comparison.
+Result: logreg ROC-AUC 0.7327±0.0234, gboost 0.7150±0.0205 (n=15). Paired gap (gboost−logreg) −0.0177±0.0093.
+        Honest conclusion: GB does NOT outperform LR — if anything LR edges it. Claim rejected on this dataset.
+Risk: synthetic data from a logistic DGP a priori favours LR; n=15 is a descriptive spread, not a formal test; defaults untuned.
+```
+
+The three planted traps were handled: the perfect leak (`account_status`), the 200 straddling duplicates, and the temporal column (random split would have leaked the future). Tests (12) guard each invariant; the experiment runs in ~5s on CPU.
+
+{"files_created": ["requirements.txt", "conftest.py", "src/__init__.py", "src/data.py", "src/pipeline.py", "src/evaluate.py", "run_experiment.py", "tests/test_pipeline.py", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 make_dataset.py --out churn.csv && python3 run_experiment.py", "test_command": "python3 -m pytest -q"}

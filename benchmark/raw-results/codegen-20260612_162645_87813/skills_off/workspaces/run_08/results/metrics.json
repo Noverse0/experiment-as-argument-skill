@@ -1,0 +1,132 @@
+{
+  "claim": "For predicting customer churn on this dataset, does GradientBoostingClassifier outperform LogisticRegression?",
+  "config": {
+    "csv_path": "churn.csv",
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "excluded_columns": {
+      "customer_id": "bare identifier, no generalizable signal",
+      "account_status": "perfect target leak (closed <=> churned)",
+      "signup_date": "temporal; used only to order the time-based split"
+    },
+    "target": "churned",
+    "preprocessing": "StandardScaler (identical for both arms)",
+    "cv": "TimeSeriesSplit(n_splits=5) on signup_date order",
+    "primary_metric": "roc_auc",
+    "secondary_metric": "average_precision",
+    "random_state": 42
+  },
+  "seeds": {
+    "model_random_state": 42,
+    "label_shuffle_seed": 0,
+    "dataset_generation": "python3 make_dataset.py --out churn.csv (seed=7 default)"
+  },
+  "environment": {
+    "python": "3.12.4",
+    "platform": "macOS-14.5-arm64-arm-64bit",
+    "sklearn": "1.7.1"
+  },
+  "data": {
+    "n_rows_raw": 4200,
+    "n_duplicates_removed": 200,
+    "n_rows_used": 4000,
+    "churn_rate": 0.2705
+  },
+  "sanity_checks": [
+    {
+      "check": "baseline_floor",
+      "mean_roc_auc": 0.5,
+      "passed": true,
+      "note": "DummyClassifier(most_frequent) should give ROC-AUC ~ 0.5"
+    },
+    {
+      "check": "label_shuffle",
+      "mean_roc_auc": 0.5010325642945475,
+      "passed": true,
+      "note": "Shuffled labels should destroy signal: ROC-AUC ~ 0.5"
+    },
+    {
+      "check": "overfit_tiny_subset",
+      "n": 60,
+      "train_roc_auc": 1.0,
+      "passed": true,
+      "note": "Model should (near-)memorize a tiny slice: train ROC-AUC > 0.95"
+    },
+    {
+      "check": "leakage_ceiling",
+      "mean_roc_auc": 1.0,
+      "passed": true,
+      "note": "Including account_status yields near-perfect AUC -> confirmed leak, correctly dropped"
+    }
+  ],
+  "arms": {
+    "logistic_regression": {
+      "name": "logistic_regression",
+      "n_folds": 5,
+      "roc_auc_mean": 0.7328795185434686,
+      "roc_auc_sd": 0.02520427977991526,
+      "roc_auc_per_fold": [
+        0.7344442032132003,
+        0.7372289156626506,
+        0.6950785340314136,
+        0.7658869036654999,
+        0.7317590361445783
+      ],
+      "average_precision_mean": 0.5013905475609909,
+      "average_precision_sd": 0.041535947284234785,
+      "average_precision_per_fold": [
+        0.5324876631156812,
+        0.45532627433322914,
+        0.4732847541833845,
+        0.5552876212411811,
+        0.49056642493147884
+      ]
+    },
+    "gradient_boosting": {
+      "name": "gradient_boosting",
+      "n_folds": 5,
+      "roc_auc_mean": 0.7147948068822483,
+      "roc_auc_sd": 0.022035191402676162,
+      "roc_auc_per_fold": [
+        0.7031534954407296,
+        0.7138734939759036,
+        0.6876384678974924,
+        0.7464772517959108,
+        0.7228313253012048
+      ],
+      "average_precision_mean": 0.4778577628307071,
+      "average_precision_sd": 0.030818006057724404,
+      "average_precision_per_fold": [
+        0.48348238025455725,
+        0.43508313623698447,
+        0.46928445183532896,
+        0.5209540506984955,
+        0.4804847951281692
+      ]
+    }
+  },
+  "comparison": {
+    "arm_a": "logistic_regression",
+    "arm_b": "gradient_boosting",
+    "direction": "positive means gradient_boosting > logistic_regression",
+    "per_fold_diff": [
+      -0.03129070777247067,
+      -0.02335542168674698,
+      -0.00744006613392123,
+      -0.019409651869589095,
+      -0.008927710843373515
+    ],
+    "mean_diff": -0.018084711661220297,
+    "sd_diff": 0.010013657253960645,
+    "paired_t_stat": -4.038349186754646,
+    "paired_p_value": 0.015625303788218223
+  },
+  "conclusion": {
+    "verdict": "winner",
+    "winner": "logistic_regression",
+    "statement": "No: gradient boosting does NOT outperform logistic regression \u2014 logistic regression holds a small but consistent edge on time-series CV ROC-AUC. The gap is small (mean per-fold diff -0.0181 [GB - LR], sd 0.0100, paired p=0.016) but the sign is consistent across all folds. Note: TimeSeriesSplit folds are correlated, so the p-value is approximate; the claim rests on the consistent direction and small spread, not on significance alone."
+  }
+}

@@ -1,0 +1,20 @@
+Everything verified. Final summary:
+
+```text
+Claim:   Does GradientBoosting outperform LogisticRegression at predicting churn?
+Design:  Variable = classifier only (identical features/preprocessing/seed=7).
+         Dropped account_status (perfect target leak) + customer_id (ID).
+         Deduped 200 exact rows BEFORE splitting. Forward-chaining TimeSeriesSplit
+         (5 folds) on signup_date — never random. Scaler fit per-train-fold.
+Sanity:  majority baseline AUC 0.50 ✓ | label-shuffle 0.49/0.51 ✓ |
+         overfit-tiny GBM 1.0 ✓ | leak-probe (account_status) AUC 1.0 ✓ (justifies the drop)
+Result:  LogReg 0.733±0.025 vs GBM 0.715±0.022 ROC-AUC (n=5, paired Wilcoxon p=0.062).
+         → No detectable difference. Gap (-0.018) sits within fold spread.
+Risk:    n=5 non-i.i.d. folds (rough variance); synthetic near-linear data; defaults, no tuning.
+```
+
+**What I built:** a leakage-aware experiment that catches all three planted traps. The honest conclusion is a **null result** — GBM does not beat LogReg here; the gap is within noise, consistent with the dataset's near-linear log-odds structure. The most important catch during the build: my own leak-probe initially read AUC ~0.5 because the `ColumnTransformer` was dropping the injected column — fixing it to a plain `StandardScaler` made the probe correctly hit 1.0, confirming `account_status` is a perfect leak.
+
+Tests pass (10/10), full experiment runs in ~2.7s (well under 5 min).
+
+{"files_created": ["src/__init__.py", "src/data.py", "src/experiment.py", "run_experiment.py", "tests/__init__.py", "tests/test_pipeline.py", "requirements.txt", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 make_dataset.py --out churn.csv && python3 run_experiment.py", "test_command": "python3 -m pytest -q"}

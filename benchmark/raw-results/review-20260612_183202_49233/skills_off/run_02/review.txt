@@ -1,0 +1,77 @@
+All checks pass. The experiment reproduces identically (GB 0.714795, LR 0.73288), the diff is clean, and the entrypoint runs in ~3s from a clean state.
+
+## Review
+
+This is a rigorously constructed experiment that anticipates and neutralizes every planted hazard, with sanity checks that *prove* the defenses matter rather than merely asserting them.
+
+**Leakage prevention — excellent.** All three traps are caught:
+- `account_status` is dropped (`data.py:27`), and a `leakage_ceiling` sanity check re-introduces it to demonstrate it alone scores AUC 1.0 — affirmatively proving it's a target copy, not a feature.
+- 200 exact duplicates are removed on the full frame *before* splitting (`data.py:50`); the test even reasons carefully about row-level vs feature-level dedup.
+- `signup_date` is treated as temporal: rows sorted by date, `TimeSeriesSplit` expanding window so every test fold is strictly future relative to train.
+- Scaler is fit inside the `Pipeline`, so it only ever sees train folds.
+- A label-shuffle check confirms no residual leak (AUC collapses to 0.49).
+
+**Methodology — strong.** Trivial `DummyClassifier` floor present; ROC AUC + average precision chosen explicitly for the 27% imbalance (not accuracy alone); both arms use identical pipeline shape and equal (default) tuning budget; 5 folds with paired per-fold comparison.
+
+**Reproducibility — strong.** Seed 42 fixed and logged in config; metrics/config/provenance written to `results/metrics.json`; a determinism test asserts identical re-runs; I confirmed a clean re-run reproduces the committed numbers exactly.
+
+**Claims discipline — good.** The "Logistic regression wins" verdict is gated by a defensible rule (`|mean_diff| > sd_diff AND p < 0.05`), all 5 folds consistently favor LR, and the report explicitly downgrades the p-value to "heuristic" because expanding-window folds aren't independent. Limitations are honest (defaults-only, dataset-specific, near-linear signal favoring LR). The only mild stretch is declaring a "winner" off a 0.018 AUC gap on non-independent folds — but it's well-qualified rather than overclaimed, and the report is auto-generated from measured values so it claims nothing unmeasured.
+
+**Executability — excellent.** 8/8 tests pass; entrypoint self-generates the dataset and completes in ~3s.
+
+**Code quality — strong.** Clean `src/` layout, purposeful docstrings, no dead code, all four declared dependencies (numpy/pandas/sklearn/scipy) used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 93,
+  "claims_discipline_score": 88,
+  "executability_score": 98,
+  "code_quality_score": 93,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted hazards (target-leak column, duplicate rows, temporal column) are correctly identified and neutralized before any model sees the data.",
+    "Sanity checks affirmatively prove the defenses: leakage ceiling (account_status alone = AUC 1.0), baseline floor (DummyClassifier = 0.5), and label shuffle (AUC collapses to 0.49).",
+    "ROC AUC + average precision chosen deliberately for the 27% class imbalance; accuracy/F1 reported only as context.",
+    "Both arms share identical pipeline shape and equal default tuning budget; comparison is paired across 5 forward-looking folds with mean +/- sd.",
+    "Verdict ('logistic regression wins') is gated by a consistency-plus-significance rule and explicitly hedged: folds are non-independent so the p-value is treated as heuristic.",
+    "Experiment reproduces exactly on a clean re-run (GB 0.7148, LR 0.7329); 8/8 tests pass; entrypoint completes in ~3s.",
+    "Minor: declaring a 'winner' off a 0.018 AUC gap on non-independent folds is the only mild stretch, but it is well-qualified in the limitations."
+  ],
+  "leakage_findings": [
+    "account_status dropped (data.py:27, LEAK_COLUMNS) and verified as a leak via leakage_ceiling check yielding AUC 1.0 (experiment.py:181).",
+    "200 exact duplicate rows removed on the full frame before splitting (data.py:50); test_duplicates_removed_before_use confirms none straddle the split.",
+    "signup_date handled as temporal: rows sorted by date and split with TimeSeriesSplit expanding window (data.py:56, experiment.py:52); not used as a feature.",
+    "StandardScaler fit inside the Pipeline so it is fitted on train folds only (models.py:20-45); confirmed by per-fold clone+fit in evaluate_model.",
+    "customer_id dropped as a bare identifier (data.py:28).",
+    "Label-shuffle sanity check passes (mean AUC 0.493), confirming no information leaks around the labels."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*'",
+    "python3 -m pytest -q",
+    "rm -f churn.csv results/metrics.json && time python3 run_experiment.py",
+    "git diff --stat (clean after re-run; metrics reproduce committed values)"
+  ],
+  "file_evidence": [
+    {"path": "src/churn/data.py", "note": "Leak defenses: drops account_status/customer_id, dedups full frame before split, sorts by signup_date for time-based split."},
+    {"path": "src/churn/experiment.py", "note": "TimeSeriesSplit per-fold eval, ROC AUC + avg precision metrics, paired comparison, three sanity checks (floor/shuffle/leakage ceiling), honest verdict gating."},
+    {"path": "src/churn/models.py", "note": "Both arms as Pipelines with scaler fit inside (train-only); RANDOM_STATE=42; equal default tuning budget."},
+    {"path": "run_experiment.py", "note": "Entrypoint writes results/metrics.json with config/seeds/provenance and auto-generates REPORT.md from measured metrics; self-generates dataset if missing."},
+    {"path": "results/metrics.json", "note": "Full per-fold metrics, sanity-check results, provenance; reproduced exactly on clean re-run."},
+    {"path": "tests/test_pipeline.py", "note": "8 tests covering leak/id exclusion, dedup, time ordering, determinism, sanity gates, and comparison shape; all pass."},
+    {"path": "REPORT.md", "note": "Claim/conclusion/methodology/limitations; declares LR winner with sd and heuristic p-value, honestly flagging non-independent folds and defaults-only tuning."},
+    {"path": "make_dataset.py", "note": "Deterministic seeded generator; documents the planted traps out-of-band from the agent prompt."}
+  ]
+}
+```

@@ -1,0 +1,13 @@
+Everything is in place and verified.
+
+```text
+Claim: Does GradientBoosting beat LogisticRegression at predicting churn (out-of-sample ROC AUC)?
+Design: variable = model family; time-based CV (TimeSeriesSplit, 5 folds on signup_date), no tuning, scaler fit per-fold, paired by fold, seed=7.
+Sanity: floor AUC 0.50 (both models clear it); label-shuffle 0.488≈0.5; leakage-ceiling 1.0 with account_status (justifies dropping it); re-runs identical.
+Result: LogReg 0.7329±0.0252 vs GBM 0.7148±0.0221; per-fold gap −0.0181±0.0101 AUC, all 5 folds favor LogReg → LogReg wins by a small but consistent margin (band excludes 0). GBM does NOT outperform.
+Risk: linear-by-construction signal gives GBM no nonlinearity to exploit; defaults only (no tuning); 5 folds is a small variance sample, not a formal significance test.
+```
+
+Handled all three planted traps deliberately and defended each with a measured sanity check: `account_status` leak (dropped; ceiling=1.0 demo), 200 exact duplicates (deduped before split), temporal `signup_date` (time-based CV, not random). Experiment runs in ~3s (well under 5 min).
+
+{"files_created": ["tasks/todo.md", "src/__init__.py", "src/data.py", "src/experiment.py", "src/report.py", "run_experiment.py", "tests/__init__.py", "tests/test_pipeline.py", "requirements.txt", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 make_dataset.py --out churn.csv && python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -q"}

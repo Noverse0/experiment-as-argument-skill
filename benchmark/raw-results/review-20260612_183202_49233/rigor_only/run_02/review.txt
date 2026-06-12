@@ -1,0 +1,70 @@
+All checks complete. Tests pass (11/11), the entrypoint runs and reproduces **bit-identical** `metrics.json` and `REPORT.md` on re-run. Here is my review.
+
+## Summary
+
+This is an exemplary, rigor-first experiment. Every planted trap in `make_dataset.py` (leaky `account_status`, 200 straddling duplicates, temporal `signup_date`) is correctly identified, handled, and *demonstrated* — not just asserted.
+
+**Leakage prevention (excellent).** `account_status` is dropped as target leakage (`data.py:24,67`) and its leak is proven empirically: the leakage-ceiling check re-includes it and gets ROC-AUC = 1.000 (`metrics.json:34-37`). The scaler lives inside a `Pipeline` that is `clone()`d and fit per-fold on training rows only (`experiment.py:84-92`) — true split-before-transform. Exact duplicates are removed with `drop_duplicates()` *before* any split (`data.py:57`), confirmed n=200 removed. The temporal column is handled deliberately: rows ordered by `signup_date` and evaluated with `TimeSeriesSplit` so the future never trains on the past (`data.py:62`, `experiment.py:86`).
+
+**Methodology (strong).** Trivial baseline present (`DummyClassifier(strategy="prior")` → 0.500). Class imbalance (churn 0.271) acknowledged; ROC-AUC/PR-AUC are headline, not accuracy. Both arms are library defaults at equal (zero) tuning budget — the single variable is model family. Plus a label-shuffle null check (AUC → 0.516) and a "real model beats floor but isn't near-perfect" test. *Minor weakness:* the paired CI uses the 1.96 normal multiplier on n=5 dependent (expanding-window) folds; a t-multiplier would be more honest. The conclusion still holds under t₄ (half-width ≈ 0.0125 < |−0.018|), so it doesn't change the verdict.
+
+**Reproducibility (excellent).** Seed=17 fixed and logged, config + per-fold metrics written to `results/metrics.json`, git rev recorded, and re-running produced byte-identical outputs.
+
+**Claims discipline (strong).** Report claims LR edges out GBM, backed by 5 folds with mean±sd and a paired interval, and is candid about limitations (weak signal, n=5, non-independent folds understating uncertainty, no tuning, single dataset). *Mild tension:* the conclusion leans on "interval excludes zero → LR outperforms" while the limitations say "we make no significance claim" — the winner framing is slightly firmer than the dependent-fold data robustly supports, though heavily hedged.
+
+**Executability (excellent).** `pytest` → 11 passed; `python3 run_experiment.py` runs and auto-generates the dataset if absent; deps declared in `pyproject.toml`.
+
+**Code quality (strong).** Clean, well-documented, no dead code, deps all used. Trivial nit: a couple of in-function imports (`clone`, `load_with_leak`).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 97,
+  "claims_discipline_score": 88,
+  "executability_score": 97,
+  "code_quality_score": 93,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps (account_status leak, 200 duplicate rows, temporal column) are correctly handled and empirically demonstrated, not merely asserted.",
+    "Re-running the entrypoint produced byte-identical results/metrics.json and REPORT.md; pytest passes 11/11 in ~4s.",
+    "Trivial baseline (DummyClassifier prior, AUC 0.500), label-shuffle null (AUC 0.516), and leakage-ceiling (AUC 1.000) sanity checks all run before the comparison.",
+    "Equal (zero) tuning budget for both arms; ROC-AUC/PR-AUC chosen as headline metrics given 0.271 churn imbalance.",
+    "Paired 95% CI uses the 1.96 normal multiplier on n=5 expanding-window (non-independent) folds — a t-multiplier would be more honest, though the conclusion survives it.",
+    "Report's winner claim ('interval excludes zero → LR outperforms') is slightly firmer than the dependent-fold data robustly supports, but is heavily caveated in the limitations section."
+  ],
+  "leakage_findings": [
+    "account_status dropped as target leakage (data.py:24,67); leak proven via leakage-ceiling check yielding ROC-AUC 1.000 (metrics.json:34-37).",
+    "StandardScaler fit inside a per-fold-cloned Pipeline on training rows only — no global fit leakage (experiment.py:84-92, test_pipeline.py:69-75).",
+    "200 exact duplicate rows removed with drop_duplicates() before any split, preventing train/test straddle (data.py:57; n_duplicates=200 confirmed).",
+    "Temporal handling deliberate: rows sorted by signup_date and split with TimeSeriesSplit so folds never train on the future (data.py:62, experiment.py:86).",
+    "customer_id dropped as a no-signal identifier (data.py:25,68)."
+  ],
+  "commands_run": [
+    "ls -laR (file inventory)",
+    "python3 -m pytest -q  => 11 passed in 3.82s",
+    "python3 run_experiment.py  => regenerated results/metrics.json + REPORT.md",
+    "diff of pre/post run outputs  => METRICS IDENTICAL, REPORT IDENTICAL (reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/churn/data.py", "note": "Leak/id columns dropped with reasons; dedup before split; date-ordering for time-based CV; load_with_leak isolated to the sanity check only."},
+    {"path": "src/churn/experiment.py", "note": "Per-fold cloned Pipeline (scaler fit on train only); TimeSeriesSplit; ROC-AUC/PR-AUC/Brier/accuracy; baseline-floor, label-shuffle, and leakage-ceiling sanity checks; paired diff with CI."},
+    {"path": "run_experiment.py", "note": "Entrypoint writes config+seed+per-fold metrics to results/; honest verdict logic branches on whether the paired CI overlaps zero; auto-generates dataset if missing."},
+    {"path": "REPORT.md", "note": "Claims LR over GBM with mean±sd, paired CI, sanity-check results, per-fold table, and an honest limitations section (n=5, non-independent folds, no tuning, single dataset)."},
+    {"path": "results/metrics.json", "note": "Machine-readable seed=17, git_rev, churn_rate 0.2705, full per-fold metrics, paired diff mean -0.0180 (CI half-width 0.0088)."},
+    {"path": "tests/test_pipeline.py", "note": "Tests guard rigor properties: leak columns excluded, dedup-before-split, time order, scaler in pipeline, sanity behaviors, determinism, variance/paired-diff shape."},
+    {"path": "make_dataset.py", "note": "Deterministic generator documenting the three planted traps; all three are caught by the pipeline."},
+    {"path": "pyproject.toml", "note": "Dependencies (numpy/pandas/scikit-learn) declared and all used; pytest configured with pythonpath/testpaths."}
+  ]
+}
+```

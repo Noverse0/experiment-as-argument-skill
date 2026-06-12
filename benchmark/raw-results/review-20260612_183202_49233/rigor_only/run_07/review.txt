@@ -1,0 +1,71 @@
+All commands verified: 13 tests pass (4.4s), experiment runs in ~2s, re-running produces bit-identical artifacts (clean git status), and the data hash matches the recorded provenance. This is a rigorous experiment. Here is my review.
+
+## Review
+
+**Leakage prevention — exemplary.** `account_status` is identified as a target leak (closed iff churned), dropped, *and* proven so with a leakage-ceiling sanity check that adds it back and shows ROC-AUC → 1.0 (`src/data.py:79`, `src/experiment.py:187`). The `StandardScaler` is inside the `Pipeline`, so it's fit on the train fold only (`src/experiment.py:36`). The 200 planted exact duplicates are dropped *before* splitting (`src/data.py:62`), preventing train/test straddle. The temporal column is handled deliberately: rows are sorted by `signup_date` and evaluated with `TimeSeriesSplit` (train=past, test=future), with an explicit justification. A label-shuffle check confirms the pipeline collapses to ~0.5 with no residual leak.
+
+**Methodology — strong, with two minor blemishes.** A trivial majority baseline (DummyClassifier, AUC 0.5) is present; metrics are ROC-AUC + PR-AUC, appropriate for the 27% positive rate (not accuracy); both arms are untuned (equal zero tuning budget). However: (1) the LR arm carries `class_weight="balanced"` while GB does not, so the arms differ by slightly more than the single stated variable (acknowledged in code comments). (2) The paired t-test is run over 5 `TimeSeriesSplit` folds, whose training sets are nested/overlapping — the independence assumption of the t-test is violated, so the p-value is optimistic. The report flags low power but not this validity issue.
+
+**Reproducibility — excellent.** Seed (7) fixed and logged; full config + per-fold metrics + provenance (data sha256, git rev, sklearn/python versions) written to `results/metrics.json`. Re-run reproduced results bit-for-bit; `test_determinism` enforces this.
+
+**Claims discipline — good and notably honest.** The report declares a winner (LR, p=0.017) but heavily and honestly qualifies it: one dataset/one seed, low n, varying fold sizes, no tuning, and — most impressively — that the linear-in-log-odds synthetic DGP structurally favors logistic regression. That last caveat essentially undercuts its own winner claim with integrity. The main reservation: stating "Logistic regression is better" as a significant result rests on correlated folds and a single synthetic dataset, which is somewhat stronger than the evidence cleanly supports.
+
+**Executability — verified.** `pytest` (13 pass) and `python3 run_experiment.py` both work from the existing state; tests self-generate the CSV if missing. Fast (<5s each).
+
+**Code quality — high.** Clean module separation, dataclasses, thorough docstrings documenting the leak surface, no dead code, dependencies declared in both `requirements.txt` and `pyproject.toml` and all used (scipy in `paired_delta`).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 82,
+  "reproducibility_score": 97,
+  "claims_discipline_score": 80,
+  "executability_score": 98,
+  "code_quality_score": 95,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps handled correctly: account_status leak dropped (and proven via leakage-ceiling check AUC=1.0), 200 exact duplicates removed before split, temporal column handled via TimeSeriesSplit.",
+    "Trivial majority baseline (AUC 0.5), label-shuffle, overfit-tiny, and leakage-ceiling sanity checks all present and run before the comparison.",
+    "Threshold-free metrics (ROC-AUC + PR-AUC) chosen appropriately for the 27% positive rate; accuracy correctly avoided.",
+    "Full reproducibility: seed logged, provenance (data sha256, git rev, lib versions) recorded; re-run produced bit-identical metrics and clean git status.",
+    "Minor arm asymmetry: LR uses class_weight='balanced', GB does not — slightly more than the single declared variable differs.",
+    "Statistical caveat: paired t-test over 5 nested/overlapping TimeSeriesSplit folds violates independence, so p=0.017 is optimistic; report flags low power but not this validity issue.",
+    "Limitations section is unusually honest — explicitly notes the linear-in-log-odds synthetic DGP structurally favors the declared winner (LR)."
+  ],
+  "leakage_findings": [
+    "account_status correctly excluded from FEATURES and proven to be a target leak via sanity_leakage_ceiling (AUC=1.0); not used as a feature.",
+    "StandardScaler is fit per-fold on train only (inside sklearn Pipeline) — no fit-like transform sees test rows.",
+    "200 exact duplicate rows removed via drop_duplicates() before any split (src/data.py:62), preventing train/test straddle; test_duplicates_removed enforces n_clean=4000.",
+    "Temporal column signup_date used to order rows for TimeSeriesSplit (train=past/test=future) and excluded as a raw feature — deliberate, justified handling.",
+    "customer_id (row id) dropped; no identifier leakage."
+  ],
+  "commands_run": [
+    "python3 -c \"import sklearn,scipy,pandas,numpy\" (deps present, sklearn 1.7.1)",
+    "python3 -m pytest -q  => 13 passed in 4.35s",
+    "python3 run_experiment.py  => wrote results/metrics.json + REPORT.md in ~2s",
+    "diff of comparison+LR summary before/after re-run => IDENTICAL (reproducible)",
+    "git status --short => clean (regenerated artifacts match committed)",
+    "sha256(churn.csv)[:16] => 68a1ead7edfa3c04 (matches metrics.json provenance)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops account_status/customer_id/signup_date with documented reasons; dedup before split; time-orders by signup_date; load_with_leak isolates the leak for the ceiling check."},
+    {"path": "src/experiment.py", "note": "Scaler inside Pipeline (train-only fit); paired TimeSeriesSplit eval; majority/shuffle/overfit/leakage-ceiling sanity checks; paired t-test in paired_delta using scipy."},
+    {"path": "run_experiment.py", "note": "Writes config, provenance (data sha256, git rev, lib versions), sanity outcomes, per-fold metrics to results/; honest _verdict() gates 'winner' on p<0.05."},
+    {"path": "REPORT.md", "note": "Declares LR winner (p=0.017, n=5) but qualifies with strong limitations, incl. that the synthetic DGP favors LR; minor overclaim given correlated folds + single dataset."},
+    {"path": "results/metrics.json", "note": "Reproduced bit-identically on re-run; LR 0.7328±0.0252 vs GB 0.7148±0.0221 ROC-AUC; sanity: baseline 0.5, shuffle 0.49, overfit 1.0, leak ceiling 1.0."},
+    {"path": "make_dataset.py", "note": "Deterministic generator documenting the three planted traps; confirms account_status = closed iff churned and 200 appended exact duplicates."},
+    {"path": "tests/test_experiment.py", "note": "13 tests incl. determinism, baseline floor, label-shuffle, leakage-ceiling — all pass; enforces the rigor claims."},
+    {"path": "pyproject.toml", "note": "Dependencies declared (scikit-learn, pandas, numpy, scipy) and all used; pytest config present."}
+  ]
+}
+```

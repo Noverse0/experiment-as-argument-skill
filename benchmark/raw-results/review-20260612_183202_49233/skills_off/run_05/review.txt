@@ -1,0 +1,77 @@
+All checks pass. I have enough to write the review.
+
+## Review
+
+**What this experiment gets right.** This is a disciplined, well-structured experiment that handles every planted trap deliberately and documents the reasoning in both code and report.
+
+**Leakage** — All three planted traps are handled:
+- `account_status` is explicitly identified as a target-derived leak (`"closed"` iff churned) and dropped (`data.py:28`, `LEAK_COLUMNS`). The report explains *why* it leaks (recorded after the outcome).
+- 200 exact duplicates are removed *before* any split (`data.py:59`), so they cannot straddle train/test. Verified: 4200→4000.
+- The temporal column is handled by `TimeSeriesSplit` over data sorted by `signup_date` (`evaluate.py:64-68`), with a test asserting no look-ahead (`test_sanity.py:56`). The date is not used as a feature.
+- Scaler is fit train-only via `Pipeline` + `clone()` per fold (`pipeline.py`, `evaluate.py:73`).
+- Plus a label-shuffle check (AUC collapses to ~0.49) confirming no residual leak.
+
+**Methodology** — Trivial baseline (`DummyClassifier(strategy="prior")` at exactly 0.5), threshold-free metrics (ROC-AUC, PR-AUC) appropriate for the 27% imbalance with accuracy "for context only," paired same-fold comparison, and both arms run on identical default hyperparameters (equal — zero — tuning budget, disclosed).
+
+**Reproducibility** — Seed fixed and logged, config/metrics/seeds/git-revision/python-version all written to `results/metrics.json`. I re-ran and confirmed byte-identical metrics across runs.
+
+**Claims** — The report claims a directional winner (logreg higher by 0.018 ± 0.010 over 5 folds, sign-consistent on every fold — verifiable from `per_fold_diff`, all negative). It does not overclaim: it flags n=5 as crude, that the ±1sd band is not a significance test, and — notably — that the *synthetic linear data structurally favors the linear model*, explicitly undermining its own headline's generalizability. Nothing in the report is unmeasured by the code.
+
+**Executability** — `pytest` → 11 passed; `make_dataset.py` + `run_experiment.py` run clean from a fresh dataset.
+
+**Minor notes (not faults).** The `band_excludes_zero` heuristic (`|mean| > sd`) is a rough |z|>1 proxy rather than a paired t-test/Wilcoxon — but it's labeled "crude" and the limitation section calls it out honestly. The conclusion logic also handles the no-difference branch correctly even though this run lands in the "small effect" branch.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 93,
+  "executability_score": 98,
+  "code_quality_score": 94,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps (account_status leak, 200 exact duplicates, temporal column) are handled deliberately and documented in both code and report.",
+    "Preprocessing (StandardScaler) is fit train-only via Pipeline+clone inside each TimeSeriesSplit fold; no fit-on-test leakage.",
+    "Trivial baseline (DummyClassifier prior=0.5), label-shuffle (~0.49), and overfit-tiny-subset sanity checks all present and passing.",
+    "Metrics appropriate for 27% imbalance: ROC-AUC + PR-AUC threshold-free, accuracy explicitly 'for context only'.",
+    "Both arms use identical default hyperparameters (equal/zero tuning budget), disclosed as a fair-but-unoptimised comparison.",
+    "Reproducibility verified: seed 7 logged, config/metrics/git-rev/python-version written to results/, re-run produced byte-identical metrics.",
+    "Report claims a sign-consistent 0.018 ± 0.010 ROC-AUC edge for logreg over 5 folds and honestly flags n=5 as crude and the synthetic linear data as favoring the linear model.",
+    "11/11 tests pass; entrypoint runs clean from a freshly regenerated dataset."
+  ],
+  "leakage_findings": [
+    "account_status correctly identified as a perfect target leak ('closed' iff churned) and dropped (data.py:28, LEAK_COLUMNS); confirmed it never reaches X.",
+    "200 exact duplicate rows removed before any split (data.py:59), preventing train/test straddle; 4200 raw -> 4000 used.",
+    "Temporal column handled via TimeSeriesSplit on signup_date-sorted data; test_temporal_split_has_no_lookahead asserts test fold min >= train fold max.",
+    "StandardScaler fit on training fold only (Pipeline cloned per fold, evaluate.py:73-79); no leakage from preprocessing.",
+    "customer_id dropped as identifier; signup_date used only for ordering, not as a feature.",
+    "Label-shuffle sanity check collapses ROC-AUC to ~0.49 for both arms, confirming no residual leakage around the labels."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -m pytest -q  (11 passed in 4.80s)",
+    "rm -f churn.csv && python3 make_dataset.py && python3 run_experiment.py  (ran clean from fresh dataset)",
+    "re-ran run_experiment.py and diffed metrics.json (excluding code_revision): IDENTICAL across reruns at seed 7"
+  ],
+  "file_evidence": [
+    {"path": "src/churn_experiment/data.py", "note": "Leak-aware prep: drops account_status (leak) + customer_id (id), dedups before split, sorts by signup_date. Decisions documented in module docstring."},
+    {"path": "src/churn_experiment/pipeline.py", "note": "Both arms identical except classifier; StandardScaler inside Pipeline so it re-fits train-only per fold."},
+    {"path": "src/churn_experiment/evaluate.py", "note": "TimeSeriesSplit CV, paired per-fold ROC-AUC diff, plus baseline_floor / label_shuffle / overfit_tiny_subset sanity checks."},
+    {"path": "results/metrics.json", "note": "Logs seed, n_splits, feature/leak/id columns, git revision, python version, sanity checks, per-fold metrics — reproduced identically on re-run."},
+    {"path": "REPORT.md", "note": "Directional claim (logreg +0.018 +/- 0.010, sign-consistent) backed by 5 folds; honest limitations including synthetic-data-favors-linear caveat; no claims beyond what code measures."},
+    {"path": "tests/test_sanity.py", "note": "Asserts baseline=0.5, label-shuffle<0.6, overfit>0.85, no temporal look-ahead, and determinism across same-seed runs."},
+    {"path": "make_dataset.py", "note": "Deterministic synthetic generator; docstring documents the planted traps (leak, duplicates, temporal)."}
+  ]
+}
+```

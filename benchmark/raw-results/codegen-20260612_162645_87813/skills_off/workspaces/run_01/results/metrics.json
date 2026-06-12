@@ -1,0 +1,177 @@
+{
+  "experiment": "Does GradientBoosting outperform LogisticRegression at predicting churn?",
+  "config": {
+    "seed": 7,
+    "n_splits": 5,
+    "primary_metric": "roc_auc",
+    "cv_strategy": "TimeSeriesSplit (signup_date ordered)",
+    "features_used": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "dropped_leak_columns": [
+      "account_status"
+    ],
+    "dropped_id_columns": [
+      "customer_id"
+    ],
+    "time_column": "signup_date",
+    "arms": {
+      "logreg": "LogisticRegression",
+      "gboost": "GradientBoostingClassifier"
+    }
+  },
+  "data": {
+    "path": "churn.csv",
+    "n_rows_raw": 4200,
+    "n_duplicates_dropped": 200,
+    "n_rows_modeled": 4000,
+    "churn_rate": 0.2705
+  },
+  "environment": {
+    "python": "3.12.4",
+    "sklearn": "1.9.0",
+    "numpy": "2.4.6",
+    "code_version": "e11943a"
+  },
+  "sanity_checks": {
+    "baseline_floor": {
+      "roc_auc_mean": 0.5,
+      "roc_auc_values": [
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "leakage_ceiling_auc_with_account_status": 1.0,
+    "label_shuffle_auc": {
+      "logreg": 0.492266384549894,
+      "gboost": 0.5107840205777688
+    },
+    "overfit_tiny_subset_auc": {
+      "logreg": 0.9031339031339032,
+      "gboost": 1.0
+    }
+  },
+  "arms": {
+    "logreg": {
+      "arm": "logreg",
+      "n_folds": 5,
+      "per_fold": [
+        {
+          "roc_auc": 0.7344442032132003,
+          "average_precision": 0.5324876631156812
+        },
+        {
+          "roc_auc": 0.7372289156626506,
+          "average_precision": 0.45532627433322914
+        },
+        {
+          "roc_auc": 0.6950785340314136,
+          "average_precision": 0.4732847541833845
+        },
+        {
+          "roc_auc": 0.7658869036654999,
+          "average_precision": 0.5552876212411811
+        },
+        {
+          "roc_auc": 0.7317590361445783,
+          "average_precision": 0.49056642493147884
+        }
+      ],
+      "aggregate": {
+        "roc_auc": {
+          "mean": 0.7328795185434686,
+          "sd": 0.02520427977991526,
+          "values": [
+            0.7344442032132003,
+            0.7372289156626506,
+            0.6950785340314136,
+            0.7658869036654999,
+            0.7317590361445783
+          ]
+        },
+        "average_precision": {
+          "mean": 0.5013905475609909,
+          "sd": 0.041535947284234785,
+          "values": [
+            0.5324876631156812,
+            0.45532627433322914,
+            0.4732847541833845,
+            0.5552876212411811,
+            0.49056642493147884
+          ]
+        }
+      }
+    },
+    "gboost": {
+      "arm": "gboost",
+      "n_folds": 5,
+      "per_fold": [
+        {
+          "roc_auc": 0.7031752062527139,
+          "average_precision": 0.48350394782596007
+        },
+        {
+          "roc_auc": 0.7137409638554216,
+          "average_precision": 0.43680530369717174
+        },
+        {
+          "roc_auc": 0.6876274455772939,
+          "average_precision": 0.46928089443279714
+        },
+        {
+          "roc_auc": 0.7464887640449438,
+          "average_precision": 0.5209575783010114
+        },
+        {
+          "roc_auc": 0.722987951807229,
+          "average_precision": 0.4805252941473353
+        }
+      ],
+      "aggregate": {
+        "roc_auc": {
+          "mean": 0.7148040663075205,
+          "sd": 0.02205575514404761,
+          "values": [
+            0.7031752062527139,
+            0.7137409638554216,
+            0.6876274455772939,
+            0.7464887640449438,
+            0.722987951807229
+          ]
+        },
+        "average_precision": {
+          "mean": 0.47821460368085517,
+          "sd": 0.030227552073249665,
+          "values": [
+            0.48350394782596007,
+            0.43680530369717174,
+            0.46928089443279714,
+            0.5209575783010114,
+            0.4805252941473353
+          ]
+        }
+      }
+    }
+  },
+  "comparison": {
+    "metric": "roc_auc",
+    "arm_a": "gboost",
+    "arm_b": "logreg",
+    "mean_diff_a_minus_b": -0.018075452235948086,
+    "sd_diff": 0.010056871328673882,
+    "ci95_diff": [
+      -0.0305627072993301,
+      -0.005588197172566072
+    ],
+    "t_stat": -4.018937759339919,
+    "p_value": 0.01587840165861485,
+    "n_folds": 5,
+    "significant_at_0.05": true,
+    "conclusion": "logreg outperforms gboost"
+  }
+}

@@ -1,0 +1,23 @@
+Done. Here's the summary.
+
+```text
+Claim:  Does GradientBoosting outperform LogisticRegression at predicting churn?
+Design: variable = model only; 5-fold TimeSeriesSplit on signup_date (forward-looking);
+        features = tenure_months, monthly_spend, support_tickets; scaler fit per-fold; seed=42.
+Sanity: dedup ✓ · baseline-floor ✓ · leakage-ceiling ✓ · label-shuffle ✓ · overfit-tiny ✓
+Result: LR ROC-AUC 0.733 ± 0.025 vs GB 0.706 ± 0.019 (n=5). Paired diff -0.027, p=0.006.
+        → No: GB does not outperform LR. LR is the slightly-but-consistently better model.
+Risk:   small n (5 folds) → effect is reliable in sign but small; synthetic logistic DGP
+        structurally favors the linear model; one data seed.
+```
+
+**Rigor decisions that mattered:**
+- Dropped `account_status` (perfect target leak: `"closed"` iff `churned`) and `customer_id` (id) — tested that they never reach the feature matrix.
+- Removed 200 exact duplicates *before* splitting so they can't straddle train/test.
+- Time-based split (churn is forward-looking; random split on temporal data is leakage).
+- 5 folds give variance behind the comparison; reported mean ± sd + paired t-test, not a single number.
+- Caught a real subtlety: a *single* label-shuffle draw on a small fold is itself high-variance (sd ~0.13) and falsely flagged a "leak" at AUC 0.67. Verified over 50 seeds the mean was 0.50 (no leak), then fixed the check to average 20 shuffles on the 80% split.
+
+**Verification:** `pytest` 10/10 pass; full experiment runs in ~12s CPU (under the 5-min budget); all sanity checks pass; artifacts written to `results/metrics.json` and `REPORT.md`.
+
+{"files_created": ["pyproject.toml", "src/churn_experiment/__init__.py", "src/churn_experiment/data.py", "src/churn_experiment/models.py", "src/churn_experiment/evaluate.py", "src/churn_experiment/sanity.py", "run_experiment.py", "tests/test_experiment.py", "results/metrics.json", "REPORT.md", "tasks/todo.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest -q"}

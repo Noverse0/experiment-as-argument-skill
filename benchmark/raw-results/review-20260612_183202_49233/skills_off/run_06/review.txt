@@ -1,0 +1,66 @@
+Both commands work. Tests pass (12), and the experiment reproduces the committed metrics bit-for-bit (verdict and CI identical). This is a strong, rigorous experiment. Let me write up the review.
+
+## Review
+
+**Leakage prevention — exemplary.** `account_status` is excluded *and* its leak status is verified empirically in the audit (`account_status_is_leak`) rather than asserted, *and* demonstrated (re-adding it drives holdout ROC-AUC to 1.000). The `StandardScaler` lives inside a `Pipeline`, so it is fit on training folds only — both in `cross_validate` and via `clone(model).fit(Xtr,...)` for the holdout. The 200 planted duplicates are dropped *before* the split (`test_dedup_before_split_prevents_straddling` confirms zero straddling). The temporal column is handled deliberately: chronological split for the holdout plus `TimeSeriesSplit` forward-chaining CV, with `signup_date` used only for ordering, never as a feature.
+
+**Methodology — strong.** Trivial `DummyClassifier(strategy="prior")` baseline present (AUC 0.500). Class-balance-appropriate metrics (ROC-AUC headline + PR-AUC), with accuracy explicitly excluded from the verdict. Equal budget: both models use library defaults, honestly framed as a "default behavior, not tuned ceilings" comparison. Minor: `TimeSeriesSplit` folds share training data, so the paired folds aren't fully independent — slightly understated in the CI (disclosed as "indicative").
+
+**Reproducibility — excellent.** Single seed (17) centralized in `config.py`, logged into `metrics.json`. `test_reproducible_same_seed` asserts per-fold equality, and my clean re-run reproduced the verdict and CI exactly. Config + metrics + CV table all written to `results/`.
+
+**Claims discipline — strong.** Claims LR wins, backed by 5-fold paired CV (mean −0.0249, CI excludes zero), corroborated by the holdout (0.745 vs 0.732). Limitations are candid (synthetic data favors a linear model; no tuning; normal-approx CI). Nothing in the report is unmeasured. Minor nit: the CI uses a z-multiplier (1.96) over only 5 folds rather than t₄ (2.776); recomputing with t still excludes zero, and the report flags the approximation.
+
+**Executability — excellent.** `pytest` (12 passed, 5s) and `python3 run_experiment.py` both work from a clean regenerated dataset.
+
+**Code quality — excellent.** Clean modular `src/` layout, purposeful docstrings, no dead code, dependencies declared and all used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 88,
+  "executability_score": 98,
+  "code_quality_score": 95,
+  "verdict": "excellent",
+  "key_findings": [
+    "All three planted traps handled correctly: account_status leak excluded + empirically verified + demonstrated; 200 duplicates dropped before split; temporal column drives chronological split and forward-chaining CV.",
+    "Preprocessing (StandardScaler) is wrapped in a Pipeline so it is fit on training folds only, never on test data.",
+    "Trivial prior-only baseline (AUC 0.500) and label-shuffle sanity check (AUC 0.495) both present and pass.",
+    "Metrics appropriate for the 27% churn imbalance (ROC-AUC + PR-AUC); accuracy explicitly excluded from the verdict.",
+    "Winner claim (LR) backed by 5-fold paired CV with CI excluding zero, corroborated by the once-touched holdout; limitations honest.",
+    "Both declared commands run from a clean state; experiment reproduces committed metrics bit-for-bit.",
+    "Minor stats nit: 95% CI uses z=1.96 over 5 folds rather than t-distribution, and TimeSeriesSplit folds are not independent — both disclosed as indicative; conclusion robust to the correction."
+  ],
+  "leakage_findings": [
+    "account_status (target-derived: 'closed' iff churned==1) is excluded from FEATURES; leak confirmed via groupby purity check (account_status_is_leak=true) and a demonstration showing holdout AUC=1.000 when included.",
+    "StandardScaler fit only on train folds via sklearn Pipeline inside cross_validate and clone().fit(Xtr) for holdout — no test-set fitting.",
+    "200 exact duplicate rows dropped before the split (deduplicate -> chronological_split); test asserts no row content straddles the boundary.",
+    "Temporal handling deliberate: sort by signup_date for a 70/30 chronological holdout plus 5-fold TimeSeriesSplit; signup_date never used as a predictor.",
+    "No leakage detected; the only residual subtlety is correlation between overlapping TimeSeriesSplit training folds, which mildly affects CI width (disclosed)."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*'",
+    "python3 -m pytest -q  (12 passed in 5.02s)",
+    "rm -f churn.csv && python3 make_dataset.py && python3 run_experiment.py  (verdict: logistic_regression better, GBM-LR -0.0249, CI [-0.0368, -0.0130])"
+  ],
+  "file_evidence": [
+    {"path": "src/churn_experiment/data.py", "note": "audit() empirically verifies the account_status leak; deduplicate() runs before chronological_split(); to_xy() exposes only FEATURES, excluding id/leak/time cols."},
+    {"path": "src/churn_experiment/models.py", "note": "StandardScaler + LogisticRegression wrapped in a Pipeline so preprocessing is fit on training folds only; classifier is the single variable under study."},
+    {"path": "src/churn_experiment/evaluation.py", "note": "Forward-chaining TimeSeriesSplit CV, prior-only baseline, label-shuffle, leakage demonstration, paired difference with 95% CI; uses z=1.96 over 5 folds (minor — t would be more correct)."},
+    {"path": "REPORT.md", "note": "Claims LR wins with CI excluding zero; methodology, sanity checks, and honest limitations (synthetic data, no tuning, approximate CI) all present and consistent with metrics.json."},
+    {"path": "results/metrics.json", "note": "Full config (seed=17), audit, CV per-fold scores, paired difference, and once-touched holdout — all reproduced bit-for-bit on clean re-run."},
+    {"path": "tests/test_pipeline.py", "note": "Asserts beat-baseline, label-shuffle collapse, leakage demo near 1.0, real models not near-perfect, and bit-for-bit reproducibility under fixed seed."}
+  ]
+}
+```

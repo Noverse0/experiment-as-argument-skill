@@ -1,0 +1,129 @@
+{
+  "config": {
+    "seed": 7,
+    "n_splits": 5,
+    "split": "TimeSeriesSplit on signup_date order (train=past, test=future)",
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "dropped_columns": {
+      "account_status": "target leak (closed iff churned)",
+      "customer_id": "row identifier, no signal",
+      "signup_date": "temporal ordering only, not a feature"
+    },
+    "preprocessing": "StandardScaler fit on train fold only (in Pipeline)",
+    "primary_metric": "roc_auc"
+  },
+  "provenance": {
+    "data_command": "python3 make_dataset.py --out churn.csv",
+    "data_sha256_16": "68a1ead7edfa3c04",
+    "code_git_rev": "e11943a",
+    "sklearn_version": "1.7.1",
+    "python_version": "3.12.4"
+  },
+  "data": {
+    "n_raw": 4200,
+    "n_duplicates_removed": 200,
+    "n_clean": 4000,
+    "churn_rate": 0.2705
+  },
+  "sanity": {
+    "majority_baseline": {
+      "roc_auc_mean": 0.5
+    },
+    "label_shuffle": {
+      "roc_auc_mean": 0.4925675333362875
+    },
+    "overfit_tiny": {
+      "train_roc_auc": 1.0
+    },
+    "leakage_ceiling": {
+      "roc_auc_mean": 1.0
+    }
+  },
+  "arms": {
+    "logistic_regression": {
+      "summary": {
+        "roc_auc": {
+          "mean": 0.7327508272743317,
+          "sd": 0.025249415776932172,
+          "n": 5
+        },
+        "pr_auc": {
+          "mean": 0.5014477835134136,
+          "sd": 0.04118722199364784,
+          "n": 5
+        }
+      },
+      "per_fold": [
+        {
+          "roc_auc": 0.7345310464611376,
+          "pr_auc": 0.5336217539037253
+        },
+        {
+          "roc_auc": 0.7374698795180722,
+          "pr_auc": 0.45528274989674694
+        },
+        {
+          "roc_auc": 0.6944392394599064,
+          "pr_auc": 0.4729278965379848
+        },
+        {
+          "roc_auc": 0.7652537299686866,
+          "pr_auc": 0.553543167223857
+        },
+        {
+          "roc_auc": 0.7320602409638554,
+          "pr_auc": 0.49186335000475334
+        }
+      ]
+    },
+    "gradient_boosting": {
+      "summary": {
+        "roc_auc": {
+          "mean": 0.7148016566689661,
+          "sd": 0.022055900984489656,
+          "n": 5
+        },
+        "pr_auc": {
+          "mean": 0.4782105719711575,
+          "sd": 0.03023445652405924,
+          "n": 5
+        }
+      },
+      "per_fold": [
+        {
+          "roc_auc": 0.7031752062527139,
+          "pr_auc": 0.48350394782596007
+        },
+        {
+          "roc_auc": 0.7137289156626505,
+          "pr_auc": 0.4367851451486835
+        },
+        {
+          "roc_auc": 0.6876274455772939,
+          "pr_auc": 0.46928089443279714
+        },
+        {
+          "roc_auc": 0.7464887640449438,
+          "pr_auc": 0.5209575783010114
+        },
+        {
+          "roc_auc": 0.722987951807229,
+          "pr_auc": 0.4805252941473353
+        }
+      ]
+    }
+  },
+  "comparison": {
+    "metric": "roc_auc",
+    "compare": "gradient_boosting - logistic_regression",
+    "mean_delta": -0.017949170605365404,
+    "sd_delta": 0.010207709897645245,
+    "n": 5,
+    "t_stat": -3.931887369036293,
+    "p_value": 0.017075868916955988
+  }
+}

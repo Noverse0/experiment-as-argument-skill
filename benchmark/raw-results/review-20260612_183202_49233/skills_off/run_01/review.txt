@@ -1,0 +1,76 @@
+All checks pass and the rerun is bit-identical (clean git status). Here is my review.
+
+## Review: Churn Prediction — GradientBoosting vs LogisticRegression
+
+This is an unusually rigorous experiment. The four planted traps in `make_dataset.py` are each neutralized, *measured* rather than merely asserted, and locked in by tests.
+
+**Leakage prevention — excellent.**
+- `account_status` (the perfect target leak, set to `"closed"` iff `churned==1`) is excluded from `FEATURES` (`src/data.py:20`) and its leakage ceiling is *demonstrated*: a model including it scores ROC-AUC = 1.0 (`leakage_ceiling_auc`, verified in metrics.json).
+- Deduplication happens before any split (`src/data.py:59`), removing exactly 200 rows (4200→4000), so duplicates cannot straddle train/test. Verified.
+- The `StandardScaler` lives inside the `Pipeline` and is cloned + refit per fold (`_score_fold`, `src/evaluate.py:30-38`) — no fit-on-full-data leak.
+- The temporal column is handled deliberately: data is sorted by `signup_date` and evaluated with `TimeSeriesSplit` (past→future), with an explicit forward-looking justification.
+- A label-shuffle sanity check confirms AUC collapses to ~0.5, ruling out residual leakage.
+
+**Methodology — strong.** Trivial `DummyClassifier` baseline (AUC 0.5), imbalance-aware metrics (ROC-AUC + PR-AUC), accuracy explicitly avoided, single varied factor (estimator only) with identical preprocessing/seed/folds, paired test on shared folds. One real subtlety the report misses: CV folds from `TimeSeriesSplit` have nested/overlapping training sets, so a paired t-test's independence assumption is violated and significance from n=5 correlated folds is mildly anti-conservative. PR-AUC is reported but not tested statistically.
+
+**Reproducibility — excellent.** Seed (7) fixed and logged in config; environment captured (python/sklearn/numpy/git SHA); `results/metrics.json` written. I regenerated the dataset (bit-identical diff) and re-ran the entrypoint — outputs reproduced exactly, leaving git status clean.
+
+**Claims discipline — strong.** The conclusion is rendered from the comparison logic (not hardcoded), reports mean±sd and a 95% CI, and ties the result to the genuinely linear data-generating process. Limitations are honest: low power, no tuning (equal budget for both arms), single synthetic seed, folds consumed by one comparison. The only gap is the correlated-fold caveat above — it claims a significant winner from 5 folds while flagging low power generically but not the non-independence specifically.
+
+**Executability — excellent.** `pytest` → 12 passed in 5.9s; `make_dataset.py` and `run_experiment.py` both run in seconds. Dependencies declared in both `pyproject.toml` and `requirements.txt`.
+
+**Code quality — excellent.** Clean module separation (data/pipeline/evaluate), thorough docstrings explaining *why*, no dead code, all declared dependencies used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v1",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 88,
+  "executability_score": 96,
+  "code_quality_score": 95,
+  "verdict": "excellent",
+  "key_findings": [
+    "All four planted traps (account_status leak, 200 duplicate rows, temporal column, customer_id) are correctly neutralized AND empirically demonstrated rather than just asserted.",
+    "Sanity-check suite is exemplary: baseline floor (0.5), leakage ceiling (1.0 with account_status), label-shuffle collapse (~0.5), tiny-subset overfit (~1.0) — all measured and asserted in tests.",
+    "Reproducibility verified end-to-end: regenerated dataset is bit-identical and re-running the entrypoint left git status clean (deterministic outputs).",
+    "12/12 tests pass in ~6s; both declared commands run from a clean venv.",
+    "Conclusion is data-driven (rendered from comparison logic) with effect size, sd, and 95% CI; limitations are candid (low power, no tuning, single synthetic seed, folds consumed).",
+    "Main weakness: a winner is claimed via a paired t-test over 5 TimeSeriesSplit folds whose training sets overlap, violating the test's independence assumption — significance is mildly overconfident and this specific caveat is not noted."
+  ],
+  "leakage_findings": [
+    "account_status excluded from FEATURES (src/data.py:20); leakage ceiling measured at ROC-AUC=1.0 confirming it perfectly encodes the target.",
+    "Deduplication performed before splitting (src/data.py:59); exactly 200 duplicates removed (4200->4000), preventing train/test straddle. Verified.",
+    "StandardScaler is inside the Pipeline and cloned+refit per fold (src/evaluate.py:30-52) — fitted on train folds only, no preprocessing leak.",
+    "Temporal handling is deliberate: sorted by signup_date and evaluated with TimeSeriesSplit (past->future), with explicit forward-looking justification.",
+    "Label-shuffle sanity check confirms AUC collapses to ~0.49-0.51, ruling out residual label leakage.",
+    "Note: signup_date is independent of churn in the generator, so the time-split adds no leakage protection beyond the dedup here, but it remains a defensible, clearly-justified methodological choice."
+  ],
+  "commands_run": [
+    "source .venv/bin/activate; python -m pytest -q  => 12 passed in 5.90s",
+    "python3 make_dataset.py --out /tmp/churn_fresh.csv; diff churn.csv /tmp/churn_fresh.csv  => identical (DATASET REPRODUCIBLE)",
+    "python3 run_experiment.py --data churn.csv  => 'logreg outperforms gboost', GBM 0.7148 / LogReg 0.7329, diff -0.0181 p=0.016",
+    "git status --short  => clean (rerun outputs bit-identical)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "FEATURES excludes account_status/customer_id/signup_date; dedup before split (line 59); time-ordering before split (line 64)."},
+    {"path": "src/pipeline.py", "note": "Single varied factor = estimator; identical StandardScaler + seed=7 across both arms; unknown arm raises."},
+    {"path": "src/evaluate.py", "note": "Per-fold clone+fit keeps scaler leak-free; baseline floor, leakage ceiling, label-shuffle, tiny-subset overfit checks; paired t-test with 95% CI and a 'no detectable difference' guard."},
+    {"path": "run_experiment.py", "note": "Logs seed, full config, environment (python/sklearn/numpy/git SHA) to results/metrics.json; REPORT.md is rendered from measured metrics, not hardcoded."},
+    {"path": "tests/test_pipeline.py", "note": "12 tests asserting rigor invariants: no leak/id cols, dedup==200, determinism, baseline~0.5, leakage ceiling>0.99, shuffle~0.5, beats-baseline, end-to-end artifact write."},
+    {"path": "make_dataset.py", "note": "Generator documents the three planted traps; churn is a linear logit, consistent with the report's interpretation that logreg is near-optimal."},
+    {"path": "REPORT.md", "note": "Honest limitations (low power n=5, no tuning, single synthetic seed, folds consumed); claims significant winner from correlated CV folds without noting the fold non-independence caveat."},
+    {"path": "results/metrics.json", "note": "Matches REPORT.md exactly: GBM 0.7148+/-0.0221, LogReg 0.7329+/-0.0252, diff -0.0181, CI [-0.0306,-0.0056], p=0.0159."}
+  ]
+}
+```
