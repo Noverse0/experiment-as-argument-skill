@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Review generated workspaces with a stronger model and validate JSON immediately.
 # Usage: MODEL=opus ./run_review_experiment.sh runs/codegen/<run_id>
+# Match the rubric to the dataset variant used at codegen time (default v1):
+#   RUBRIC=experiment-as-argument-review-v2.md ./run_review_experiment.sh <dir>
 set -uo pipefail
 
 MODEL="${MODEL:-opus}"
+RUBRIC="${RUBRIC:-experiment-as-argument-review-v1.md}"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+[ -f "$ROOT/rubric/$RUBRIC" ] || { echo "no such rubric: $RUBRIC" >&2; exit 2; }
 CODEGEN_DIR="${1:?usage: run_review_experiment.sh <codegen run dir>}"
 [ -d "$CODEGEN_DIR" ] || CODEGEN_DIR="$ROOT/$1"
 RUN_ID="$(date +%Y%m%d_%H%M%S)_$$"
@@ -19,7 +23,7 @@ for ws in "$CODEGEN_DIR"/*/workspaces/run_*; do
   arm="$(basename "$(dirname "$(dirname "$ws")")")"
   dest="$OUT/$arm/$run"
   mkdir -p "$dest"
-  cp "$ROOT/rubric/experiment-as-argument-review-v1.md" "$dest/prompt.txt"
+  cp "$ROOT/rubric/$RUBRIC" "$dest/prompt.txt"
   echo ">> review $arm $run"
   # Validity is judged by analyze.py (strict JSON contract), not exit code:
   # truncated or malformed reviews are retried instead of silently recorded.
