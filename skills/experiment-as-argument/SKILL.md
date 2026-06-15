@@ -43,11 +43,13 @@ Run these before believing any training loop; they cost minutes and catch most s
 - **Overfit one batch / tiny subset:** the model must reach ~zero loss on a tiny slice. If it cannot, the pipeline is broken.
 - **Label-shuffle test:** with shuffled labels, performance must fall to the baseline floor. If it does not, information is leaking around the labels.
 - **Init loss check (when applicable):** loss at initialization should match the theoretical value (e.g., -log(1/C) for C balanced classes).
+- **A check that cannot fail is decoration.** Every sanity check must be able to fail and must assert on its outcome — seed it, compare against the baseline floor, and stop (or loudly flag) the run on violation. A label-shuffle or overfit test that runs unseeded or asserts nothing proves nothing, however reassuring its printout looks.
 
 ## Seeds and Repetition
 
 - Fix and log every seed (framework, numpy, data shuffling, split).
 - One seed is an anecdote. Before comparing methods, run ≥3 seeds (or CV folds) per arm and report mean ± sd and n.
+- A repeat only counts if it can change the result. If the split and model are deterministic, N seeds yield N identical numbers — that is fake variance, not evidence. Put the randomness where it actually moves the metric (resampled split, model init, bootstrap), or state plainly that the result is deterministic instead of dressing it up as a variance estimate.
 - Identical pipelines must produce identical metrics when re-run with the same seed. If they do not, find the nondeterminism before proceeding.
 
 ## Claims Discipline
