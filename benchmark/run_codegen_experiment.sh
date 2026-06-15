@@ -49,7 +49,11 @@ for arm in $ARMS; do
           < "$ROOT/prompts/$PROMPT" ) \
         > "$OUT/$arm/run_$i.txt" 2> "$OUT/$arm/run_$i.stderr"
       status=$?
-      if find "$ws" -type f ! -name 'make_dataset.py' -print -quit | grep -q .; then
+      # Exclude .claude/ (the rigor_only arm seeds SKILL.md there): otherwise
+      # the skill file counts as a "produced artifact" and the guard never
+      # retries an empty rigor_only run.
+      if find "$ws" -type f ! -name 'make_dataset.py' -not -path '*/.claude/*' \
+          -print -quit | grep -q .; then
         break
       fi
       echo "!! no project files produced, retrying ($arm run_$i attempt $attempt)" >&2
