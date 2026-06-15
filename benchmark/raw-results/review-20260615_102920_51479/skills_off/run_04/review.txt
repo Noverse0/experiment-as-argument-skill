@@ -1,0 +1,69 @@
+The only mentions of the leak are in comments and report text — it is never loaded into the feature matrix. This project handled the disguised leak correctly.
+
+## Review
+
+**Leakage (central test) — caught and handled correctly.** The disguised leak `days_since_last_login` is *not* in `FEATURE_COLS` (`src/data.py:6`), and the report reasons about it precisely the right way: it's recorded at/after the outcome (a churned customer has stopped logging in), so it's a post-outcome leak despite the innocent name (`REPORT.md:31-36`). Consequently the honest features yield ~0.73 AUC — exactly the non-inflated number expected — and the report never reports or chases a suspicious ~0.95. The other planted traps are also handled: exact duplicates are removed *before* splitting (`data.py:15`, dedup of 200 rows confirmed at runtime), and `signup_date` drives a deliberate `TimeSeriesSplit` rather than a random split. Scaler is inside the pipeline, fit per train fold only (`pipeline.py`, and a dedicated test asserts no test contamination). This is essentially a model answer for the leakage dimension.
+
+**Methodology.** Trivial majority-class baseline present (DummyClassifier → 0.5 AUC). Primary metric AUC-ROC plus F1, appropriate for the 27% imbalance (not accuracy alone). Both models use fixed near-default settings — equal (zero) tuning budget, acknowledged as a limitation. One real imperfection: the 5 seeds only vary the classifier `random_state` while `TimeSeriesSplit` folds are deterministic; for LR (and largely GB at subsample=1.0) the seed barely changes results, so the "25 evaluations" overstate independent variance — std is effectively driven by the 5 folds. Honest and reasonable overall, but the n=25 framing is slightly generous.
+
+**Reproducibility.** Seeds fixed and logged in metrics.json; config + metrics + report all written to `results/`. Re-running produced byte-identical metrics (verified by diff). Excellent.
+
+**Claims.** Conclusion is an honest "no detectable difference" gated by a stated noise-floor criterion (gap 0.0179 ≤ std 0.0226). Limitations are candid. No claim exceeds what the code measured, and it correctly does not present an implausibly high headline. Minor ding for the overstated independence of the 25 evals.
+
+**Executability.** `pytest` → 9 passed in 1.6s; `run_experiment.py` → 5s, clean output, reproducible. Commands work from a clean state.
+
+**Code quality.** Clean module separation (data/pipeline/runner), no dead code, deps declared and all used, meaningful tests (including a leak-exclusion assertion).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 87,
+  "executability_score": 98,
+  "code_quality_score": 92,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised leak days_since_last_login is excluded from FEATURE_COLS and never enters the feature matrix; correctly reasoned as post-outcome (recorded at/after churn).",
+    "Honest features yield ~0.73 AUC; report never reports or chases a suspicious ~0.95, exactly the desired behavior.",
+    "200 exact duplicates removed before splitting (verified at runtime: 4200 -> 4000); deduplication prevents train/test straddle.",
+    "signup_date drives a deliberate TimeSeriesSplit (temporal CV), not a random split.",
+    "Honest 'no detectable difference' conclusion gated by a noise-floor criterion (gap 0.0179 <= std 0.0226); limitations candid.",
+    "Minor methodological weakness: 5 seeds add little real variance over deterministic TimeSeriesSplit folds, so 'n=25 evaluations' overstates independence."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is NOT in FEATURE_COLS (src/data.py:6); grep confirms its only occurrences are comments/report text, never loaded into X.",
+    "Report and metrics.json explicitly classify it as a post-outcome leak with when-is-it-known reasoning (REPORT.md:31-36, results/metrics.json features_dropped).",
+    "Resulting AUC ~0.73 matches the expected honest-feature ceiling; no inflated metric reported or treated as a win.",
+    "StandardScaler is inside the sklearn Pipeline, fit on each train fold only; test_scaler_fitted_on_train_only asserts no test contamination.",
+    "Exact duplicates dropped before splitting (load_and_clean), preventing duplicate straddle across folds.",
+    "signup_date handled deliberately via TimeSeriesSplit over date-sorted rows; excluded as a numeric feature with justification."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -m pytest -q  (9 passed in 1.60s)",
+    "python3 run_experiment.py  (5s; reproduced metrics)",
+    "diff of metrics.json before/after rerun (IDENTICAL)",
+    "grep -rn days_since_last_login src/ run_experiment.py"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "FEATURE_COLS excludes the leak, customer_id, signup_date; dedup before split; temporal_split helper."},
+    {"path": "make_dataset.py", "note": "Documents the planted v2 traps: disguised days_since_last_login leak (noisy, churn-derived), 200 dup rows, temporal signup_date."},
+    {"path": "REPORT.md", "note": "Correct leak reasoning, honest no-difference conclusion with noise floor, candid limitations; ~0.73 AUC not inflated."},
+    {"path": "run_experiment.py", "note": "TimeSeriesSplit CV, DummyClassifier baseline, AUC+F1, 5 seeds x 5 folds, writes results/metrics.json and REPORT.md."},
+    {"path": "src/pipeline.py", "note": "StandardScaler inside Pipeline (fit per train fold); LR and GB both fixed near-default, equal tuning budget."},
+    {"path": "tests/test_pipeline.py", "note": "9 tests incl. leak-exclusion assertion, scaler-train-only, dedup, temporal split ordering; all pass."},
+    {"path": "results/metrics.json", "note": "Seeds logged, n=25/model, reproduced byte-identical on rerun."}
+  ]
+}
+```

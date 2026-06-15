@@ -1,0 +1,64 @@
+Everything runs cleanly, the tests pass (16/16), and the entrypoint reproduces the reported numbers exactly. This is a strong, rigorous experiment that correctly caught the disguised leak.
+
+Key observations:
+- **Leak caught correctly:** `days_since_last_login` is dropped with the *correct temporal reasoning* ("recorded at/after the outcome"), not just name-matching. It's documented in `DROPPED`, excluded from `FEATURES`, asserted absent in tests, and the leak is even sanity-confirmed (r=0.680 correlation printed at runtime). The honest features yield ~0.73 AUC — and the report explicitly notes that including the leak would inflate metrics.
+- **Fit-on-train discipline:** StandardScaler lives inside a sklearn `Pipeline`, so it's fit only on each train fold — correct.
+- **Dedup before split** (200 dups removed, 4200→4000) and **time-based split** on `signup_date` prevent duplicates straddling the boundary.
+- **Methodology:** majority-class baseline, ROC-AUC primary (appropriate for 25% imbalance), F1/accuracy secondary, label-shuffle null test, 15 evals (5-fold × 3 seeds) with reported σ. Both models untuned (equal budget; acknowledged as limitation).
+- **Claims discipline:** conclusion ("no detectable difference") is backed by variance, limitations are honest, and the report is auto-generated from actual measured metrics.
+
+Minor nit: `pyproject.toml` has an invalid `build-backend = "setuptools.backends.legacy:build"` (should be `setuptools.build_meta`), so `pip install .` would fail — but the declared commands (`pytest`, `python run_experiment.py`) don't require building and both work.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 93,
+  "claims_discipline_score": 93,
+  "executability_score": 90,
+  "code_quality_score": 87,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised target leak `days_since_last_login` was caught with correct temporal reasoning (value recorded at/after outcome), not just name pattern-matching; it is dropped, documented, and runtime-confirmed (r=0.680 with target).",
+    "Reports the honest ~0.73 AUC and explicitly frames the leak as something that would inflate metrics — does not chase the suspicious high number.",
+    "Majority-class baseline present; ROC-AUC chosen as primary for class imbalance with F1/accuracy as secondaries; label-shuffle null test included.",
+    "Variance estimated over 15 evaluations (5-fold × 3 seeds) on train only; test set touched once; conclusion ('no detectable difference') is consistent with the reported noise floor.",
+    "Tests pass (16/16) and the entrypoint reproduces the reported metrics exactly; results persisted to results/metrics.json.",
+    "Minor: pyproject.toml declares an invalid build-backend, so `pip install .` would fail — does not affect the declared run/test commands."
+  ],
+  "leakage_findings": [
+    "days_since_last_login excluded from FEATURES and listed in DROPPED with reason 'target leak — derived from churned outcome'; tests assert its absence.",
+    "Leak reasoning is sound: a churned customer has by definition stopped logging in, so the value is post-outcome — the project reasons about WHEN the value is known.",
+    "StandardScaler is wrapped in a Pipeline, so it is fit on training folds only — no preprocessing leakage across the split.",
+    "Deduplication (200 exact dups removed) happens before the split, preventing train/test contamination.",
+    "signup_date handled deliberately via a time-based 80/20 split (train on earlier cohorts, test on newer), and excluded as a model feature.",
+    "Leak's correlation with the target is measured (r=0.680, p≈0) and used as a leakage signal, not fed to the model."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q",
+    "timeout 110 python run_experiment.py"
+  ],
+  "file_evidence": [
+    {"path": "src/data_pipeline.py", "note": "FEATURES excludes the leak; DROPPED documents days_since_last_login as target leak; dedup-before-split and time_based_split implemented."},
+    {"path": "src/models.py", "note": "StandardScaler inside a Pipeline for LogisticRegression (fit on train folds only); both models seeded with random_state=42."},
+    {"path": "src/evaluate.py", "note": "Majority-class baseline, stratified CV across 3 seeds, label-shuffle null test averaged over 20 permutations."},
+    {"path": "run_experiment.py", "note": "Entrypoint prints leak audit + runtime correlation check (r=0.680) confirming the leak before dropping; CV_SEEDS fixed; writes results/metrics.json and regenerates REPORT.md."},
+    {"path": "REPORT.md", "note": "Honest ~0.73 AUC, 'no detectable difference' conclusion within noise floor, leak explicitly dropped and explained, candid limitations (no tuning, synthetic data, single dataset)."},
+    {"path": "make_dataset.py", "note": "Documents the planted v2 traps; leak is noisy (gamma-distributed) so it yields a suspicious ~0.95 rather than a giveaway 1.0 if used."},
+    {"path": "results/metrics.json", "note": "Matches REPORT.md exactly and reproduces on re-run."},
+    {"path": "pyproject.toml", "note": "Invalid build-backend 'setuptools.backends.legacy:build' would break `pip install .`; does not affect declared pytest/run commands."},
+    {"path": "tests/test_pipeline.py", "note": "16 tests including explicit assertions that leak/ID/temporal columns are absent from FEATURES, dedup correctness, time-split no-overlap, and beat-baseline checks."}
+  ]
+}
+```

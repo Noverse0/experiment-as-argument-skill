@@ -1,0 +1,7 @@
+All 18 tests pass, the experiment completes in ~10 seconds, and the report is written. The key design decisions:
+- `days_since_last_login` excluded as a **target leak** (post-outcome)
+- 200 duplicate rows removed before splitting
+- **TimeSeriesSplit** used to respect temporal order of `signup_date`
+- Conclusion: no statistically meaningful difference (overlapping ±1 SD ROC-AUC ranges: LR 0.710–0.755 vs GB 0.695–0.735)
+
+{"files_created": ["src/__init__.py", "src/pipeline.py", "src/experiment.py", "src/report.py", "tests/__init__.py", "tests/test_pipeline.py", "tests/test_experiment.py", "run_experiment.py", "requirements.txt", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}

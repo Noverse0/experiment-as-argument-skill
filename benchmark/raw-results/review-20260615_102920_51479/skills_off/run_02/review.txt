@@ -1,0 +1,66 @@
+Confirmed: with the leak, AUC jumps to 0.96 (matching the guidance's ~0.95 prediction); the honest feature set gives 0.75. The project correctly identified and dropped the leak with sound causal reasoning. This is gold-standard behavior.
+
+## Review Summary
+
+**Leakage (central test): caught cleanly.** `days_since_last_login` is explicitly dropped as a target leak in both `src/data.py:6-9,47` and the report, with correct causal reasoning ("recorded at/after the churn event — a churned customer has stopped logging in"). The project used the honest feature set (AUC ~0.75), not the leaked one (AUC ~0.96, which I verified). All other discipline is present: duplicates removed *before* splitting (`drop_duplicates`), time-based split on `signup_date` with explicit rationale, scaler fitted on train only, plus a label-shuffle sanity check (AUC 0.527).
+
+**Methodology:** Trivial baseline (`DummyClassifier`), AUC+F1 (imbalance-appropriate), both models untuned/default = fair budget, 5 seeds. The only weak point is the "detectable difference" determination via an ad-hoc `max(spread, 0.01)` heuristic rather than a real significance test — and LR's variance is exactly 0, so the comparison isn't a true statistical test. Honestly flagged in limitations.
+
+**Reproducibility:** Seeds fixed/logged, metrics written to `results/metrics.json`, dataset generator deterministic; re-running reproduced identical numbers.
+
+**Claims:** Declares LR the winner, but honestly caveats (LR deterministic, logistic DGP favors LR, no tuning, single split, distribution shift). Headline number is plausible, not inflated — the project did not fall for the leak.
+
+**Executability:** 25/25 tests pass; entrypoint runs clean and regenerates report+metrics.
+
+**Code quality:** Clean modular structure, docstrings, no dead code, all deps used. Minor: `test_time_based_split_no_overlap` only checks sizes, not actual temporal ordering.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 86,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 88,
+  "executability_score": 98,
+  "code_quality_score": 91,
+  "verdict": "excellent",
+  "key_findings": [
+    "Gold-standard handling of the disguised leak: days_since_last_login is dropped with correct causal reasoning (recorded at/after the outcome), and the honest feature set yields a plausible ~0.75 AUC rather than the inflated ~0.96.",
+    "All standard discipline present: dedup before split, time-based split on signup_date, scaler fit on train only, trivial DummyClassifier baseline, and a label-shuffle sanity check (AUC 0.527).",
+    "Fully reproducible: seeds [0-4] fixed and logged, metrics written to results/metrics.json, deterministic dataset generator; re-run reproduced identical numbers.",
+    "Significance is judged by an ad-hoc heuristic (gap > max(combined_std, 0.01)) rather than a real test; LR variance is exactly 0, so the 5-seed comparison adds no statistical power for LR (honestly acknowledged).",
+    "REPORT.md claims LR wins but caveats heavily (logistic DGP favors LR, no tuning, single split, distribution shift) and does not over-claim its headline number.",
+    "25/25 tests pass and the entrypoint runs cleanly from existing data."
+  ],
+  "leakage_findings": [
+    "days_since_last_login explicitly excluded as a target leak (src/data.py:24,47; REPORT.md feature-exclusion table) with sound 'when is the value known' reasoning, not name pattern-matching.",
+    "Verified empirically: including days_since_last_login raises LR AUC to 0.959 vs 0.747 on honest features — confirming the project's reasoning and that it avoided the trap.",
+    "200 exact duplicates removed via drop_duplicates() BEFORE the split, preventing train/test straddling (4200 -> 4000).",
+    "signup_date handled deliberately via a time-based 75/25 split (sort by signup_days), with explicit rationale that random splits leak future information.",
+    "StandardScaler fitted on the training fold only and applied to test (src/data.py:67-69).",
+    "Label-shuffle sanity check (AUC 0.527 ~ 0.5) confirms no residual spurious feature-label correlation after removing the leak."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  ->  25 passed in 2.66s",
+    "python3 run_experiment.py  ->  LR AUC 0.7469, GB AUC 0.7342, conclusion lr_better; reproduced metrics.json exactly",
+    "python3 (manual check)  ->  honest AUC=0.7469 vs with-leak AUC=0.9588"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Leak dropped (LEAK_COLS), dedup before split, time-based split, train-only scaler fit — all core leakage defenses correct."},
+    {"path": "make_dataset.py", "note": "Documents the planted traps: disguised leak via days_since_last_login (gamma noise), 200 duplicates, temporal signup_date."},
+    {"path": "REPORT.md", "note": "Explicit feature-exclusion table flagging days_since_last_login as a target leak; honest limitations; plausible (non-inflated) headline AUC."},
+    {"path": "src/evaluate.py", "note": "Baseline + label-shuffle sanity checks; 5-seed comparison; ad-hoc max(spread,0.01) significance heuristic (only methodological weakness)."},
+    {"path": "results/metrics.json", "note": "Per-seed AUC/F1, sanity results, data_meta logged; matches re-run output exactly."},
+    {"path": "tests/", "note": "25 tests covering leak exclusion, dedup, scaler fit, metric ranges; test_time_based_split_no_overlap only checks sizes not ordering."}
+  ]
+}
+```

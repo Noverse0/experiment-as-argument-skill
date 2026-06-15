@@ -1,0 +1,74 @@
+This is a near-exemplary project. My review:
+
+## Summary
+
+The experiment is rigorous evidence. It **caught the disguised v2 leak** completely and for the right reason.
+
+**Leakage (the central test):** `days_since_last_login` is dropped in `src/data.py:28` with a justification that reasons about *when the value is known* — "churned customers have, by definition, stopped logging in, so this value is recorded after the outcome is determined." This is exactly the post-outcome reasoning required, not name pattern-matching. The other discipline is also sound:
+- Duplicates removed *before* any split (`drop_duplicates`, line 24), explicitly to stop original/duplicate pairs straddling train/test.
+- `signup_date` handled deliberately: data sorted by it and evaluated with `TimeSeriesSplit`, with `signup_month` extracted as a seasonality proxy.
+- Scaler fitted on train only — `StandardScaler` lives *inside* the LR `Pipeline`, so `cross_validate` fits it per-fold. No leakage.
+- A label-shuffle sanity check explicitly exists to catch residual feature leakage (AUC ~0.52–0.53, near chance — confirms no leak remains).
+
+The honest AUC is ~0.73, consistent with the rubric's "honest features" expectation (~0.73), not the ~0.95 a leaked pipeline would show.
+
+**Methodology:** Majority-class baseline (AUC 0.500), overfit-tiny, and label-shuffle all present. Metrics are appropriate for 27% positive rate (ROC-AUC primary, plus F1 and Average Precision — not accuracy). Both models use fixed defaults with no tuning, so the tuning budget is symmetric.
+
+**Reproducibility:** Seeds fixed everywhere (data=7, models=42, sanity=42) and logged to `results/metrics.json`. Re-running reproduced metrics exactly and the regenerated CSV is byte-identical.
+
+**Claims:** Reports "no detectable difference" via a conservative gap-vs-noise-floor rule. Limitations are honest (5 folds is thin, no tuning, single seed, low-signal synthetic data). No claim exceeds what the code measured, and the headline number is plausible — not implausibly high.
+
+**Executability:** `pytest` → 19 passed; `python run_experiment.py` → exit 0, regenerated outputs.
+
+Minor nitpicks only: the `dropped_features` note in metrics.json says "post-outcome leak" tersely (the full reasoning lives in code/REPORT), and the report doesn't show the contrastive ~0.95-with-leak number it cites in limitations — it dropped the feature outright rather than demonstrating the inflated AUC. Neither weakens the evidence.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 95,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 94,
+  "executability_score": 100,
+  "code_quality_score": 95,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised leak fully caught: days_since_last_login dropped with correct when-is-it-known reasoning, not name-matching (src/data.py:27-28).",
+    "Honest AUC ~0.73 matches the rubric's expected honest-feature performance; no implausibly high number reported.",
+    "Full sanity-check suite present: majority-class baseline (0.500), overfit-tiny, and label-shuffle (~0.52, near chance).",
+    "Imbalance-appropriate metrics (ROC-AUC + F1 + Average Precision), with 27.1% positive rate acknowledged.",
+    "Both commands work from clean state: pytest 19 passed; run_experiment.py exits 0 and reproduces metrics exactly.",
+    "Honest limitations: 5-fold variance thin, no tuning, single seed, synthetic low-signal data."
+  ],
+  "leakage_findings": [
+    "days_since_last_login dropped in src/data.py:28; justified as post-outcome leak (recorded at/after churn), which is the correct temporal reasoning.",
+    "200 exact-duplicate rows removed BEFORE any split (drop_duplicates, src/data.py:24), preventing train/test straddle.",
+    "signup_date handled deliberately: sorted ascending and used with TimeSeriesSplit (temporal CV); signup_month extracted as seasonality proxy.",
+    "Scaler fitted on train only — StandardScaler is inside the LR Pipeline, so cross_validate refits it per fold; no fit-on-full-data leakage.",
+    "Label-shuffle check yields AUC ~0.527 (LR) / ~0.513 (GBM), confirming no residual feature leakage after dropping the disguised column."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (19 passed in 2.15s)",
+    "python run_experiment.py  (exit 0; regenerated results/metrics.json and REPORT.md)",
+    "diff churn_backup.csv churn.csv  (identical — reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops days_since_last_login with post-outcome justification; dedups before split; temporal sort + signup_month extraction."},
+    {"path": "src/models.py", "note": "StandardScaler inside LR Pipeline (fit-on-train via CV); fixed seed=42; equal no-tuning config for both models."},
+    {"path": "src/evaluate.py", "note": "TimeSeriesSplit + cross_validate over roc_auc/f1/average_precision; conservative gap-vs-noise winner rule."},
+    {"path": "src/sanity.py", "note": "Baseline (majority-class AUC), overfit-tiny, and label-shuffle leak detector."},
+    {"path": "REPORT.md", "note": "Declares no detectable difference; documents leak reasoning and honest limitations; AUC ~0.73 plausible."},
+    {"path": "results/metrics.json", "note": "Logs seeds, sanity results, dropped features, and per-fold scores; matches re-run."},
+    {"path": "tests/test_data.py", "note": "Asserts leak column and identifier are dropped and duplicates removed."}
+  ]
+}
+```

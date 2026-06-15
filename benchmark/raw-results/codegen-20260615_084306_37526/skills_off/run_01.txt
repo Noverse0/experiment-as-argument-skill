@@ -1,0 +1,14 @@
+13/13 tests pass. The experiment ran in ~8 seconds (well under the 5-minute limit).
+
+**Key design decisions made explicit in the code and report:**
+
+- `days_since_last_login` was **dropped as a target leak** — it's recorded after the churn event, causally derived from the label
+- 200 duplicate rows were **removed before splitting** to prevent train-test contamination
+- A **temporal 80/20 split** (not random) was used because of the time-ordered `signup_date` column
+- `StandardScaler` is fit only on training data inside a Pipeline
+- 5-fold CV × 3 seeds = 15 evaluations per model for honest variance estimates
+- Sanity checks (label-shuffle near 0.5, overfit-tiny above chance) ran and passed
+
+**Result:** No detectable difference — LR CV ROC-AUC 0.7377 ± 0.0171, GBM 0.7277 ± 0.0151; gap of -0.0100 is within pooled noise of ±0.0161.
+
+{"files_created": ["src/__init__.py", "src/data.py", "src/models.py", "src/evaluate.py", "src/sanity.py", "run_experiment.py", "tests/__init__.py", "tests/test_pipeline.py", "requirements.txt", "pyproject.toml", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}

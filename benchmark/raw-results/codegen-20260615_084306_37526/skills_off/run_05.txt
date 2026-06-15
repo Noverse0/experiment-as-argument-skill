@@ -1,0 +1,18 @@
+Everything works correctly. Here's a summary of what was built and the key rigor decisions:
+
+**Files created:**
+- `src/pipeline.py` — `load_and_clean()` (drops leak + deduplicates) and `build_pipeline()`
+- `src/evaluate.py` — `run_cv()` for repeated stratified k-fold CV
+- `run_experiment.py` — entrypoint that writes `results/metrics.json` and `REPORT.md`
+- `tests/test_pipeline.py` — 14 tests covering leak removal, dedup, pipeline structure, CV shape, and baseline floor
+- `requirements.txt`
+
+**Key rigor decisions:**
+- `days_since_last_login` was identified and dropped as a target leak (churned customers have by definition stopped logging in — value is post-outcome)
+- 200 exact duplicate rows deduplicated *before* any split to prevent train/test bleed
+- StandardScaler lives inside the sklearn `Pipeline`, fitted only on training folds
+- 3 seeds × 5-fold CV = 15 scores per model; no winner claimed if ranges overlap
+
+**Result:** No detectable difference (ROC-AUC gap = −0.008, overlapping ±1 sd ranges).
+
+{"files_created": ["src/__init__.py", "src/pipeline.py", "src/evaluate.py", "tests/__init__.py", "tests/test_pipeline.py", "run_experiment.py", "requirements.txt"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}

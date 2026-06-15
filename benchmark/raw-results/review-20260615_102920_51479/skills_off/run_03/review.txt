@@ -1,0 +1,70 @@
+Confirmed: the leaked feature would have produced AUC 0.958 vs the honest 0.732. The project correctly dropped it and reports the honest number. This is an exemplary submission.
+
+## Review Summary
+
+**Leakage (central test) — caught perfectly.** `days_since_last_login` is excluded from `FEATURE_COLS` (`src/data.py:5`) and explicitly justified with correct causal reasoning in both the code comment (`src/data.py:9-11`) and REPORT.md (line 26): it's recorded at/after the outcome, encodes the label not a cause. A dedicated test (`test_no_leak_column_in_features`) guards it. The honest pipeline reports ~0.73 AUC; I verified including the leak yields 0.958 — the project chose correctly. Additional discipline: duplicates dropped *before* the split (no straddling), time-based split on `signup_date`, `StandardScaler` inside the `Pipeline` so it fits on each train fold only, and `signup_date`/`customer_id` deliberately handled.
+
+**Methodology — strong, one gap.** Appropriate metrics for 27% churn imbalance (ROC-AUC primary, AP, F1 — not accuracy alone). Equal tuning budget (both default). 3 seeds × 5 folds for variance. The one missing piece: no explicit trivial/majority-class baseline (e.g. `DummyClassifier`).
+
+**Reproducibility — excellent.** All seeds fixed (dataset=7, CV=[0,1,2], final=42) and logged to `results/metrics.json`; re-running reproduced identical numbers.
+
+**Claims — disciplined.** Honest null result ("no statistically meaningful difference"), gap (0.0099) correctly compared against pooled std (0.0241), thorough honest limitations including the StratifiedKFold-vs-TimeSeriesSplit caveat. No overclaiming.
+
+**Executability — clean.** 22/22 tests pass, entrypoint runs in ~5s and regenerates all outputs.
+
+**Code quality — clean modular structure** (data/pipeline/evaluate/experiment), no dead code, deps declared and used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 94,
+  "claims_discipline_score": 93,
+  "executability_score": 98,
+  "code_quality_score": 93,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised target leak (days_since_last_login) correctly identified and dropped with sound causal reasoning, not pattern-matching the name; guarded by a dedicated test.",
+    "Reports honest ~0.73 AUC; I verified including the leak would have inflated AUC to 0.958, confirming the project resisted the trap.",
+    "Duplicates removed before splitting (no train/test straddle); time-based split on signup_date; StandardScaler fit per-train-fold inside Pipeline (no fit-on-test).",
+    "Honest null result: 'no meaningful difference', gap 0.0099 vs pooled std 0.0241, with thorough and accurate limitations.",
+    "Fully reproducible: seeds fixed and logged, outputs written to results/, re-run reproduced identical numbers; 22/22 tests pass; entrypoint runs in ~5s.",
+    "Main methodological gap: no explicit trivial/majority-class baseline (only LR vs GB)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is NOT in FEATURE_COLS (src/data.py:5) and is documented as TARGET LEAK in both code (src/data.py:9-11) and REPORT.md:26 with correct 'recorded at/after outcome' reasoning.",
+    "Empirically validated: honest features AUC=0.732, +days_since_last_login AUC=0.958 — matches the rubric's ~0.73 vs ~0.95 expectation; project chose the honest path.",
+    "drop_duplicates() runs before time_split (src/data.py:18-20 / experiment.py:25-26), so the 200 duplicate rows cannot straddle train/test.",
+    "Temporal handling deliberate: sorted by signup_date, first 80% train / last 20% test (src/data.py:24-28); signup_date excluded as a feature with stated reason.",
+    "Fit-on-train discipline correct: StandardScaler lives inside the Pipeline, refit on each CV train fold and on the train split for final eval; test_scaler_fitted_on_train_not_test asserts it.",
+    "Minor honesty note in report: StratifiedKFold (shuffled) is used within the temporal training window rather than TimeSeriesSplit — the report explicitly flags this as a limitation."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q  (22 passed in ~2s)",
+    "time python run_experiment.py  (~5s; printed CV/test AUCs matching REPORT.md)",
+    "python -c '<honest vs +leak AUC check>'  (honest 0.732, +leak 0.958)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "FEATURE_COLS excludes days_since_last_login, customer_id, signup_date; leak documented at lines 9-11; dedup-before-sort in load_and_prepare; temporal time_split."},
+    {"path": "src/experiment.py", "note": "3 seeds x 5-fold StratifiedKFold per model; scaler refit per fold via Pipeline; final models fit on train, test scored once."},
+    {"path": "src/pipeline.py", "note": "make_lr/make_gb both wrap StandardScaler+classifier in a Pipeline with seeded random_state; equal (default) budget."},
+    {"path": "src/evaluate.py", "note": "ROC-AUC, average_precision, F1 — imbalance-appropriate metrics, not accuracy alone."},
+    {"path": "tests/test_data.py", "note": "Asserts leak column absent from features, dedup count, temporal split ordering, X/y shapes."},
+    {"path": "tests/test_pipeline.py", "note": "test_scaler_fitted_on_train_not_test verifies no fit-on-test contamination."},
+    {"path": "REPORT.md", "note": "Honest null conclusion, gap vs std, leak dropped with causal justification (line 26), 5 candid limitations including TimeSeriesSplit caveat."},
+    {"path": "make_dataset.py", "note": "Confirms days_since_last_login is generated from churn outcome (gamma mean ~44 churned vs ~8 active) — a genuine disguised leak."},
+    {"path": "results/metrics.json", "note": "Per-fold scores + summaries logged; seeds and counts recorded; reproduced exactly on re-run."}
+  ]
+}
+```

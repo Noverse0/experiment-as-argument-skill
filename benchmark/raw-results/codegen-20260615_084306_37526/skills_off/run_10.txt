@@ -1,0 +1,20 @@
+All tests pass (21/21), experiment runs in ~2.4 seconds, and both artifacts are written. Here is the summary:
+
+**What was built:**
+
+- `src/data.py` — loads the CSV, removes 200 planted exact duplicates, drops the target-leak column (`days_since_last_login`, which is recorded after the churn outcome), and sorts by `signup_date` for temporal ordering
+- `src/pipeline.py` — two sklearn pipelines: `LogisticRegression` with `StandardScaler`, and `GradientBoostingClassifier`
+- `src/evaluate.py` — `TimeSeriesSplit` cross-validation (trains on earlier cohorts, validates on later ones)
+- `run_experiment.py` — full pipeline with sanity checks, writes `results/metrics.json` and `REPORT.md`
+- `tests/test_pipeline.py` — 21 tests covering deduplication, leak exclusion, pipeline fit/predict, temporal CV, and label-shuffle sanity
+
+**Key design decisions:**
+1. **Dropped `days_since_last_login`** — post-outcome target leak (churned customers stop logging in by definition)
+2. **Removed 200 duplicates first** — prevents them from straddling the train/test boundary
+3. **`TimeSeriesSplit`** — respects `signup_date` temporal ordering
+
+**Result:** LR (AUC 0.733 ± 0.025) narrowly outperforms GBM (AUC 0.715 ± 0.021) — gap (0.018) just exceeds fold noise (0.015). On 3 honest features, the linear boundary is sufficient and GBM has no advantage.
+
+```json
+{"files_created": ["src/__init__.py", "src/data.py", "src/pipeline.py", "src/evaluate.py", "run_experiment.py", "tests/__init__.py", "tests/test_pipeline.py", "requirements.txt", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py --data churn.csv", "test_command": "python3 -m pytest tests/ -v"}
+```

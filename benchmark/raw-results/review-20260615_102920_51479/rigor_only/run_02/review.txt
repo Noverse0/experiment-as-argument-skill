@@ -1,0 +1,67 @@
+I have everything I need. The project is a strong, rigorous experiment that correctly handles the disguised v2 leak.
+
+## Review Summary
+
+**Leakage (the central test): Caught cleanly.** `days_since_last_login` is excluded from `FEATURES` (`src/data.py:7,11`) with correct reasoning that it is recorded at/after the outcome ("churned customers have stopped logging in by definition"). REPORT.md §Feature Selection labels it a target leak rather than treating its signal as a win. A dedicated test (`tests/test_data.py:51`) asserts it never appears in the feature set. The other traps are also handled: 200 exact duplicates are dropped *before* the split (`clean_data`), eliminating train/test straddle; `customer_id` and `signup_date` are excluded with justification; `signup_date`'s temporal nature is explicitly discussed (cross-sectional task, time-split noted as required for future-cohort deployment). Scaler lives inside the `Pipeline`, so `cross_validate` fits it on each training fold only. Baseline and label-shuffle sanity checks confirm no residual leakage (shuffled AUC ≈ 0.48–0.49).
+
+**Methodology:** Majority-class dummy baseline present; ROC-AUC/AP/F1 used appropriately for the 27% imbalance (not accuracy); both models use fixed defaults (symmetric, no asymmetric tuning); RepeatedStratifiedKFold gives 15 evals with variance. The winner-decision heuristic (gap > sum of SDs) is crude but acknowledged, with Wilcoxon suggested as the proper test.
+
+**Reproducibility:** Seeds fixed (models=42, CV=0, shuffle=42); full per-fold scores written to `results/metrics.json`. Re-running reproduced the reported numbers exactly (LR 0.7358, GBM 0.7307).
+
+**Claims:** Appropriately cautious — "no detectable difference," backed by 15 folds with reported SD; no overclaiming; 4 honest limitations; the ~0.73 honest AUC is reported without inflation.
+
+**Executability:** 17 tests pass in 3.5s; entrypoint runs in ~4s and regenerates results.
+
+**Code quality:** Clean modular split (data/models/evaluate), docstrings, deps declared and used. Minor dead imports (`os`, `sys`, `np`, `pd` in `run_experiment.py`; `make_scorer`, `average_precision_score` in `evaluate.py`).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 88,
+  "reproducibility_score": 91,
+  "claims_discipline_score": 92,
+  "executability_score": 98,
+  "code_quality_score": 86,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised v2 leak (days_since_last_login) correctly identified as a post-outcome target leak and excluded, with sound when-is-it-known reasoning rather than name pattern-matching.",
+    "Honest features yield ROC-AUC ~0.736 (LR) vs ~0.731 (GBM); conclusion is 'no detectable difference,' appropriately cautious and within reported variance.",
+    "Trivial majority-class baseline, label-shuffle, and overfit-tiny sanity checks all present and pass.",
+    "RepeatedStratifiedKFold (5x3=15 evals) with per-fold scores and SDs; metrics persisted to results/metrics.json.",
+    "Experiment reproduced exactly on re-run (LR 0.7358, GBM 0.7307); 17/17 tests pass; entrypoint completes in ~4s.",
+    "Both models use fixed defaults symmetrically (no asymmetric tuning budget); no-hyperparameter-search limitation acknowledged."
+  ],
+  "leakage_findings": [
+    "days_since_last_login dropped from FEATURES (src/data.py:7,11) and explicitly justified as a target leak in REPORT.md and metrics.json; test_data.py:51 enforces it stays out.",
+    "200 exact duplicate rows removed via drop_duplicates() in clean_data() before any CV split, so duplicates cannot straddle train/test folds.",
+    "StandardScaler is inside the Pipeline, so cross_validate fits it on training folds only (split-before-transform); test_pipeline.py:81 checks fit-on-train behavior.",
+    "customer_id and signup_date excluded; signup_date's temporal nature explicitly discussed, with time-based split noted as required only for future-cohort deployment.",
+    "Label-shuffle AUC (~0.48 LR / ~0.49 GBM) and majority-class baseline (0.50) confirm no residual leakage in the chosen feature set."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q",
+    "time python run_experiment.py"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "LEAK_COLS=['days_since_last_login'], FEATURES excludes it and IDs; dedup in clean_data before split."},
+    {"path": "make_dataset.py", "note": "Confirms the planted disguised leak: days_since_last_login is generated from churn outcome (gamma mean ~44 churned vs ~8 retained)."},
+    {"path": "src/models.py", "note": "StandardScaler inside Pipeline for both LR and GBM; symmetric fixed-default configs."},
+    {"path": "src/evaluate.py", "note": "RepeatedStratifiedKFold 5x3; baseline_auc, label_shuffle_check, overfit_tiny_check implemented; minor unused imports (make_scorer, average_precision_score)."},
+    {"path": "REPORT.md", "note": "Cautious 'no detectable difference' conclusion, honest ~0.73 AUC, 4 limitations, leak excluded with correct rationale."},
+    {"path": "results/metrics.json", "note": "Full per-fold scores, seeds-driven; reproduced exactly on re-run."},
+    {"path": "tests/test_data.py", "note": "test_leak_col_not_in_features and dedup tests enforce leakage discipline."},
+    {"path": "run_experiment.py", "note": "Entrypoint runs in ~4s, writes results and report; minor dead imports os/sys/np/pd."}
+  ]
+}
+```

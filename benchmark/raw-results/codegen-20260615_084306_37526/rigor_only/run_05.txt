@@ -1,0 +1,17 @@
+All tests pass and the experiment runs cleanly. Here's a summary of all files created:
+
+- **`src/pipeline.py`** — feature engineering (drops `days_since_last_login` leak + `customer_id`), `make_lr_pipeline` / `make_gb_pipeline` factories
+- **`src/experiment.py`** — CV comparison (5-fold × 3 seeds), temporal holdout, sanity checks
+- **`run_experiment.py`** — entrypoint: generates data if needed, runs all three stages, writes `results/metrics.json` and `REPORT.md`
+- **`tests/test_pipeline.py`** — 13 tests covering deduplication, leak exclusion, reproducibility, label-shuffle sanity, and scaler train-only fit
+- **`requirements.txt`** — scikit-learn, pandas, numpy, pytest
+
+**Key design decisions:**
+- `days_since_last_login` excluded as a post-hoc target leak (churned customers stop logging in, so this is derived from the outcome)
+- 200 exact duplicates removed before any split
+- Scaler fitted inside `Pipeline` so it sees only train-fold data in CV
+- Temporal holdout (sort by `signup_date`) as secondary check
+
+**Result:** No detectable difference — LR CV AUC 0.7364 ± 0.013 vs GB 0.7268 ± 0.013, gap of −0.0097 within noise. Without the leaky feature, both models work from similarly limited signal.
+
+{"files_created": ["src/__init__.py", "src/pipeline.py", "src/experiment.py", "run_experiment.py", "tests/__init__.py", "tests/test_pipeline.py", "requirements.txt", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}

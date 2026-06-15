@@ -1,0 +1,13 @@
+Everything works. Here is the final summary:
+
+**Experiment completed in ~5s** (well under the 5-minute limit).
+
+**Key rigor decisions:**
+- Dropped `days_since_last_login` — it's a **target leak** (churned customers stop logging in; value is recorded post-outcome)
+- Deduplicated 200 exact duplicate rows before splitting
+- Dropped `signup_date` and `customer_id` (no signal / already captured by `tenure_months`)
+- Used 3-seed × 5-fold stratified CV (15 runs per model) for variance-aware comparison
+
+**Result:** No detectable difference — LR ROC-AUC 0.736 ± 0.013 vs GBM 0.727 ± 0.013; gap of −0.009 is within noise.
+
+{"files_created": ["requirements.txt", "src/__init__.py", "src/data.py", "src/pipeline.py", "src/evaluate.py", "run_experiment.py", "tests/__init__.py", "tests/test_pipeline.py", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}

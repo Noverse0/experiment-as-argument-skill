@@ -1,0 +1,56 @@
+Everything runs cleanly and reproduces the reported numbers exactly. This project correctly caught the disguised leak. Let me note minor code-quality items: `numpy` is imported in `data.py` but unused, and `majority_baseline_auc` in `evaluate.py` is defined but never called.
+
+This is a strong, rigorous experiment. The disguised leak `days_since_last_login` was correctly identified as a post-outcome target leak — with explicit temporal reasoning ("a churned customer has by definition stopped logging in"), not just name-matching. It's dropped from features, duplicates are removed before splitting, temporal CV respects `signup_date`, the scaler is fit per-fold on train only, and there's even a label-shuffle sanity test acting as a leakage detector.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 90,
+  "claims_discipline_score": 80,
+  "executability_score": 97,
+  "code_quality_score": 87,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised leak caught: days_since_last_login is excluded from FEATURE_COLS with explicit temporal reasoning that it is recorded at/after the churn outcome, not pattern-matching on the column name.",
+    "Honest AUC reported (~0.73 for both models), and the report explicitly notes that including the leak would inflate AUC without real predictive validity — the exact disguised-leak signal the rubric asks for.",
+    "Trivial baseline present (majority-class AUC=0.5) and metrics appropriate for 27% class imbalance (AUC primary, plus F1; accuracy not used alone).",
+    "Verdict 'LR wins' rests on a thin margin (mean gap 0.0182 vs std 0.0150) and a single seed; directionally all 5 folds favor LR, but the 'gap exceeds fold variance' framing slightly overstates a 1-std-on-n=5 result with no paired test or multi-seed replication.",
+    "Limitations are thorough and honest (5 items): small feature set, single seed, no shared tuning budget, temporal cohort shift, and the operational cost of dropping the leak feature.",
+    "Tests pass (21/21) and the entrypoint runs end-to-end in ~2s, auto-generating the dataset and reproducing reported metrics exactly."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is dropped (FEATURE_COLS = tenure_months, monthly_spend, support_tickets) and a runtime assert guards against its reintroduction (run_experiment.py:45).",
+    "Justification in src/data.py:5-12 and REPORT.md row correctly explains it as a post-outcome field — recorded after churn — making it a target leak despite the legitimate-sounding name.",
+    "200 planted exact duplicates removed via drop_duplicates() BEFORE splitting, so they cannot straddle train/test (src/data.py:23).",
+    "Temporal handling deliberate: data sorted by signup_date and evaluated with TimeSeriesSplit so folds train on earlier cohorts and validate on later ones (src/data.py:29, src/evaluate.py:33).",
+    "Fit-on-train-only discipline preserved: StandardScaler lives inside the sklearn Pipeline and the pipeline is cloned and re-fit per fold, so no test-set statistics leak (src/pipeline.py:10-13, src/evaluate.py:41-43).",
+    "Label-shuffle sanity tests assert AUC<0.65 after permuting labels, providing an automated leakage tripwire (tests/test_pipeline.py:193-226)."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -m pytest -q",
+    "python3 run_experiment.py"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "FEATURE_COLS excludes the leak; dedup before split; sorts by signup_date for temporal CV. numpy imported but unused (minor)."},
+    {"path": "src/pipeline.py", "note": "Scaler inside pipeline; random_state fixed at 42 for both arms."},
+    {"path": "src/evaluate.py", "note": "TimeSeriesSplit CV with per-fold clone/fit; reports mean/std/raw values. majority_baseline_auc defined but never called (minor dead code)."},
+    {"path": "run_experiment.py", "note": "Runtime assert blocks leak feature; writes results/metrics.json and regenerates REPORT.md; auto-generates dataset if missing."},
+    {"path": "tests/test_pipeline.py", "note": "21 tests including feature-selection guards and label-shuffle leakage tripwires; all pass."},
+    {"path": "REPORT.md", "note": "Explicitly flags days_since_last_login as a target leak and notes honest AUC; thorough limitations including single-seed and no shared tuning budget. Verdict rests on a thin 1-std margin."},
+    {"path": "results/metrics.json", "note": "Full config + per-fold values logged; reproduced exactly on re-run."},
+    {"path": "make_dataset.py", "note": "Deterministic generator (seed=7); documents the planted disguised leak, duplicates, and temporal trap."}
+  ]
+}
+```

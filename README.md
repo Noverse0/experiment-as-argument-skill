@@ -27,7 +27,11 @@ Three experiments so far — a capability ladder over the codegen model (10 repe
 | Sonnet | 88.8 ± 2.7 | 88.1 ± 3.1 | 0.65 |
 | Opus | 93.6 ± 0.8 | 93.6 ± 2.0 | 0.47 |
 
-Every model from Haiku up already catches this prompt's headline target-leak trap, so the binding constraint is prompt headroom, not capability. The planned `ml-experiment-v2` hides the leak inside a plausible engineered feature instead. Full per-run analysis lives in the append-only [benchmark/EXPERIMENTS.md](benchmark/EXPERIMENTS.md) ledger; method and reproduction commands in [benchmark/README.md](benchmark/README.md).
+Every model from Haiku up already catches this prompt's headline target-leak trap, so the binding constraint is prompt headroom, not capability.
+
+A fourth experiment (exp-004) raised the difficulty with `ml-experiment-v2`, which hides the leak inside a plausibly-named feature (`days_since_last_login`). On Sonnet this produced the **first positive direction for the skill** — 92.9 vs 91.4 — but still inside the noise (p=0.16), and the gain came from methodology/claims discipline, not leakage: Sonnet caught the disguised leak in 10/10 runs of *both* arms. The disguise needs a weaker model (or larger n) to bite; that is exp-005.
+
+Full per-run analysis lives in the append-only [benchmark/EXPERIMENTS.md](benchmark/EXPERIMENTS.md) ledger; method and reproduction commands in [benchmark/README.md](benchmark/README.md).
 
 ## Install
 

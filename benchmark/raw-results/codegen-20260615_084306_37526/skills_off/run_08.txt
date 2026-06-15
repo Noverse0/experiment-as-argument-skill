@@ -1,0 +1,11 @@
+All 17 tests pass, the experiment completes in ~3.6 seconds, and the results are written. The key rigor decisions made:
+
+- **`days_since_last_login` excluded** as a target leak (churned customers stop logging in → value is post-outcome)
+- **200 duplicates removed** before any split
+- **TimeSeriesSplit** used to respect temporal ordering of `signup_date`
+- **StandardScaler fitted on train fold only** inside CV (split-before-transform)
+- **3 seeds × 5 folds** reported as mean ± std
+
+Result: Logistic regression (ROC-AUC=0.733) outperforms gradient boosting (0.715) on the 3 legitimate features, consistent with the fact that the data-generating process is a logistic function.
+
+{"files_created": ["src/__init__.py", "src/data.py", "src/pipeline.py", "src/evaluate.py", "run_experiment.py", "requirements.txt", "tests/__init__.py", "tests/test_data.py", "tests/test_pipeline.py", "tests/test_evaluate.py", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}

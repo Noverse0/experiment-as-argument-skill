@@ -1,0 +1,73 @@
+{
+  "logistic_regression": {
+    "roc_auc": {
+      "mean": 0.7328666102886515,
+      "std": 0.0,
+      "n_seeds": 3,
+      "n_folds": 5
+    },
+    "f1": {
+      "mean": 0.36936032647335737,
+      "std": 0.0,
+      "n_seeds": 3,
+      "n_folds": 5
+    },
+    "precision": {
+      "mean": 0.5718312865818451,
+      "std": 0.0,
+      "n_seeds": 3,
+      "n_folds": 5
+    },
+    "recall": {
+      "mean": 0.2738662283797975,
+      "std": 0.0,
+      "n_seeds": 3,
+      "n_folds": 5
+    }
+  },
+  "gradient_boosting": {
+    "roc_auc": {
+      "mean": 0.7150146783254744,
+      "std": 2.3068802793441793e-05,
+      "n_seeds": 3,
+      "n_folds": 5
+    },
+    "f1": {
+      "mean": 0.39685184520426336,
+      "std": 0.0,
+      "n_seeds": 3,
+      "n_folds": 5
+    },
+    "precision": {
+      "mean": 0.5324311359659321,
+      "std": 0.0,
+      "n_seeds": 3,
+      "n_folds": 5
+    },
+    "recall": {
+      "mean": 0.3179832748228743,
+      "std": 0.0,
+      "n_seeds": 3,
+      "n_folds": 5
+    }
+  },
+  "meta": {
+    "n_rows": 4000,
+    "churn_rate": 0.2705,
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "leaked_excluded": [
+      "days_since_last_login"
+    ],
+    "seeds": [
+      42,
+      123,
+      456
+    ],
+    "n_splits": 5,
+    "baseline_accuracy": 0.7295
+  }
+}

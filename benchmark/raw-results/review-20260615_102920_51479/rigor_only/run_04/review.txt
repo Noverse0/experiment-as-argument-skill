@@ -1,0 +1,64 @@
+Everything passes and reproduces cleanly. This is an exemplary rigorous project. Let me finalize my assessment.
+
+**Summary of findings:**
+
+- **Leakage:** Correctly caught the disguised leak. `days_since_last_login` is excluded from the model features and used *only* in an audit (single-feature LR → AUC 0.935) explicitly treated as a leakage signal, not a result. The reasoning is about *when* the value is known (post-outcome), not name-matching. Dedup (200 rows) done before any split. Scaler fitted inside CV folds via Pipeline. `signup_date` dropped deliberately with explicit acknowledgment that a time-based split would be better.
+- **Methodology:** Dummy baseline present (0.5 AUC floor), ROC-AUC primary + F1/accuracy secondary, stratified folds for 27% imbalance, both models use defaults (equal, no tuning for either).
+- **Reproducibility:** Seeds fixed (data seed=7, model 42), metrics.json + config logged, re-ran and reproduced identical numbers.
+- **Claims:** "No detectable difference" backed by 15 folds with variance, gap (-0.006) vs noise (0.021). Honest limitations. Notices the implausibly high leaky AUC and labels it a leak.
+
+Minor nits: the "noise floor = combined std" comparison is a heuristic rather than a formal significance test, and the random CV (not time-based) is a deliberate, disclosed simplification.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 89,
+  "reproducibility_score": 93,
+  "claims_discipline_score": 91,
+  "executability_score": 98,
+  "code_quality_score": 93,
+  "verdict": "excellent",
+  "key_findings": [
+    "Caught the disguised target leak: days_since_last_login is excluded from model features and used only in an audit, with correct temporal reasoning (churned customers stop logging in, so the value is post-outcome).",
+    "The ~0.935 single-feature AUC is explicitly framed as a leakage signal, not a result — the honest models report ~0.73/0.74 AUC.",
+    "200 exact duplicate rows dropped before any split; dedup subset includes all feature/label columns.",
+    "StandardScaler is fitted inside each CV fold (sklearn Pipeline + RepeatedStratifiedKFold), preventing preprocessing leakage; a dedicated test asserts the scaler never sees test rows.",
+    "Trivial DummyClassifier baseline (AUC 0.500) included; ROC-AUC primary with F1/accuracy secondary, stratified for the 27% churn rate.",
+    "Conclusion ('no detectable difference', gap -0.006 within noise 0.021) is backed by 15 CV scores with reported variance; limitations are honest (no tuning, temporal split skipped, small feature set, single DGP).",
+    "Both models run untuned with defaults — equal (zero) tuning budget, so no asymmetry."
+  ],
+  "leakage_findings": [
+    "days_since_last_login correctly identified as a disguised post-outcome leak and dropped from FEATURES (src/data.py LEAKY_COLS); only present in X_audit for the confirmatory leak audit.",
+    "Leak audit (run_experiment.py audit_leaky_feature) reports AUC 0.935 ± 0.012 and the report treats this as evidence of leakage, not a win.",
+    "Duplicate rows (200) dropped before splitting, so they cannot straddle train/test (src/data.py drop_duplicates before CV).",
+    "Preprocessing fit-on-train-only discipline satisfied: scaler lives inside the pipeline and is refit per fold; verified by test_scaler_fitted_on_train_split_only.",
+    "signup_date handled deliberately: dropped, with an explicit limitation that a time-based train-early/test-late split would better simulate production. Random CV is a disclosed simplification, not an oversight.",
+    "Residual nit: significance is judged by gap-vs-combined-std heuristic rather than a formal test; conclusion is conservative so this does not cause overclaiming."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q  (22 passed in 2.26s)",
+    "python run_experiment.py  (ran in ~5s, reproduced metrics.json: LR AUC 0.736, GB AUC 0.730, leak audit 0.935, baseline 0.500)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "FEATURES excludes days_since_last_login (LEAKY_COLS); dedup before split; X_audit holds leaky col for audit only."},
+    {"path": "run_experiment.py", "note": "audit_leaky_feature confirms 0.935 AUC as leak signal; DummyClassifier baseline; RepeatedStratifiedKFold 5x3; seeds fixed at 42; writes results/metrics.json."},
+    {"path": "src/evaluate.py", "note": "cross_validate with scaler inside pipeline → per-fold fit, no preprocessing leakage; returns mean/std/n/all per metric."},
+    {"path": "src/pipeline.py", "note": "LR (with StandardScaler) and GB pipelines; both untuned defaults — equal tuning budget."},
+    {"path": "make_dataset.py", "note": "DGP doc confirms days_since_last_login is a derived post-outcome leak (noisy, ~0.93 not 1.0), 200 planted dups, signup_date temporal trap."},
+    {"path": "REPORT.md", "note": "States leak exclusion with temporal justification, honest 'no detectable difference' conclusion with variance, and 4 honest limitations."},
+    {"path": "tests/test_pipeline.py", "note": "test_scaler_fitted_on_train_split_only and pipeline independence tests assert no leakage; 22 tests pass."},
+    {"path": "results/metrics.json", "note": "Logged config, sanity checks, all 15 fold scores per model; reproduced exactly on re-run."}
+  ]
+}
+```

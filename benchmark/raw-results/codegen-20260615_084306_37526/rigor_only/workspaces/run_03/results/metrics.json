@@ -1,0 +1,170 @@
+{
+  "claim": "Does GradientBoostingClassifier outperform LogisticRegression for predicting customer churn?",
+  "methodology": {
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "dropped_features": {
+      "days_since_last_login": "target leak \u2014 recorded after outcome",
+      "signup_date": "temporal; tenure_months already captures time-on-platform",
+      "customer_id": "row identifier, no signal"
+    },
+    "deduplication": "exact duplicate rows removed before any split",
+    "cv": "StratifiedKFold(n_splits=5, shuffle=True) \u00d7 3 seeds",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "n_runs_per_model": 15
+  },
+  "sanity_checks": {
+    "baseline_floor_auc": 0.5,
+    "overfit_tiny_train_auc": 0.6737,
+    "label_shuffle_auc": 0.5115,
+    "overfit_ok": true,
+    "shuffle_ok": true
+  },
+  "results": {
+    "logistic_regression": {
+      "roc_auc": {
+        "mean": 0.7359691614732197,
+        "std": 0.013190407972043159,
+        "n": 15,
+        "values": [
+          0.731814,
+          0.725679,
+          0.731172,
+          0.74056,
+          0.747627,
+          0.706439,
+          0.730443,
+          0.72686,
+          0.748654,
+          0.768716,
+          0.741145,
+          0.733337,
+          0.731474,
+          0.734126,
+          0.741493
+        ]
+      },
+      "f1": {
+        "mean": 0.34865365868279097,
+        "std": 0.031069404397992096,
+        "n": 15,
+        "values": [
+          0.324503,
+          0.339869,
+          0.290541,
+          0.411392,
+          0.391167,
+          0.3625,
+          0.36246,
+          0.365385,
+          0.324324,
+          0.311419,
+          0.360759,
+          0.324503,
+          0.355263,
+          0.37785,
+          0.327869
+        ]
+      },
+      "accuracy": {
+        "mean": 0.75075,
+        "std": 0.0074414380330685955,
+        "n": 15,
+        "values": [
+          0.745,
+          0.7475,
+          0.7375,
+          0.7675,
+          0.75875,
+          0.745,
+          0.75375,
+          0.7525,
+          0.75,
+          0.75125,
+          0.7475,
+          0.745,
+          0.755,
+          0.76125,
+          0.74375
+        ]
+      }
+    },
+    "gradient_boosting": {
+      "roc_auc": {
+        "mean": 0.726703660153611,
+        "std": 0.012749224778310395,
+        "n": 15,
+        "values": [
+          0.729175,
+          0.713407,
+          0.712559,
+          0.730976,
+          0.732328,
+          0.703557,
+          0.723677,
+          0.724902,
+          0.735568,
+          0.759823,
+          0.713454,
+          0.734086,
+          0.729111,
+          0.724751,
+          0.733181
+        ]
+      },
+      "f1": {
+        "mean": 0.3652652186458178,
+        "std": 0.028030422288531847,
+        "n": 15,
+        "values": [
+          0.388889,
+          0.356923,
+          0.296296,
+          0.401216,
+          0.367213,
+          0.36646,
+          0.358974,
+          0.366559,
+          0.381538,
+          0.357143,
+          0.315113,
+          0.35,
+          0.390093,
+          0.393846,
+          0.388715
+        ]
+      },
+      "accuracy": {
+        "mean": 0.7486666666666668,
+        "std": 0.00730962075319613,
+        "n": 15,
+        "values": [
+          0.7525,
+          0.73875,
+          0.73875,
+          0.75375,
+          0.75875,
+          0.745,
+          0.75,
+          0.75375,
+          0.74875,
+          0.7525,
+          0.73375,
+          0.74,
+          0.75375,
+          0.75375,
+          0.75625
+        ]
+      }
+    }
+  },
+  "verdict": "no_detectable_difference",
+  "gap_roc_auc": -0.009266
+}

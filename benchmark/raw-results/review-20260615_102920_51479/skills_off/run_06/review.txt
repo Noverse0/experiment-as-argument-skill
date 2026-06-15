@@ -1,0 +1,68 @@
+Everything runs and reproduces exactly. Let me confirm the key methodological subtlety: for LR, the per-run AUCs are identical across seeds (TimeSeriesSplit folds don't depend on the seed, and LR has no internal randomness), so the "15 observations" is really 5 distinct values repeated 3×.
+
+The project caught the disguised leak correctly. Here is my assessment.
+
+## Review Summary
+
+**Leakage (the central test) — caught cleanly.** `days_since_last_login` is dropped in `data_loader.py:30` (`LEAK_COLS`) with correct reasoning in both the docstring and REPORT.md (§Features Used, Limitation 5): a churned customer has by definition stopped logging in, so the value is recorded at/after the outcome. The reported AUC sits at the honest ~0.73, not the suspicious ~0.95 that including the feature would produce. The other traps are also handled: 200 duplicate rows removed *before* splitting (`drop_duplicates` at `data_loader.py:26`), `signup_date` handled deliberately via sort + `TimeSeriesSplit`, and `StandardScaler` is fit inside the per-fold pipeline (train-only). This is close to ideal.
+
+**Methodology — strong, with one real flaw.** ROC-AUC + F1 are appropriate for the 27% churn imbalance (no accuracy-only). A label-shuffle check serves as a chance-level floor, and both arms use fixed defaults (equal budget). However: because `TimeSeriesSplit` folds are seed-independent and LR is deterministic, LR's `auc_per_run` is the *same 5 values repeated 3×* (confirmed in `results/metrics.json:27-42`). So "15 observations per arm" overstates independence — there are effectively 5 for LR. The SD is unaffected mathematically, but the evidence is thinner than claimed. No explicit majority-class/DummyClassifier baseline (the shuffle check partly substitutes).
+
+**Reproducibility — excellent.** Seeds `[42,123,7]` fixed and logged; metrics + config written to `results/metrics.json`; re-running reproduced AUCs to the digit (LR 0.7328, GB 0.6934).
+
+**Claims — honest, minor blemishes.** Reports "no detectable difference" via overlapping ±2 SD intervals — appropriately cautious, no fabricated winner. Limitations are candid (no held-out test, no tuning, synthetic data). Two nits: the sanity table labels a held-out 80/20 AUC as "Train AUC (full fit, overfit check)" — a mislabel (the code computes a held-out score), and the N=15 independence overstatement above.
+
+**Executability — excellent.** 21 tests pass; entrypoint runs in ~4.5s and reproduces.
+
+**Code quality — very good.** Clean module separation, docstrings, deps declared and used. One junk assertion in `tests/test_data_loader.py:30` (`... == len(df) or True`) that always passes.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 80,
+  "reproducibility_score": 93,
+  "claims_discipline_score": 84,
+  "executability_score": 98,
+  "code_quality_score": 87,
+  "verdict": "excellent",
+  "key_findings": [
+    "Caught the disguised target leak: days_since_last_login is dropped with correct 'recorded at/after the outcome' reasoning in both code (data_loader.py:16,30) and REPORT.md; reported AUC is the honest ~0.73, not the suspicious ~0.95.",
+    "All three planted traps handled: duplicates removed before splitting, TimeSeriesSplit on signup_date-sorted rows for temporal validity, StandardScaler fit train-only inside each fold.",
+    "Methodological flaw: TimeSeriesSplit folds are seed-independent and LR is deterministic, so LR's 'n=15' is really 5 distinct fold values repeated 3× — overstates independence (visible in metrics.json auc_per_run).",
+    "Honest conclusion ('no detectable difference', overlapping ±2 SD intervals); no fabricated winner; thorough and candid limitations section.",
+    "Tests pass (21) and entrypoint runs in ~4.5s, reproducing logged AUCs exactly (LR 0.7328, GB 0.6934).",
+    "Minor: sanity table mislabels a held-out 80/20 AUC as 'Train AUC (full fit)'; a junk always-true assertion in test_data_loader.py:30."
+  ],
+  "leakage_findings": [
+    "days_since_last_login excluded via LEAK_COLS in data_loader.py:30, justified as a post-outcome target leak — the central v2 test, passed.",
+    "No suspicious AUC: model uses only honest features (tenure, spend, tickets, signup_days) and lands at ~0.73, consistent with the honest signal.",
+    "200 exact-duplicate rows removed with drop_duplicates(subset='customer_id') BEFORE splitting (data_loader.py:26), preventing train/test straddle.",
+    "Temporal column handled deliberately: signup_date converted to signup_days, rows sorted, TimeSeriesSplit used so train=earlier cohorts, test=later — explicitly justified in REPORT.md.",
+    "Preprocessing leakage avoided: StandardScaler lives in the sklearn Pipeline, fit on each fold's train portion only (evaluation.py:38-39).",
+    "Label-shuffle sanity check uses a held-out split and passes (LR shuffle AUC 0.61<0.65, GB 0.47), supporting absence of leakage."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (21 passed in 1.88s)",
+    "python run_experiment.py  (ran in ~4.5s; reproduced LR AUC 0.7328±0.0223, GB AUC 0.6934±0.0220)"
+  ],
+  "file_evidence": [
+    {"path": "src/data_loader.py", "note": "LEAK_COLS=['days_since_last_login'] dropped (line 30); dedup before split (line 26); signup_date→signup_days + sort for TimeSeriesSplit (lines 33-41)."},
+    {"path": "make_dataset.py", "note": "Documents the disguised leak design: days_since_last_login derived from churn outcome, noisy so AUC ~0.95 not 1.0; project correctly avoided it."},
+    {"path": "src/evaluation.py", "note": "Scaler fit train-only per fold (38-39); but TimeSeriesSplit folds are seed-independent, so deterministic LR yields identical repeats across seeds."},
+    {"path": "results/metrics.json", "note": "LR auc_per_run shows the same 5 values repeated 3× — n=15 overstates independence; GB varies via subsample randomness."},
+    {"path": "REPORT.md", "note": "Honest 'no detectable difference' conclusion; correct leak justification; but sanity table mislabels held-out AUC as 'Train AUC (full fit)'."},
+    {"path": "tests/test_data_loader.py", "note": "Tests leak-column and duplicate handling; line 30 has an always-true '... or True' assertion (dead/ineffective)."},
+    {"path": "requirements.txt", "note": "scikit-learn, pandas, numpy, pytest declared and all used."}
+  ]
+}
+```

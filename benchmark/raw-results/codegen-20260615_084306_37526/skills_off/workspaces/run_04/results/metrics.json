@@ -1,0 +1,53 @@
+{
+  "dataset": {
+    "n_rows": 4000,
+    "churn_rate": 0.2705,
+    "features_used": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "features_dropped": {
+      "customer_id": "identifier",
+      "signup_date": "used for split ordering only",
+      "days_since_last_login": "post-outcome leak"
+    }
+  },
+  "methodology": {
+    "split": "TimeSeriesSplit(n_splits=5), sorted by signup_date",
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1001
+    ],
+    "n_evals_per_model": 25,
+    "preprocessing": "StandardScaler fitted on train fold only",
+    "primary_metric": "AUC-ROC"
+  },
+  "baseline": {
+    "auc_roc_mean": 0.5,
+    "auc_roc_std": 0.0,
+    "f1_mean": 0.0,
+    "f1_std": 0.0,
+    "n": 5
+  },
+  "logistic_regression": {
+    "auc_roc_mean": 0.7328666102886514,
+    "auc_roc_std": 0.022559240933562128,
+    "f1_mean": 0.36936032647335737,
+    "f1_std": 0.03583254591704069,
+    "n": 25
+  },
+  "gradient_boosting": {
+    "auc_roc_mean": 0.7149737100619933,
+    "auc_roc_std": 0.01981050978508324,
+    "f1_mean": 0.3968518452042633,
+    "f1_std": 0.03510443075278486,
+    "n": 25
+  },
+  "conclusion": "no_detectable_difference",
+  "gap": 0.017892900226658126,
+  "noise_floor": 0.022559240933562128
+}

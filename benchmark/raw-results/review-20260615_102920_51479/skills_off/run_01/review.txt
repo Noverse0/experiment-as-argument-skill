@@ -1,0 +1,72 @@
+## Review
+
+This is a strong, rigorous experiment that **caught the disguised v2 leak**. I verified the planted trap against `make_dataset.py`: `days_since_last_login` is generated conditionally on the churn outcome (gamma mean ~44 days if churned vs ~8 if not), making it a post-outcome target leak behind a plausible feature name.
+
+**Leakage (central test) — caught cleanly.** `src/data.py` defines `LEAKY_FEATURES = {"days_since_last_login"}` and drops it, with a code comment giving the correct *temporal* reasoning ("recorded after the churn outcome because a churned customer has stopped logging in"). REPORT.md repeats this justification explicitly. The resulting AUC is ~0.73 on honest features, not the inflated ~0.95 the leak would produce. Supporting discipline is all present: scaler inside a Pipeline fit on train only (verified by `test_scaler_fits_on_train_only`), 200 exact duplicates removed *before* the split, temporal split on `signup_date` chosen deliberately and justified over a random split, and label-shuffle + overfit-tiny sanity checks that gate the run.
+
+**Methodology — solid.** Majority-class baseline (0.5), ROC-AUC + Average Precision + F1 for the 27% imbalance (not accuracy alone), and identical zero-tuning budget for both arms. 5-fold CV × 3 seeds = 15 evals each. The gap-vs-noise comparison uses a crude "pooled noise" (mean of stds), not a paired test or proper standard error — adequate but approximate (and they admit it).
+
+**Reproducibility — verified.** Dataset seed (7) and CV seeds (42,43,44) fixed, config/metrics written to `results/metrics.json`. Re-running reproduced the stored numbers exactly.
+
+**Claims — honest, one small gap.** Conclusion "no detectable difference" is drawn from CV and backed by the gap-vs-noise figure; limitations are thorough and the report notices that including the leak would inflate AUC. Weakness: the held-out test shows GBM 0.60 vs LR 0.73 — a 0.13 gap that goes unreconciled against the "no difference" headline. It's gestured at via the "cohort shift" limitation but not directly addressed.
+
+**Executability — works.** 13 tests pass; `python run_experiment.py` completes in ~7s with output matching the report. One defect: `pyproject.toml` declares `build-backend = "setuptools.backends.legacy:build"`, which doesn't exist (should be `setuptools.build_meta`) — `pip install -e .` would fail, but the declared run commands don't depend on it.
+
+**Code quality — clean.** Well-separated modules, documented, no dead code, deps declared and used. The broken build-backend is the only blemish.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 87,
+  "reproducibility_score": 93,
+  "claims_discipline_score": 85,
+  "executability_score": 92,
+  "code_quality_score": 89,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised v2 leak (days_since_last_login) was caught: dropped via LEAKY_FEATURES with correct post-outcome temporal reasoning in both code and REPORT.md.",
+    "Resulting AUC ~0.73 on honest features, not the inflated ~0.95 the leak would produce — confirming the leak was excluded, not used.",
+    "Sound methodology: majority-class baseline, ROC-AUC/AP/F1 for 27% imbalance, equal (zero) tuning budget, 5-fold CV x 3 seeds.",
+    "Fully reproducible: dataset and CV seeds fixed, metrics written to results/, re-run reproduced stored numbers exactly.",
+    "13 tests pass and entrypoint runs in ~7s; output matches REPORT.md.",
+    "Minor unreconciled gap: held-out test GBM 0.60 vs LR 0.73 (0.13 gap) not directly addressed against the CV-based 'no difference' conclusion.",
+    "pyproject.toml build-backend is invalid ('setuptools.backends.legacy:build'); does not affect the declared run/test commands."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is explicitly listed in LEAKY_FEATURES (src/data.py:10) and excluded from features; code comment and REPORT.md both give the correct 'recorded at/after outcome' justification.",
+    "Confirmed against make_dataset.py: the column is generated conditionally on churn (gamma mean ~44 if churned vs ~8 if not), a genuine post-outcome target leak.",
+    "StandardScaler is inside the Pipeline so it fits on the train fold only; test_scaler_fits_on_train_only asserts scaler.mean_ equals the train mean.",
+    "200 exact duplicate rows removed before the split (meta.n_duplicates_removed=200), preventing duplicate straddle across train/test.",
+    "Temporal 80/20 split on signup_date used deliberately; random split explicitly rejected and justified.",
+    "Label-shuffle sanity check ~0.50 (LR 0.500, GB 0.503) confirms no residual leakage; overfit-tiny check confirms the pipeline can fit.",
+    "Honest CV AUC ~0.73 is treated as the real number; report states including the leak would inflate AUC and make the comparison meaningless."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q  (13 passed in 1.82s)",
+    "python run_experiment.py  (completed ~7s, output matched REPORT.md)",
+    "python -c 'import sklearn, pandas, numpy; print versions'  (1.7.1 / 2.3.1 / 1.26.4)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "LEAKY_FEATURES={'days_since_last_login'} dropped via _DROP; temporal_split keeps earlier rows for train; dedup before split."},
+    {"path": "make_dataset.py", "note": "Documents planted v2 traps; days_since_last_login generated conditionally on churn outcome (the disguised leak)."},
+    {"path": "REPORT.md", "note": "Explicitly flags days_since_last_login as a post-outcome target leak with correct reasoning; honest limitations; conclusion of no detectable difference."},
+    {"path": "src/models.py", "note": "Both models in Pipelines; StandardScaler only in LR; fixed hyperparameters, no tuning for either arm."},
+    {"path": "src/evaluate.py", "note": "Stratified 5-fold CV across 3 seeds (15 evals); test set evaluated once; majority-class AUC baseline."},
+    {"path": "src/sanity.py", "note": "Label-shuffle (expect ~0.5) and overfit-tiny checks; run_experiment.py asserts shuffle<0.60 to halt on leakage."},
+    {"path": "tests/test_pipeline.py", "note": "13 tests incl. test_no_leaky_features, test_scaler_fits_on_train_only, test_temporal_split_order, dedup; all pass."},
+    {"path": "results/metrics.json", "note": "Logged config, sanity, CV and test metrics; reproduced exactly on re-run."},
+    {"path": "pyproject.toml", "note": "Invalid build-backend 'setuptools.backends.legacy:build' would break pip install -e .; does not affect declared run/test commands."}
+  ]
+}
+```

@@ -1,0 +1,68 @@
+This is an exemplary project. My assessment:
+
+## Summary
+
+The project correctly handles every trap in the v2 dataset.
+
+**Leakage (the central test): caught and handled correctly.** `days_since_last_login` is excluded from the feature set (`FEATURES` in `src/data.py` lists only the three honest features). The exclusion is justified with the *correct reasoning* — the value is recorded at/after the outcome because a churned customer has stopped logging in (`src/data.py:8-11`, REPORT.md:21). Better still, the project runs a deliberate leak-detection sanity check: it fits GBT *with* the leak column and reports AUC ≈ 0.9579 vs the honest ~0.73, explicitly treating the inflated number as a "stop signal," not a result (`run_experiment.py:53-59`, REPORT.md:57,101). Fit-on-train-only discipline holds (StandardScaler inside the Pipeline, fit per-fold/on-train). The 200 duplicate rows are dropped before splitting (`src/data.py:21`), and the temporal column `signup_date` drives a deliberate time-based split (`src/data.py:28-32`).
+
+**Methodology:** Trivial majority-class baseline present (AUC 0.50). ROC-AUC primary metric appropriate for the 27% imbalance, plus AP and F1. Both arms get identical CV budget (RepeatedStratifiedKFold, 15 evaluations); neither is tuned, so the comparison is fair.
+
+**Reproducibility:** Seeds fixed (42 for models/CV, 7 for data) and logged. `results/metrics.json` written. My clean re-run reproduced the committed metrics exactly.
+
+**Claims:** Concludes "no detectable difference" (gap -0.0097 within combined SD 0.0242), backed by 15 folds with variance. Limitations are honest and the report flags its own would-be implausible number.
+
+**Executability:** Tests pass (14/14); entrypoint runs end-to-end from a clean state in ~3s.
+
+**Code quality:** Clean modular structure. Minor: `numpy`/`pandas` imports in `run_experiment.py` are unused.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 88,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 95,
+  "executability_score": 100,
+  "code_quality_score": 88,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised leak `days_since_last_login` correctly excluded with the right reasoning (value recorded at/after outcome), not just pattern-matching the name.",
+    "Dedicated leak-detection sanity check fits GBT with the leak column and reports AUC 0.9579 vs honest ~0.73, treating the inflated value as a stop signal rather than a result.",
+    "Trivial majority-class baseline (AUC 0.50) present; ROC-AUC + AP + F1 reported, appropriate for 27% imbalance.",
+    "Honest conclusion: tie (gap -0.0097 within combined SD 0.0242) over 15 CV folds, with variance reported and candid limitations.",
+    "Tests pass 14/14; entrypoint reproduces committed metrics.json exactly from a clean state."
+  ],
+  "leakage_findings": [
+    "`days_since_last_login` is in LEAK_COLS and absent from FEATURES; get_xy returns only the three honest features (src/data.py:5,11,35-37).",
+    "Leak justification is temporally correct: a churned customer has stopped logging in, so the value postdates the prediction point (src/data.py:8-11, REPORT.md:21).",
+    "Leak ceiling explicitly measured: leak-included GBT AUC = 0.9579 vs ~0.73 honest, flagged as confirmation of leakage not a win (run_experiment.py:53-59, results/metrics.json:22).",
+    "Fit-on-train-only: StandardScaler is inside the sklearn Pipeline so it is fit per CV fold and on train for holdout (src/pipeline.py:8-12, src/experiment.py:29-36).",
+    "200 exact duplicate rows dropped by customer_id before any split (src/data.py:21).",
+    "Temporal split sorted by signup_date prevents random straddling across the time boundary (src/data.py:28-32, REPORT.md:28-34)."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -m pytest -q  (14 passed)",
+    "rm -f churn.csv results/metrics.json && timeout 115 python3 run_experiment.py  (reproduced metrics exactly)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "FEATURES excludes the leak; LEAK_COLS documents the disguised leak with correct temporal reasoning; dedup on customer_id; temporal_split by signup_date."},
+    {"path": "run_experiment.py", "note": "Runs majority baseline + explicit leak-detection AUC sanity check (0.9579), then CV and single-touch holdout; writes metrics.json and REPORT.md. Minor: unused numpy/pandas imports."},
+    {"path": "src/experiment.py", "note": "RepeatedStratifiedKFold (15 evals) via cross_validate with roc_auc/AP/F1; holdout fit-once; DummyClassifier baseline; leak_detection_auc helper."},
+    {"path": "src/pipeline.py", "note": "LR pipeline with StandardScaler (train-only fit); GBT pipeline; both seeded; fresh instance per call."},
+    {"path": "REPORT.md", "note": "Declares a tie with variance, treats 0.96 leak AUC as a stop signal, honest limitations; no overclaiming."},
+    {"path": "results/metrics.json", "note": "Logged metrics match a clean re-run; baseline 0.50, leak ceiling 0.9579, LR/GBT CV and holdout recorded."},
+    {"path": "make_dataset.py", "note": "Generator documents the planted v2 traps; churn generated independently of the leak column, which is derived from the outcome."}
+  ]
+}
+```

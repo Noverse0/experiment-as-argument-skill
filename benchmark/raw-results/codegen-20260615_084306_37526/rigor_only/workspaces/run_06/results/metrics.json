@@ -1,0 +1,70 @@
+{
+  "dataset": {
+    "path": "churn.csv",
+    "n_rows_raw": 4200,
+    "n_rows_after_dedup": 4000,
+    "n_dupes_removed": 200,
+    "target_rate": 0.2705,
+    "features_used": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets",
+      "signup_days"
+    ],
+    "features_dropped": {
+      "days_since_last_login": "post-outcome leak",
+      "customer_id": "identifier",
+      "signup_date": "converted to signup_days numeric feature"
+    }
+  },
+  "split": {
+    "method": "temporal_chronological_80_20",
+    "n_train": 3200,
+    "n_test": 800,
+    "train_target_rate": 0.275625,
+    "test_target_rate": 0.25
+  },
+  "sanity_checks": {
+    "baseline_roc_auc": 0.5075000000000001,
+    "baseline_avg_precision": 0.25292600896860984,
+    "shuffle_label_mean_roc_auc": 0.5029189627606496,
+    "shuffle_label_std_roc_auc": 0.009294232524101598,
+    "shuffle_label_pass": true
+  },
+  "cv_evaluation": {
+    "LogisticRegression": {
+      "roc_auc": {
+        "mean": 0.7378178878373965,
+        "std": 0.02380243122090752,
+        "n": 15
+      },
+      "avg_precision": {
+        "mean": 0.5110236866406551,
+        "std": 0.033846591102452264,
+        "n": 15
+      }
+    },
+    "GradientBoosting": {
+      "roc_auc": {
+        "mean": 0.7245755863945103,
+        "std": 0.025321214147039802,
+        "n": 15
+      },
+      "avg_precision": {
+        "mean": 0.4899600621293766,
+        "std": 0.034426342474123385,
+        "n": 15
+      }
+    }
+  },
+  "holdout_evaluation": {
+    "LogisticRegression": {
+      "roc_auc": 0.7323333333333333,
+      "avg_precision": 0.49248981023073907
+    },
+    "GradientBoosting": {
+      "roc_auc": 0.607325,
+      "avg_precision": 0.33458610249531073
+    }
+  }
+}

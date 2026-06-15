@@ -1,0 +1,61 @@
+Everything passes, runs in seconds, and re-runs bit-identically. This project explicitly caught the disguised leak with correct temporal reasoning, and even includes a label-shuffle negative control and a beat-baseline sanity test.
+
+Assessment summary:
+- **Leakage:** `days_since_last_login` is excluded as a post-outcome leak with correct reasoning (in both `experiment.py:16-23` and REPORT.md:18-20). Duplicates dropped *before* the split (`pipeline`/`experiment.py:32`). `TimeSeriesSplit` on `signup_date`-sorted data. Scaler is inside the sklearn Pipeline, so it's fit on train folds only. AUC ~0.73 on honest features — exactly the expected "honest" number, not the inflated ~0.95. Plus a label-shuffle test asserting AUC < 0.60.
+- **Methodology:** Majority-class baseline present (AUC 0.5); ROC-AUC primary plus f1/precision/recall; both models untuned (equal budget); appropriate temporal CV.
+- **Reproducibility:** Seeds fixed (data seed=7, model random_state=42); re-run produced identical metrics.json; artifacts written to results/.
+- **Claims:** Reports no winner (overlapping ±SD), honest limitations, no overclaiming. Significance is informal (±1 SD overlap, not a formal test) — minor.
+- **Executability:** 18 tests pass; entrypoint completes in seconds.
+- **Code quality:** Clean, modular, documented, deps declared/used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 93,
+  "claims_discipline_score": 90,
+  "executability_score": 98,
+  "code_quality_score": 93,
+  "verdict": "excellent",
+  "key_findings": [
+    "Caught the disguised leak: days_since_last_login is explicitly excluded as a post-outcome target leak with correct temporal reasoning, not pattern-matched on name.",
+    "Reports the honest AUC (~0.73 LR / ~0.72 GB) rather than the inflated ~0.95 the leak would produce.",
+    "Includes a label-shuffle negative control (asserts AUC < 0.60) and a beat-majority-baseline test — strong leakage defenses beyond the feature drop.",
+    "Conclusion correctly declines to name a winner given overlapping ±1 SD ranges across 5 temporal folds; limitations are honest and complete.",
+    "All 18 tests pass; entrypoint runs in seconds and re-produces bit-identical metrics.json.",
+    "Minor: 'significance' is judged informally by ±1 SD overlap rather than a formal statistical test; single seed/single dataset only."
+  ],
+  "leakage_findings": [
+    "days_since_last_login dropped; FEATURES = [tenure_months, monthly_spend, support_tickets] (src/experiment.py:23), with justification documented in code comments and REPORT.md:18-20.",
+    "200 exact duplicates removed via df.drop_duplicates() BEFORE any split (src/experiment.py:32), preventing train/test straddle; verified by test_no_duplicate_rows.",
+    "TimeSeriesSplit(5) over data sorted by signup_date (src/experiment.py:35,52) handles the temporal column deliberately rather than via a random split.",
+    "StandardScaler is inside the sklearn Pipeline, so cross_validate fits it on each train fold only — no fit-on-full-data leakage.",
+    "signup_date and customer_id excluded as ordering-only / identifier columns.",
+    "Negative control: test_label_shuffle_degrades_performance confirms shuffled labels give AUC < 0.60, demonstrating no residual leak."
+  ],
+  "commands_run": [
+    "find . -type f (inventory)",
+    "python -m pytest -q  → 18 passed in 3.82s",
+    "python run_experiment.py  → LR AUC 0.733±0.023, GB AUC 0.715±0.020",
+    "diff of re-run results/metrics.json vs committed → IDENTICAL (reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "Lines 16-23: FEATURES excludes days_since_last_login with explicit post-outcome-leak comment. Line 32: dedup before split. Lines 52,70: TimeSeriesSplit + majority baseline."},
+    {"path": "make_dataset.py", "note": "Confirms the planted trap: days_since_last_login is generated FROM churn (gamma mean ~44 vs ~8 days), a disguised target leak; plus 200 appended duplicates and a temporal signup_date."},
+    {"path": "tests/test_experiment.py", "note": "test_leak_column_excluded, test_label_shuffle_degrades_performance (negative control), test_models_beat_majority_baseline — leakage and validity defenses encoded as tests."},
+    {"path": "src/pipeline.py", "note": "Scaler inside Pipeline (fit-on-train-only per fold); random_state fixed; GB intentionally unscaled. Both models use defaults → equal tuning budget."},
+    {"path": "REPORT.md", "note": "Declines to name a winner (overlapping ±SD across 5 folds), reports honest 0.73 AUC, lists genuine limitations; does not claim anything the code did not measure."},
+    {"path": "results/metrics.json", "note": "Per-fold values, means/stds, baseline_roc_auc=0.5 logged; re-run reproduces it identically."}
+  ]
+}
+```

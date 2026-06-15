@@ -1,0 +1,62 @@
+This is a strong, rigorous project — but with one subtle methodological flaw it failed to notice. My review follows.
+
+## Summary
+
+The central v2 trap — `days_since_last_login` as a disguised target leak — was **caught and handled correctly**. The feature is excluded in `src/data.py` (`LEAK_FEATURES`), with accurate *when-is-it-known* reasoning rather than name-pattern matching. The report explicitly notes that including it would produce a suspiciously high AUC and treats that as a leakage signal, not a win. I verified empirically: the leak feature correlates 0.68 with the target, and adding it lifts AUC from **0.736 → 0.949** — exactly the trap described. The project sits on the honest 0.73 features.
+
+Other discipline is also solid: dedup-before-split (200 dups removed), `TimeSeriesSplit` over `signup_date`-sorted data, scaler fitted inside the pipeline/CV loop (train-only). Tests pass (17/17), entrypoint runs clean in ~4s and reproduces.
+
+**The one real weakness:** the "3 independent seeds" protocol is a **no-op**. `TimeSeriesSplit` does not shuffle, and `LogisticRegression` (lbfgs) and `GradientBoostingClassifier` are deterministic on fixed data/folds — the seed only feeds `random_state`, which changes nothing. All three seeds produce byte-identical ROC-AUC (0.7329 / 0.7150 every time), so `std ≈ 0.0000`. That zero isn't "low variance," it's "no variance was ever possible." The report then declares a winner because `gap (0.0179) > combined_sd (0.0000)` — i.e. the confidence test compares against a structurally-zero noise floor. The report frames this as "results reproduced across 3 independent seeds" (robustness) when it's really just reproducibility of a deterministic computation, and it never notices this. The genuine fold-to-fold variance (the real noise source) is collapsed into a per-seed mean and discarded.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 78,
+  "reproducibility_score": 90,
+  "claims_discipline_score": 66,
+  "executability_score": 98,
+  "code_quality_score": 90,
+  "verdict": "good",
+  "key_findings": [
+    "Disguised leak days_since_last_login correctly excluded with when-is-it-known reasoning, not name matching; verified 0.736->0.949 AUC jump if included (corr 0.68).",
+    "Dedup before split, TimeSeriesSplit on signup_date, and scaler fitted train-only inside the CV loop are all implemented correctly.",
+    "Tests pass (17/17 in ~2s); entrypoint runs clean from a deleted-dataset state in ~4s and reproduces metrics exactly.",
+    "FLAW: the 3-seed protocol provides zero variance information — TimeSeriesSplit doesn't shuffle and LR/GB are deterministic, so all 3 seeds give identical results and std=0.0000.",
+    "Winner (LR) is declared via gap > combined_sd, but combined_sd is structurally zero, so the confidence test is hollow; the report does not notice this.",
+    "Limitations section is otherwise honest (thin features, default hyperparams, no final hold-out, null-result caveat); same (zero) tuning budget applied fairly to both models."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is excluded as LEAK_FEATURES in src/data.py:7 with a correct post-outcome timing justification.",
+    "REPORT.md flags that a careless pipeline would see a suspiciously high AUC from this feature and treats it as a diagnostic signal, not a result.",
+    "Empirically confirmed leak: adding the feature raises 5-fold LR AUC from 0.736 to 0.949 (feature-target correlation 0.68).",
+    "Duplicate rows (200) are dropped before splitting, preventing train/test straddle.",
+    "Temporal column signup_date handled deliberately via sort + TimeSeriesSplit rather than random shuffle.",
+    "StandardScaler is inside the sklearn Pipeline and fit per train fold only; tests assert scaler means differ across folds."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q  (17 passed in ~2s)",
+    "rm churn.csv && time python run_experiment.py  (regenerates data, runs in ~4.3s, reproduces metrics)",
+    "python -c '...'  (verified leak: corr 0.68, AUC 0.736 vs 0.949 with leak)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "LEAK_FEATURES and DROP_FEATURES exclude days_since_last_login; dedup + sort-by-signup_date in load_and_clean."},
+    {"path": "src/evaluate.py", "note": "TimeSeriesSplit CV; fit per train fold; ROC-AUC/F1/precision/recall computed per fold."},
+    {"path": "src/pipeline.py", "note": "StandardScaler inside LR pipeline (fit on train fold only); GB unscaled. Seed passed only to model random_state."},
+    {"path": "run_experiment.py", "note": "Loops over SEEDS=[42,123,456] but seeds don't affect deterministic splits/models; winner chosen via gap <= (lr_sd + gb_sd) where both sd~=0."},
+    {"path": "REPORT.md", "note": "Excellent leak narrative and honest limitations, but reports +/-0.0000 and frames 3 identical seeds as robustness; declares LR winner on a structurally-zero noise floor."},
+    {"path": "results/metrics.json", "note": "LR roc_auc std=0.0 exactly; GB std=2.3e-05 (numerical only), confirming seeds add no variance."},
+    {"path": "make_dataset.py", "note": "Documents the planted v2 traps; leak is noisy (gamma) so it yields ~0.95 not 1.0, matching the disguised-leak design."}
+  ]
+}
+```

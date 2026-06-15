@@ -1,0 +1,71 @@
+Confirmed: including `days_since_last_login` yields AUC 0.958 vs ~0.73 on honest features — exactly the leakage signature described. This project correctly identified and excluded it.
+
+## Review
+
+This is a rare, near-exemplary submission for the v2 dataset. It caught the disguised leak through correct temporal reasoning rather than name-matching.
+
+**Leakage (the central test):** Passed cleanly. `days_since_last_login` is excluded from `FEATURES` (src/data.py:8), documented as a temporal leak with the correct causal argument ("a churned customer has by definition stopped logging in, so the value is recorded at/after the outcome"), and enforced by a test (`test_features_exclude_leaky`). I empirically confirmed the leak would inflate AUC to 0.958 vs the honest 0.73 — they avoided it. Fit-on-train discipline is correct: `StandardScaler` lives inside the sklearn `Pipeline`, fit only on `X_train`. Duplicates are removed *before* the split, so they cannot straddle. `signup_date` is handled deliberately via a time-ordered split. Only nit: they justify the drop by reasoning rather than also empirically demonstrating the suspicious 0.95 — demonstrating it would have been the strongest possible evidence.
+
+**Methodology:** Majority baseline, label-shuffle (avg over 20 trials), and overfit-50 sanity checks all present and asserted. ROC-AUC is the primary metric with F1/precision/recall alongside (not accuracy alone), appropriate for the 27% churn imbalance. Both models use untuned defaults — an equal (if minimal) tuning budget. Weakness: the "5 seeds" produce std=0.0000 because given a fixed split both models are effectively deterministic; seed variation captures only model-init noise (~0), not data/split uncertainty. They honestly flag this in Limitation #2.
+
+**Reproducibility:** Dataset seed (7) and model seeds fixed and logged; full config + per-seed + aggregate metrics written to `results/metrics.json`. Re-ran from a clean state (deleted csv + metrics) and reproduced the reported numbers exactly.
+
+**Claims:** Correctly declines to declare a winner ("no detectable difference," gap −0.0085). Limitations are thorough and insightful — notably #4 acknowledges the temporal split is effectively random here because `signup_date` is uncorrelated with the outcome in this synthetic data. Minor friction: invoking "noise bands" when std is 0.0000 is slightly loose, but the conclusion (small gap, no winner) is sound and nothing is claimed that the code didn't measure.
+
+**Executability:** 14 tests pass; entrypoint auto-generates the dataset and runs end-to-end from scratch. One benign `SettingWithCopyWarning` in a test.
+
+**Code quality:** Clean modular split (data/pipeline/evaluate), no dead code, dependencies declared and all used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 94,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 96,
+  "claims_discipline_score": 88,
+  "executability_score": 97,
+  "code_quality_score": 90,
+  "verdict": "excellent",
+  "key_findings": [
+    "Caught the disguised leak: days_since_last_login is excluded with correct temporal reasoning (recorded at/after the churn event), not just name-matching.",
+    "Honest headline AUC ~0.73 on legitimate features; I confirmed the leaky feature would inflate GB AUC to 0.958 — they avoided it.",
+    "Full sanity-check battery present: majority baseline (0.50), label-shuffle (LR 0.555 / GB 0.494), overfit-50 (0.90 / 1.00), all asserted.",
+    "Reproduced exactly from a clean state (regenerated dataset + metrics); 14/14 tests pass.",
+    "Correctly declines to declare a winner; gap -0.0085 reported as no detectable difference with thorough, honest limitations.",
+    "5-seed repetition yields std=0.0000 because the comparison is effectively deterministic given the fixed split — the variance estimate reflects near-zero model-init noise, not data/split uncertainty (acknowledged in limitations)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login dropped from FEATURES (src/data.py:8) and listed in LEAKY_FEATURES with a correct causal/temporal justification.",
+    "Leak exclusion is enforced by test_features_exclude_leaky (tests/test_data.py:71).",
+    "Empirically verified: GB with the leaky feature scores AUC 0.958 vs 0.724 honest — the exact ~0.95-vs-~0.73 signature described in the guidance.",
+    "Scaler fit only on training split (inside sklearn Pipeline) — no preprocessing leakage.",
+    "200 exact duplicates removed via drop_duplicates BEFORE the split (src/data.py:18), so they cannot straddle train/test.",
+    "signup_date handled deliberately via a time-ordered 80/20 split; train max date <= test min date verified by test_temporal_split_no_time_overlap."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -m pytest -q  (14 passed, 1 warning)",
+    "rm -f churn.csv results/metrics.json && python3 run_experiment.py  (reproduced reported metrics exactly)",
+    "python3 -c '<fit GB including days_since_last_login>'  -> AUC WITH leak: 0.9579"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "FEATURES excludes the leak; LEAKY_FEATURES documents days_since_last_login with correct temporal reasoning; dedup before temporal_split."},
+    {"path": "make_dataset.py", "note": "Confirms days_since_last_login is derived from churn (gamma mean ~44d churned vs ~8d not) — a genuine target leak by construction."},
+    {"path": "src/pipeline.py", "note": "StandardScaler inside Pipeline so it is fit on train only; both models untuned defaults (equal budget)."},
+    {"path": "src/evaluate.py", "note": "Majority baseline, averaged label-shuffle AUC, and overfit check implemented as sanity gates."},
+    {"path": "run_experiment.py", "note": "Split before any fit; sanity assertions; writes results/metrics.json; regenerates REPORT.md from measured values."},
+    {"path": "REPORT.md", "note": "Declines to name a winner; flags leak as temporal; thorough limitations including the effectively-random-split artefact and lack of a statistical test."},
+    {"path": "results/metrics.json", "note": "Per-seed and aggregate metrics with exclusion reasons; LR AUC 0.7323, GB 0.7238; std ~0."},
+    {"path": "tests/test_data.py", "note": "Enforces leak/id exclusion, temporal no-overlap, dedup, and split sizes; 14 tests pass."}
+  ]
+}
+```

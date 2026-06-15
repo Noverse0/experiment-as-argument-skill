@@ -1,0 +1,112 @@
+{
+  "logistic_regression": {
+    "roc_auc": {
+      "mean": 0.7326224561309435,
+      "std": 0.022939574204954783,
+      "scores": [
+        0.732435953104646,
+        0.7386144578313254,
+        0.6940424359327638,
+        0.7658869036654999,
+        0.732132530120482
+      ],
+      "n_folds": 5
+    },
+    "f1": {
+      "mean": 0.36420444309405087,
+      "std": 0.040021432131458395,
+      "scores": [
+        0.33935018050541516,
+        0.3861003861003861,
+        0.3157894736842105,
+        0.43018867924528303,
+        0.34959349593495936
+      ],
+      "n_folds": 5
+    },
+    "average_precision": {
+      "mean": 0.5011742399682537,
+      "std": 0.03624887706752295,
+      "scores": [
+        0.5292041832688248,
+        0.4565095248932303,
+        0.473660703653278,
+        0.555324551162638,
+        0.49117223686329736
+      ],
+      "n_folds": 5
+    }
+  },
+  "gradient_boosting": {
+    "roc_auc": {
+      "mean": 0.7129286178598138,
+      "std": 0.01922042377666115,
+      "scores": [
+        0.6975683890577508,
+        0.7106566265060241,
+        0.6874786442546157,
+        0.7383611162276663,
+        0.730578313253012
+      ],
+      "n_folds": 5
+    },
+    "f1": {
+      "mean": 0.3902170231863636,
+      "std": 0.031860890738284915,
+      "scores": [
+        0.38436482084690554,
+        0.35687732342007433,
+        0.3674911660777385,
+        0.4485294117647059,
+        0.3938223938223938
+      ],
+      "n_folds": 5
+    },
+    "average_precision": {
+      "mean": 0.47943393968403464,
+      "std": 0.0237855942504977,
+      "scores": [
+        0.4730393627046368,
+        0.44481572330056807,
+        0.4675829330349967,
+        0.5109513049825545,
+        0.5007803743974172
+      ],
+      "n_folds": 5
+    }
+  },
+  "winner": "no_detectable_difference",
+  "sanity": {
+    "class_balance": {
+      "n": 4000,
+      "n_positive": 1082,
+      "positive_rate": 0.2705
+    },
+    "baseline_auc": 0.5,
+    "overfit_tiny": {
+      "lr": 0.85,
+      "gbm": 1.0
+    },
+    "label_shuffle_auc": {
+      "lr": 0.527661592585995,
+      "gbm": 0.5134802557117081
+    },
+    "n_dropped_duplicates": 200
+  },
+  "methodology": {
+    "cv": "TimeSeriesSplit(n_splits=5)",
+    "primary_metric": "roc_auc",
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets",
+      "signup_month"
+    ],
+    "dropped_features": {
+      "days_since_last_login": "post-outcome leak",
+      "customer_id": "identifier",
+      "signup_date": "used only for temporal ordering and month extraction"
+    },
+    "n_samples": 4000
+  }
+}

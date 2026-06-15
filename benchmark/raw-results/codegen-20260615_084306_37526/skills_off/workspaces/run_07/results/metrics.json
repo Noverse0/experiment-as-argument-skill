@@ -1,0 +1,54 @@
+{
+  "dataset": {
+    "n_after_dedup": 4000,
+    "churn_rate": 0.2705,
+    "train_n": 3200,
+    "test_n": 800,
+    "train_churn_rate": 0.275625,
+    "test_churn_rate": 0.25
+  },
+  "features_used": [
+    "tenure_months",
+    "monthly_spend",
+    "support_tickets"
+  ],
+  "features_excluded": {
+    "customer_id": "identifier",
+    "signup_date": "used for temporal split only; redundant with tenure_months",
+    "days_since_last_login": "target leak \u2014 encodes churn outcome"
+  },
+  "sanity": {
+    "baseline_auc": 0.5,
+    "leak_included_auc": 0.9578875000000001
+  },
+  "logistic_regression": {
+    "cv": {
+      "roc_auc_mean": 0.737207480264923,
+      "roc_auc_std": 0.015332344974086896,
+      "avg_precision_mean": 0.5123645505661297,
+      "avg_precision_std": 0.030661321993392984,
+      "f1_mean": 0.35726170693333026,
+      "f1_std": 0.0333960981338121,
+      "n_folds": 15
+    },
+    "holdout": {
+      "roc_auc": 0.7322666666666666,
+      "avg_precision": 0.4922014190495648
+    }
+  },
+  "gradient_boosting": {
+    "cv": {
+      "roc_auc_mean": 0.7274658180067289,
+      "roc_auc_std": 0.018687278152291455,
+      "avg_precision_mean": 0.5005546975376655,
+      "avg_precision_std": 0.0298622075002851,
+      "f1_mean": 0.38992091092033826,
+      "f1_std": 0.03234170695140494,
+      "n_folds": 15
+    },
+    "holdout": {
+      "roc_auc": 0.7237458333333334,
+      "avg_precision": 0.4812206409762639
+    }
+  }
+}

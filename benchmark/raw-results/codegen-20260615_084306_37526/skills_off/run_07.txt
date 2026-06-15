@@ -1,0 +1,13 @@
+Everything works correctly. Here's a summary of all files created:
+
+- **`src/data.py`** — load, dedup, temporal split, feature selection (drops `days_since_last_login` as target leak)
+- **`src/pipeline.py`** — `make_lr()` and `make_gbt()` pipeline factories
+- **`src/experiment.py`** — CV scoring, holdout scoring, baseline, leak detection
+- **`run_experiment.py`** — full entrypoint: generates data if missing, runs sanity checks, CV, holdout, writes `results/metrics.json` and `REPORT.md`
+- **`tests/test_data.py`** — 7 tests for dedup, leak-free features, temporal split ordering
+- **`tests/test_pipeline.py`** — 7 tests including label-shuffle sanity checks (out-of-sample)
+- **`requirements.txt`** — dependencies
+
+Key rigor decisions: dropped `days_since_last_login` (target leak, confirmed by AUC ≈ 0.96 ceiling), deduplicated 200 rows before splitting, temporal split by `signup_date`, 15 CV folds (5×3 repeats) for variance estimation. Result: no detectable difference (gap +0.0097 AUC, within combined SD of 0.024).
+
+{"files_created": ["src/__init__.py", "src/data.py", "src/pipeline.py", "src/experiment.py", "run_experiment.py", "tests/__init__.py", "tests/test_data.py", "tests/test_pipeline.py", "requirements.txt", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}

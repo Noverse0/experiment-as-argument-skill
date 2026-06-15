@@ -1,0 +1,63 @@
+Everything confirmed. The project caught the disguised leak with correct temporal reasoning (dropped `days_since_last_login`), and I independently verified the leak would have inflated AUC to **0.9496 vs the honest 0.7358** — exactly the ~0.95-vs-~0.73 signature the guidance describes. Reproduction was byte-identical.
+
+This is a near-gold-standard submission:
+
+- **Leakage:** Disguised leak identified and dropped with explicit "when is the value known" reasoning, not name-matching. Dedup before split (200 dupes removed), scaler fitted inside pipeline per fold via `cross_validate`, `signup_date` dropped with justification and a deployment-time-split caveat in limitations.
+- **Methodology:** ROC-AUC primary (not accuracy alone) + F1/accuracy secondary; 5-fold × 3 seeds = 15 scores with sd; both models use defaults (equal budget). Baseline is present but weak — it's the trivial 0.5 AUC floor rather than a fitted DummyClassifier.
+- **Reproducibility:** Seeds fixed and logged in `results/metrics.json` with full per-fold values; re-run produced identical metrics and report.
+- **Claims:** Honestly claims no winner (gap −0.0079 within noise); limitations thorough and accurate; no overclaiming.
+- **Executability:** 14 tests pass; entrypoint runs in seconds.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 94,
+  "methodological_validity_score": 80,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 92,
+  "executability_score": 98,
+  "code_quality_score": 90,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised target leak `days_since_last_login` was correctly identified and dropped with sound temporal reasoning (value recorded at/after the outcome), not name pattern-matching.",
+    "Report honestly claims NO winner: GB-LR AUC gap of -0.0079 sits within overlapping +/-1 sd ranges across 15 folds (5-fold x 3 seeds).",
+    "Reproduction was byte-identical: re-running the entrypoint produced metrics.json and REPORT.md matching the committed artifacts exactly.",
+    "All 14 unit tests pass in ~2s; entrypoint completes in seconds, well under the 120s budget.",
+    "Limitations are honest and specific (only 3 honest features, synthetic data, no tuning, no temporal split, default F1 threshold).",
+    "Baseline is the trivial majority-class AUC floor (0.5) rather than a fitted dummy classifier reporting real metrics — the one notable methodological soft spot."
+  ],
+  "leakage_findings": [
+    "`days_since_last_login` is in LEAK_COLS and dropped in load_and_clean; FEATURE_COLS is restricted to the 3 honest features.",
+    "Independently verified: adding the leak raises CV ROC-AUC from 0.7358 to 0.9496, matching the rubric's ~0.95-vs-~0.73 leakage signature; the project avoided this by dropping it a priori.",
+    "Deduplication (drop_duplicates) is applied before any CV split, so the 200 appended duplicate rows cannot straddle train/test.",
+    "StandardScaler lives inside the sklearn Pipeline and is fitted per training fold via cross_validate — no preprocessing leakage into validation folds.",
+    "`signup_date` (temporal column) dropped with explicit justification (redundant with tenure_months); report acknowledges a time-based split would be required for real deployment. Slight gap: no time-based split was actually performed, but the drop is justified and flagged as a limitation.",
+    "Report did not numerically demonstrate the inflated ~0.95 leak AUC as a confirmation, relying instead on a priori reasoning — correct conclusion, marginally less defensive."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q  (14 passed in 1.94s)",
+    "timeout 110 python run_experiment.py  (completed, AUC LR 0.7357 / GB 0.7278)",
+    "diff backup vs regenerated metrics.json and REPORT.md (both IDENTICAL)",
+    "python snippet: CV AUC honest=0.7358 vs with-leak=0.9496"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "LEAK_COLS=['days_since_last_login'] dropped with comment explaining post-outcome recording; FEATURE_COLS limited to 3 honest features; drop_duplicates before split; scaler only in LR pipeline (trees need none)."},
+    {"path": "src/evaluate.py", "note": "Repeated StratifiedKFold over 3 seeds; cross_validate keeps preprocessing inside the pipeline; returns mean/std/n/per-fold values for roc_auc, f1, accuracy."},
+    {"path": "make_dataset.py", "note": "Generative process: days_since_last_login drawn conditional on churn (gamma mean ~44 vs ~8), confirming it is outcome-derived; 200 duplicates appended; signup_date temporal."},
+    {"path": "REPORT.md", "note": "Claims no detectable difference; documents leak drop reasoning, dedup, per-fold scaling, 15-fold variance; honest limitations section."},
+    {"path": "results/metrics.json", "note": "Full config (seeds, splits, features, leaked_dropped) plus per-fold values; reproduced byte-identically."},
+    {"path": "tests/test_pipeline.py", "note": "14 tests covering leak/identifier dropping, dedup, scaler-not-prefitted, CV structure/counts, and beats-baseline sanity; all pass."},
+    {"path": "requirements.txt", "note": "scikit-learn, pandas, numpy, pytest — all declared and used."}
+  ]
+}
+```

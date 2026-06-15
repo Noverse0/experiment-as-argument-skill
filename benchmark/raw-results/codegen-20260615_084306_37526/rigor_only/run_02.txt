@@ -1,0 +1,7 @@
+Everything is in place. The experiment:
+- Caught and excluded `days_since_last_login` (post-outcome leak)
+- Removed 200 duplicate rows before splitting
+- Ran 15-fold repeated stratified CV per model
+- Concluded **no detectable difference** (gap −0.0051 within noise, LR ROC-AUC 0.7358 ± 0.0121 vs GBM 0.7307 ± 0.0136)
+
+{"files_created": ["src/__init__.py", "src/data.py", "src/models.py", "src/evaluate.py", "run_experiment.py", "tests/__init__.py", "tests/test_data.py", "tests/test_pipeline.py", "requirements.txt", "results/metrics.json", "REPORT.md"], "entrypoint": "python run_experiment.py", "test_command": "python -m pytest tests/ -v"}

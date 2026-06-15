@@ -1,0 +1,68 @@
+Everything reproduces exactly — the entrypoint regenerates the dataset, the numbers match `results/metrics.json` and REPORT.md, and all 18 tests pass.
+
+This project caught the disguised leak. Let me write up the assessment.
+
+This is a strong, rigorous project. Summary of findings:
+
+**Leakage (central test):** Fully caught. `days_since_last_login` is in `LEAK_COLS` (pipeline.py:8) and dropped in `engineer_features`, with correct temporal reasoning ("recorded at/after the outcome … derived from the label"). The honest AUC is ~0.73, not the ~0.95 a leaked pipeline would show. Duplicates removed before split (`load_and_clean`). `signup_date` handled deliberately — converted to `signup_days`, data sorted chronologically, `TimeSeriesSplit` used. Scaler fitted on train fold only via `make_pipeline` inside `cross_validate`. Bonus: a label-shuffle sanity check (0.514, ≈0.5) confirms no residual leakage.
+
+**Methodology:** Trivial baseline (`DummyClassifier`) present. ROC-AUC + F1 appropriate for the 27% imbalance (not accuracy alone). Both models untuned defaults — equal treatment. Temporal 5-fold CV.
+
+**Reproducibility:** Seeds fixed and logged (dataset seed=7, RANDOM_STATE=42, shuffle seed=0); metrics + config written to `results/metrics.json`; rerun reproduced the numbers exactly.
+
+**Claims:** Honest. Declares LR the winner but only as "weak evidence" (gap 0.058 vs combined SD 0.050 — barely exceeds threshold), and limitation #5 explicitly flags combined-SD as a crude proxy and recommends a paired test. The one soft spot: declaring a winner at all on a gap that barely clears a rough heuristic is slightly stronger than the evidence warrants, though it's well-caveated. No claims beyond what the code measured.
+
+**Executability:** Clean-state run works end-to-end; tests pass.
+
+**Code quality:** Clean modular structure, no dead code, deps declared and used, thorough tests.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 88,
+  "reproducibility_score": 93,
+  "claims_discipline_score": 85,
+  "executability_score": 98,
+  "code_quality_score": 92,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised leak fully caught: days_since_last_login dropped with correct temporal reasoning; honest AUC ~0.73, not the ~0.95 a leaked pipeline would yield.",
+    "All preprocessing (StandardScaler) fitted inside each CV fold via sklearn Pipeline + cross_validate — no train/test contamination.",
+    "Trivial baseline (DummyClassifier most_frequent) and label-shuffle sanity check (AUC 0.514) both present and reported.",
+    "Reproduces exactly from a clean state: dataset regenerated, metrics matched, 18/18 tests pass.",
+    "Report declares LR the winner on weak evidence (gap 0.058 vs combined SD 0.050) — slightly overstated, but explicitly caveated as a rough heuristic in limitations."
+  ],
+  "leakage_findings": [
+    "days_since_last_login listed in LEAK_COLS (src/pipeline.py:8) and dropped in engineer_features; justified as derived-from-outcome, not pattern-matched on name.",
+    "Headline AUC ~0.733 (LR) matches the honest-feature expectation (~0.73), not the inflated ~0.95 — strong signal the leak was excluded.",
+    "200 exact duplicate rows removed via drop_duplicates() before any split (load_and_clean), preventing train/test straddling.",
+    "signup_date converted to signup_days, data sorted chronologically, TimeSeriesSplit(n=5) used so train folds precede test folds.",
+    "StandardScaler fitted on train fold only (make_pipeline inside cross_validate); imputation not needed (no missing values).",
+    "Label-shuffle probe yields AUC 0.514 (≈0.5), corroborating no residual leakage."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*'",
+    "python -m pytest -q  (18 passed in 1.70s)",
+    "rm -f churn.csv results/metrics.json && python run_experiment.py  (reproduced LR 0.733±0.022, GB 0.675±0.028, baseline 0.500, shuffle 0.514)"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "LEAK_COLS=['days_since_last_login'] dropped in engineer_features with temporal justification; scaler in train-only Pipeline; duplicates removed in load_and_clean."},
+    {"path": "src/evaluate.py", "note": "TimeSeriesSplit CV with per-fold pipeline; label_shuffle_auc sanity check; ROC-AUC + F1 reported."},
+    {"path": "run_experiment.py", "note": "Fixed seeds (RANDOM_STATE=42), DummyClassifier baseline, chronological sort, metrics written to results/; both models untuned defaults (equal budget)."},
+    {"path": "make_dataset.py", "note": "Confirms days_since_last_login is the disguised target leak (gamma by churn label) plus duplicate and temporal traps."},
+    {"path": "REPORT.md", "note": "Declares LR winner as 'weak evidence' (gap 0.058 vs SD 0.050); leak audit table; honest limitations incl. crude-SD-heuristic caveat."},
+    {"path": "results/metrics.json", "note": "Logged metrics match report and rerun; features list excludes the leak column; label_shuffle_auc 0.5136 recorded."},
+    {"path": "tests/test_pipeline.py", "note": "Asserts leak/ID columns dropped and only legitimate features remain; covers dedup and date conversion."}
+  ]
+}
+```

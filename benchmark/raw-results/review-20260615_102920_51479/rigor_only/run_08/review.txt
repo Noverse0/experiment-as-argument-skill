@@ -1,0 +1,62 @@
+All tests pass and the experiment reproduces the reported metrics exactly. Let me verify the duplicate-straddling claim and the scaler discipline one more time — the scaler is inside the sklearn `Pipeline`, so it's fit per-fold on train only. Dedup happens before CV in `load_and_clean`. The leak column is excluded.
+
+I have everything I need to score.
+
+## Assessment
+
+**Leakage (the central test) — caught cleanly.** The project correctly identifies `days_since_last_login` as a disguised target leak with exactly the right reasoning ("churned customers stop logging in, so this value is recorded *after* the outcome is known"), and excludes it. It does not report an inflated ~0.95 AUC; the honest features yield ~0.73, matching the expected honest result. It also dedups 200 rows *before* splitting, excludes `signup_date` with explicit temporal justification, and fits `StandardScaler` inside a `Pipeline` so it's train-only per fold. There's even a dedicated test asserting the leak column is absent.
+
+**Weaknesses** are minor and in methodology/claims:
+- No *trivial* baseline (majority-class / base-rate); the comparison is LR vs GB only.
+- The paired t-test runs on CV fold scores, which are not independent (overlapping training sets) — this is anti-conservative, and the report leans on `p=0.0000` to declare a "win" on a 0.01 AUC gap without discussing effect size / practical significance.
+- A code comment claims a "normal approximation via CLT" but the code actually uses the t-distribution (`stats.t.cdf`); harmless but inaccurate.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 80,
+  "reproducibility_score": 93,
+  "claims_discipline_score": 78,
+  "executability_score": 98,
+  "code_quality_score": 90,
+  "verdict": "excellent",
+  "key_findings": [
+    "Caught all three planted rigor traps: the disguised target leak, the 200 duplicate rows (deduped before split), and the temporal signup_date column (excluded with justification).",
+    "Honest feature set yields ~0.736 AUC (LR) / ~0.726 AUC (GB), consistent with the expected non-leaked result rather than an inflated ~0.95.",
+    "21 tests pass in ~2s; entrypoint runs in ~7s and reproduces REPORT.md and results/metrics.json exactly.",
+    "Methodology is solid (5-fold stratified CV × 5 seeds = 25 evals, ROC-AUC primary + F1 secondary, equal/zero tuning budget for both arms) but lacks a trivial/majority-class baseline.",
+    "Claims a 'win' for LogisticRegression on a 0.0100 AUC gap via paired t-test (p≈0); the gap is statistically flagged but practically negligible, and the test treats dependent CV folds as independent (anti-conservative).",
+    "Limitations section is honest and thorough (temporal validity untested, no tuning, synthetic DGP favors LR, single dataset realization)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is correctly excluded as a target leak with sound when-is-it-known reasoning, not pattern-matching the name. Defined in DROP_COLS in src/pipeline.py and documented in both code and REPORT.md.",
+    "No inflated AUC reported — honest features give ~0.73, matching the expected non-leaked baseline; the project avoided the trap entirely rather than reporting ~0.95 as a success.",
+    "200 exact duplicate rows removed via drop_duplicates() before any CV split, preventing train/test straddling (verified: 'dropped 200 exact duplicates', 4000 rows remain).",
+    "signup_date deliberately excluded; report acknowledges a random CV split cannot simulate time-ordered deployment and recommends a cutoff-based split as future work.",
+    "StandardScaler is inside the sklearn Pipeline, so it is fit on the training fold only within each CV split — no preprocessing leakage. No imputer/encoder needed (no missing/categorical features).",
+    "A dedicated unit test (test_target_leak_column_absent / test_drops_all_excluded_columns) asserts the leak column never reaches X."
+  ],
+  "commands_run": [
+    "python -m pytest -q  → 21 passed in 2.35s",
+    "python run_experiment.py  → ran in ~7s; LR AUC 0.7360±0.0134, GB 0.7260±0.0124, gap -0.0100, t=-6.265 p=0.0000; wrote results/metrics.json + REPORT.md (matches committed values exactly)"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "FEATURE_COLS excludes days_since_last_login; DROP_COLS documents leak/id/temporal rationale; dedup before split; StandardScaler inside Pipeline (train-only fit)."},
+    {"path": "make_dataset.py", "note": "Confirms the planted disguised leak: days_since_last_login is generated from churn outcome (gamma mean ~44 if churned vs ~8 if not), plus 200 appended duplicates and a temporal signup_date."},
+    {"path": "src/evaluate.py", "note": "Repeated stratified k-fold CV over seeds; ROC-AUC + F1; paired_ttest uses stats.t.cdf but comment mislabels it a normal/CLT approximation."},
+    {"path": "REPORT.md", "note": "Documents leak audit, dedup, class balance (27.1%), 25 evals, and honest limitations; but frames a 0.0100 AUC gap as a statistically significant 'win' without effect-size/practical-significance caveat or noting CV-fold dependence."},
+    {"path": "results/metrics.json", "note": "Machine-readable config (seeds, splits, features, excluded_features) + per-model scores + comparison; reproduced exactly on re-run."},
+    {"path": "tests/test_pipeline.py", "note": "Asserts leak column and all excluded columns are absent from X, dedup count, binary target, no NaNs."}
+  ]
+}
+```

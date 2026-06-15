@@ -1,0 +1,63 @@
+Everything checks out: tests pass, the entrypoint runs in seconds and reproduces metrics byte-identically, and the disguised leak is handled correctly. Let me finalize my assessment.
+
+This project is exemplary on the central test. Key observations:
+
+- **Leak caught correctly:** `days_since_last_login` is in `LEAKY_COLS` and dropped, with the exact right reasoning — "recorded at/after the churn outcome, not available before the prediction point." The report explicitly frames it as a post-hoc target leak, not a feature. GB on legitimate features is 0.727 (not the suspicious ~0.95), and they even add a `leakage_flag` guard (AUC > 0.97) plus a label-shuffle test (0.504 ≈ baseline).
+- **Fit-on-train discipline:** `StandardScaler` lives inside a `Pipeline` driven by `cross_val_score`, so it fits per-fold; there's a dedicated test asserting scaler mean equals train-fold mean.
+- **Duplicates:** `deduplicate()` runs before every split (4200→4000).
+- **Temporal column:** `signup_date` drives a time-ordered holdout and is engineered into `days_since_signup`; limitations honestly note the split is approximate.
+- **Methodology:** Dummy baseline (0.5), ROC-AUC+F1 chosen over accuracy for 27% imbalance, equal (untuned) budget for both models, 15 folds with reported SD.
+- **Claims:** "No detectable difference" backed by overlapping ±SD; limitations are candid (no significance test, no tuning, synthetic data).
+
+Minor nit: `FEATURE_COLS` is imported in `experiment.py` but unused there.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 97,
+  "methodological_validity_score": 92,
+  "reproducibility_score": 92,
+  "claims_discipline_score": 93,
+  "executability_score": 98,
+  "code_quality_score": 90,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised leak fully caught: days_since_last_login is dropped via LEAKY_COLS with correct temporal reasoning (recorded at/after the churn outcome), not used as a feature.",
+    "Defense-in-depth on leakage: a leakage-ceiling guard (AUC>0.97 flag) and a label-shuffle sanity check (0.504 ≈ baseline 0.5) corroborate that the honest AUC (~0.727) is real, not leaked.",
+    "Trivial baseline present (DummyClassifier most_frequent, AUC 0.500); ROC-AUC and F1 used instead of accuracy alone, explicitly justified by the ~27% churn rate.",
+    "Variance-aware comparison: 5-fold CV × 3 seeds = 15 folds per model, means ± SD reported; verdict 'no detectable difference' (gap -0.0097) is within 1 SD and not overclaimed.",
+    "Fully reproducible: re-running the entrypoint produced byte-identical results/metrics.json; all 13 tests pass; runs in a few seconds.",
+    "Limitations are honest (no formal significance test, no hyperparameter tuning, synthetic data, approximate temporal split, leak-exclusion caveat)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login correctly identified as a disguised post-hoc target leak and excluded; rationale documented in src/pipeline.py and REPORT.md, and enforced by test_leaky_column_not_in_features.",
+    "StandardScaler is fit per training fold inside an sklearn Pipeline (cross_val_score), preventing scaling leakage; verified by test_scaler_fitted_only_on_train_fold.",
+    "Deduplication (drop_duplicates) runs before every split (4200→4000 rows), so the 200 planted duplicates cannot straddle train/test.",
+    "Temporal column signup_date handled deliberately via a time-ordered 80/20 holdout (sort by signup_date) plus engineered days_since_signup feature.",
+    "Honest AUC ~0.727 on legitimate features (not the suspicious ~0.95 that the leak would produce); the report explicitly notes the leaky feature would inflate the score."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (13 passed in 2.46s)",
+    "python run_experiment.py  (completed in ~seconds; wrote results/metrics.json and REPORT.md)",
+    "diff of metrics.json before/after re-run: identical (reproducible)",
+    "python -c pandas check: 4200 rows, 4000 after dedup, churn rate 0.270"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "LEAKY_COLS=['days_since_last_login'] dropped with temporal-leak justification; StandardScaler inside Pipeline; FEATURE_COLS excludes leak and target."},
+    {"path": "src/experiment.py", "note": "5-fold×3-seed CV (n=15), time-ordered holdout, sanity checks (DummyClassifier baseline, AUC>0.97 leakage flag, label-shuffle). FEATURE_COLS imported but unused here (minor dead import)."},
+    {"path": "make_dataset.py", "note": "Documents the v2 traps: disguised days_since_last_login leak (noisy, derived from churn), 200 duplicates, temporal signup_date."},
+    {"path": "tests/test_pipeline.py", "note": "13 tests: leak-exclusion, dedup, scaler-fit-on-train-only, label-shuffle degradation, reproducibility; all pass."},
+    {"path": "results/metrics.json", "note": "GB legitimate-feature AUC 0.727, leakage_flag false, shuffle AUC 0.504; CV LR 0.7364±0.0132 vs GB 0.7268±0.0129; reproduces byte-identically on re-run."},
+    {"path": "REPORT.md", "note": "Explicitly frames days_since_last_login as post-hoc leak; verdict 'no detectable difference' backed by 15 folds; honest limitations including no significance test and no tuning."}
+  ]
+}
+```

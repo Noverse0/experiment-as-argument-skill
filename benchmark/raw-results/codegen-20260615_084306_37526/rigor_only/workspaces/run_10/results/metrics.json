@@ -1,0 +1,36 @@
+{
+  "models": {
+    "baseline": {
+      "roc_auc_mean": 0.5,
+      "roc_auc_std": 0.0,
+      "f1_mean": 0.0,
+      "f1_std": 0.0,
+      "n_splits": 5
+    },
+    "logistic_regression": {
+      "roc_auc_mean": 0.732785906676846,
+      "roc_auc_std": 0.022275795958170384,
+      "f1_mean": 0.3489060157531281,
+      "f1_std": 0.056291975811889786,
+      "n_splits": 5
+    },
+    "gradient_boosting": {
+      "roc_auc_mean": 0.6749081178078384,
+      "roc_auc_std": 0.02754797569556054,
+      "f1_mean": 0.3995291907991898,
+      "f1_std": 0.08907863865646813,
+      "n_splits": 5
+    }
+  },
+  "churn_rate": 0.2705,
+  "n_samples": 4000,
+  "n_dupes_removed": 200,
+  "n_splits": 5,
+  "features": [
+    "tenure_months",
+    "monthly_spend",
+    "support_tickets",
+    "signup_days"
+  ],
+  "label_shuffle_auc": 0.5135921932575197
+}

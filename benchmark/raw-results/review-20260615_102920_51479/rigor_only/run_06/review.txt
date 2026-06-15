@@ -1,0 +1,68 @@
+All checks pass. This project caught the disguised leak correctly and demonstrates strong rigor throughout.
+
+## Summary
+
+**Leakage (central test): caught and handled correctly.** `days_since_last_login` is placed in `LEAKY_COLS` and dropped in `build_features`, with explicit reasoning about *when* the value is knowable (post-outcome), not pattern-matching the name. The report's feature-drop table states the same. Resulting AUC is ~0.73 on honest features — not the inflated ~0.95 a leaked pipeline would show. Additionally: dedup runs *before* the split (200 dupes removed), the split is temporal by `signup_date`, the scaler lives inside a `Pipeline` that is `clone()`d and fit per fold (train-only), and there's a shuffle-label sanity check (0.503) plus a stratified baseline (0.508).
+
+**Methodology:** Trivial baseline present; ROC-AUC + Average Precision (appropriate for 27% imbalance, not accuracy); both models use default config (equal/zero tuning budget — fair, and noted as a limitation); 3 seeds × 5-fold CV for variance; holdout touched once.
+
+**Reproducibility:** Seeds fixed and logged; metrics written to `results/metrics.json`; re-run produced byte-identical metrics.
+
+**Claims:** Conclusion is computed from the data (gap vs pooled std), not hardcoded. Limitations are honest and thorough (CV ignores time order, single holdout has no CI, linear DGP favors LR). No implausible headline number; nothing claimed that the code didn't measure.
+
+**Executability:** 16/16 tests pass; entrypoint runs in a few seconds and regenerates outputs.
+
+Minor notes: the holdout gap (−0.125) is much larger than the CV gap (−0.013); the report attributes this to the linear DGP, which is plausible but the discrepancy itself isn't called out explicitly. Neither model is tuned, limiting GB — but acknowledged.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 89,
+  "executability_score": 98,
+  "code_quality_score": 92,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised leak caught: days_since_last_login dropped as a post-outcome leak with explicit reasoning about when the value is known, not name pattern-matching.",
+    "Honest AUC (~0.73) reported rather than an inflated ~0.95, confirming the leak was excluded.",
+    "Deduplication runs before the split (200 dupes), temporal split by signup_date, and StandardScaler is fit train-only inside a per-fold cloned Pipeline.",
+    "Sanity suite: stratified dummy baseline (0.508) and shuffle-label test (0.503) both behave as expected; experiment raises if shuffle AUC >= 0.6.",
+    "Tests pass 16/16; entrypoint runs in seconds and re-run produces byte-identical metrics.",
+    "REPORT.md conclusion is data-derived (gap vs pooled std), with thorough, honest limitations."
+  ],
+  "leakage_findings": [
+    "days_since_last_login correctly identified as a target leak in disguise and excluded from features (LEAKY_COLS in src/pipeline.py:12, drop in build_features at src/pipeline.py:38).",
+    "Report and metrics.json both record the drop with justification ('post-outcome leak').",
+    "Duplicate rows removed before splitting, preventing train/test straddle (load_and_clean, src/pipeline.py:18-23).",
+    "Temporal chronological 80/20 split by signup_date instead of a random split (temporal_split, src/pipeline.py:44).",
+    "Scaler fit only on training data per fold via clone() inside cv_evaluate and holdout_evaluate — no test-set leakage in preprocessing.",
+    "signup_date deliberately converted to a numeric ordinal (signup_days) rather than dropped silently or used as raw string."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -m pytest -q",
+    "python3 run_experiment.py",
+    "diff of results/metrics.json before vs after re-run (identical)"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "LEAKY_COLS=['days_since_last_login'] dropped with rationale; dedup before split; temporal_split; scaler inside Pipeline."},
+    {"path": "src/evaluate.py", "note": "clone() per fold (train-only fit), 3x5 CV with variance, holdout-once, stratified baseline, shuffle-label test."},
+    {"path": "src/experiment.py", "note": "Orchestration raises if shuffle-label AUC >= 0.6; writes results/metrics.json and generates REPORT.md from measured values."},
+    {"path": "REPORT.md", "note": "Flags days_since_last_login as post-outcome leak; honest AUC ~0.73; data-derived conclusion; thorough limitations (CV time-order, single holdout, no tuning)."},
+    {"path": "results/metrics.json", "note": "features_used excludes the leak; reproduced byte-identical on re-run; AUC 0.738/0.725 CV, 0.732/0.607 holdout."},
+    {"path": "make_dataset.py", "note": "Confirms days_since_last_login is generated from churn outcome (the planted disguised leak); 200 dupes; signup_date temporal trap."},
+    {"path": "tests/test_pipeline.py", "note": "Tests assert leaky/id/target cols absent from X, dedup count, chronological split ordering."}
+  ]
+}
+```

@@ -1,0 +1,70 @@
+Everything works cleanly and reproduces the reported numbers exactly. Let me verify the scaler-fit-on-train discipline reasoning: the code uses sklearn `Pipeline` inside `cross_validate`, so `StandardScaler` is fitted per-fold on the train split only — correct discipline. Dedup happens before the split. The disguised leak is dropped and correctly justified.
+
+## Assessment
+
+This is an exemplary response to the v2 disguised-leak dataset.
+
+**Leakage (central test):** Caught fully. `days_since_last_login` is dropped in `src/data.py` (`DROPPED` list) with correct reasoning — *"churned customers stop logging in, so this value is recorded at/after the outcome... causally downstream of churn, not upstream."* This is exactly the "reason about *when* the value is known" insight the trap demands, not name pattern-matching. The honest AUC ~0.73 matches expectation; the project avoided the ~0.95 leaked result entirely. Reinforced by:
+- Duplicates removed before any split (4200→4000), with a test guarding it.
+- `signup_date` dropped with explicit justification (tenure captures time); temporal-split tradeoff acknowledged in limitations.
+- Scaler fitted inside the Pipeline per fold → no train/test bleed.
+- A label-shuffle sanity check (AUC 0.51) actively confirms no residual leakage, plus a dedicated test asserting `days_since_last_login` absence.
+
+**Methodology:** Majority-class baseline (AUC 0.50) present; ROC-AUC primary + F1 + accuracy appropriate for 27% churn; both models untuned (equal budget); overfit + shuffle sanity checks; 3 seeds × 5 folds = 15 runs with variance. Only soft spot: significance judged by 1-sigma overlap heuristic rather than a formal test.
+
+**Reproducibility:** Seeds fixed and logged, metrics.json in results/, a reproducibility test, and the run reproduced the reported numbers exactly.
+
+**Claims:** Conservative "no detectable difference" backed by 15 runs ± std; honest, relevant limitations; no overclaiming; headline number is plausible (the report even reasons about why LR matches GBM on a narrow feature set).
+
+**Executability:** 15/15 tests pass; entrypoint runs in ~6s, auto-generates data, writes outputs. Clean.
+
+**Code quality:** Modular `src/` layout, documented, deps declared and used, no dead code.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 96,
+  "methodological_validity_score": 90,
+  "reproducibility_score": 95,
+  "claims_discipline_score": 92,
+  "executability_score": 98,
+  "code_quality_score": 92,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised target leak fully caught: days_since_last_login dropped with correct temporal reasoning (recorded at/after the churn outcome), not name-based pattern matching.",
+    "Honest features yield ROC-AUC ~0.736 (LR) / ~0.727 (GBM); the project avoided the inflated ~0.95 leaked result entirely.",
+    "Verdict is conservative 'no detectable difference', backed by 15 held-out fold scores (3 seeds x 5 folds) with std reported and overlapping 1-sigma intervals.",
+    "All 15 tests pass; entrypoint runs in ~6s and reproduces metrics.json numbers exactly.",
+    "Limitations are honest (narrow feature space, single dataset, no tuning, class balance, temporal validity)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login excluded in src/data.py DROPPED with justification that it is causally downstream of churn; guarded by test_days_since_last_login_absent.",
+    "200 exact duplicate rows removed before any split (4200 -> 4000) via drop_duplicates in load(), preventing train/test straddle; verified by test_deduplication_removes_duplicates.",
+    "StandardScaler is inside an sklearn Pipeline run under cross_validate, so it is fitted on each fold's train split only — no preprocessing leak.",
+    "signup_date dropped with explicit justification; report acknowledges a time-based split would be more realistic but justifies random CV for the synthetic dataset.",
+    "Label-shuffle sanity check yields AUC 0.5115 (~0.5), actively confirming features do not encode the target."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (15 passed in 4.27s)",
+    "python3 run_experiment.py  (ran in ~6s; LR AUC 0.7360, GBM AUC 0.7267, verdict no_detectable_difference)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "FEATURES excludes the leak; DROPPED lists days_since_last_login/signup_date/customer_id with correct reasoning; dedup before split."},
+    {"path": "make_dataset.py", "note": "Confirms days_since_last_login is generated from the churn outcome (gamma means 44 vs 8 days) — the planted disguised leak."},
+    {"path": "src/evaluate.py", "note": "StratifiedKFold over 3 seeds; majority-class baseline, overfit, and label-shuffle sanity checks; seeds fixed."},
+    {"path": "src/pipeline.py", "note": "Scaler+LR in a Pipeline (per-fold fit); both models untuned defaults (equal budget)."},
+    {"path": "tests/test_pipeline.py", "note": "Explicit leak-absence test, dedup test, reproducibility test, and shuffle-degradation test."},
+    {"path": "REPORT.md", "note": "Conservative verdict with variance, honest limitations, leak flagged as deliberately excluded."},
+    {"path": "results/metrics.json", "note": "Machine-readable metrics with seeds, per-fold values, and verdict logged."}
+  ]
+}
+```
