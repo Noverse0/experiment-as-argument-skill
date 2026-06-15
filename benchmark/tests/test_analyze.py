@@ -6,6 +6,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from analyze import (
     REQUIRED_CATEGORIES,
+    classify_leak,
     extract_review,
     mann_whitney,
     recompute_weighted,
@@ -113,3 +114,43 @@ def test_render_csv_header_and_rows():
     assert lines[0].startswith("arm,n,weighted_mean,sd,")
     assert any(line.startswith("skills_off,10,81.6,") for line in lines)
     assert len(lines) == 3  # header + 2 arms
+
+
+def test_leak_check_detects_used_feature():
+    code = "X = df[['tenure_months', 'days_since_last_login']]\ny = df['churned']"
+    assert classify_leak(code, ["days_since_last_login"]) == "leaked"
+
+
+def test_leak_check_detects_dropped():
+    code = "X = df.drop(columns=['days_since_last_login', 'customer_id'])"
+    assert classify_leak(code, ["days_since_last_login"]) == "handled"
+
+
+def test_leak_check_absent_when_never_referenced():
+    code = "X = df[['tenure_months', 'monthly_spend']]"
+    assert classify_leak(code, ["days_since_last_login"]) == "absent"
+
+
+def test_leak_check_leaked_wins_over_handled_across_columns():
+    # account_status dropped, but days_since_last_login used -> overall leaked
+    code = (
+        "df = df.drop(columns=['account_status'])\n"
+        "X = df[['tenure_months', 'days_since_last_login']]"
+    )
+    assert classify_leak(code, ["account_status", "days_since_last_login"]) == "leaked"
+
+
+def test_leak_check_handles_variable_routed_drop():
+    # Regression: real exp-004 pattern — drop routed through a named list var,
+    # so the drop line has no literal column name. Must NOT be a false leak.
+    code = (
+        'LEAK_COLS = ["days_since_last_login"]  # recorded after the outcome\n'
+        "X = df.drop(columns=LEAK_COLS)"
+    )
+    assert classify_leak(code, ["days_since_last_login"]) == "handled"
+
+
+def test_leak_check_review_when_only_inspected():
+    # Column appears but not in feature selection and not dropped -> review
+    code = 'print(df["days_since_last_login"].describe())'
+    assert classify_leak(code, ["days_since_last_login"]) == "review"
