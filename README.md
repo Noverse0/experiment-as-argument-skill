@@ -19,7 +19,7 @@ Does the skill actually make the argument stronger? The repo ships a complete is
 
 In keeping with its own claims discipline, the benchmark reports per-arm n, standard deviation, and significance, and declares a winner only when the difference clears the noise.
 
-Three experiments so far — a capability ladder over the codegen model (10 repeats per arm each, review Opus): **no detectable skill effect at any level**, reported as the null results they are, per the skill's own claims discipline.
+Four experiments so far (10 repeats per arm each, review Opus), reported per the skill's own claims discipline. The first three are a capability ladder over the codegen model on the original prompt — **no detectable skill effect at any level**:
 
 | Codegen model | `skills_off` | `rigor_only` | p |
 | --- | ---: | ---: | ---: |

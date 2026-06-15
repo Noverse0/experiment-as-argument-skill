@@ -1,5 +1,7 @@
 # ML Experiment Rigor Skill Implementation Plan
 
+> **Historical snapshot (2026-06-11).** This is the original build plan and is kept as a record. Names and scope have since moved on: the skill was renamed `ml-experiment-rigor` → `experiment-as-argument`, the repo to `Noverse0/experiment-as-argument-skill`, Codex/Gemini mirrors and an experiments ledger were added, and four benchmark experiments have run. For current state see [README.md](../../README.md) and [benchmark/EXPERIMENTS.md](../../benchmark/EXPERIMENTS.md); the old name below is left as-written.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build `ml-experiment-rigor-skill` — a Claude Code skill distilling Karpathy's "A Recipe for Training Neural Networks" and the Kapoor & Narayanan leakage taxonomy into agent operating rules for ML training experiment code, with an in-repo isolated-arm benchmark proving its effect.
