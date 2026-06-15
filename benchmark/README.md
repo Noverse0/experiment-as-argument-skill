@@ -43,7 +43,10 @@ MODEL=opus ./run_review_experiment.sh runs/codegen/<run_id>
 python3 analyze.py report runs/review/<run_id>                    # text summary
 python3 analyze.py report runs/review/<run_id> --format markdown  # table for EXPERIMENTS.md
 python3 analyze.py report runs/review/<run_id> --format csv        # import into W&B / MLflow / a sheet
+python3 analyze.py leak-check runs/codegen/<run_id>                # objective leak rate per arm
 ```
+
+`leak-check` reads the generated code directly (not the reviews) and classifies each target-derived column per workspace as `leaked` (in an explicit feature-selection construct), `handled` (dropped/excluded), `review` (present but ambiguous), or `absent`. It is a reviewer-independent cross-check — a `leaked` verdict is high-confidence, `review` means look. exp-005 is where it mattered: the reviewer's weighted mean said "no difference" while the leak rate showed the skill arm was clearly worse (5/10 vs 1/10).
 
 Every run is logged in [EXPERIMENTS.md](EXPERIMENTS.md), an append-only ledger: the human records the hypothesis, what changed, and the honest conclusion; the result table and csv come straight from `analyze.py` so the numbers never drift. The `--format csv` output is the tool-neutral bridge to any experiment tracker — rather than binding the harness to one SaaS, it emits a standard row you can import where you like.
 

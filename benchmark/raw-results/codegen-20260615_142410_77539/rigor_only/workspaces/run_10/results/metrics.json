@@ -1,0 +1,24 @@
+{
+  "LogisticRegression": {
+    "algorithm": "LogisticRegression",
+    "n_seeds": 5,
+    "test_auc_mean": 0.7459291434976918,
+    "test_auc_std": 0.0,
+    "test_pr_auc_mean": 0.5009878134108946,
+    "test_pr_auc_std": 0.0,
+    "train_auc_mean": 0.7342571084031481,
+    "train_auc_std": 0.0,
+    "baseline_rate": 0.2705
+  },
+  "GradientBoostingClassifier": {
+    "algorithm": "GradientBoostingClassifier",
+    "n_seeds": 5,
+    "test_auc_mean": 0.7347269133763036,
+    "test_auc_std": 7.822093038053472e-06,
+    "test_pr_auc_mean": 0.4898003400693157,
+    "test_pr_auc_std": 8.355026481605629e-06,
+    "train_auc_mean": 0.8103401878649403,
+    "train_auc_std": 0.0,
+    "baseline_rate": 0.2705
+  }
+}

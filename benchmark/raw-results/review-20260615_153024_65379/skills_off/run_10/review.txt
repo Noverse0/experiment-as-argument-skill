@@ -1,0 +1,71 @@
+This is a strong, honest project that caught the disguised leak. Here is my review.
+
+## Summary
+
+This experiment **correctly identified and excluded the disguised target leak**. `days_since_last_login` is never used as a model feature — `prepare_features` (src/dataset.py:48-55) builds a `feature_cols` list of six honest features and explicitly omits it, with a comment labeling it "TARGET LEAKAGE (derived from churned status)." The test suite even asserts `"days_since_last_login" not in feature_cols` (test_experiment.py:32), and REPORT.md explains the reasoning ("post-outcome feature"). The resulting AUC (~0.71–0.73) lands exactly in the honest-features band rather than the suspicious ~0.95 a leaked pipeline would produce.
+
+**Leakage discipline is otherwise solid:**
+- Scaler fit on train split only (`fit_scaler=True` for train, applies the fitted scaler to test — dataset.py:86-87).
+- 200 exact duplicates dropped *before* the split (dataset.py:16, verified: 4200→4000), preventing train/test straddle.
+- `signup_date` handled deliberately: converted to temporal features, and the report explicitly flags that the split is random not time-based, noting this as a caveat.
+- Sanity checks (majority baseline = 0.50, train-overfit check, label-shuffle = ~0.49) are genuine, not no-ops.
+
+**Methodology:** Trivial majority baseline present; AUC plus precision/recall/F1 reported (not accuracy alone) appropriately for the ~27% churn imbalance; both models use fixed hyperparameters with no tuning, so the comparison budget is equal; 5 seeds with mean±std.
+
+**Claims:** The report honestly *refutes* its own framed claim — it set out expecting GB to win and reports "no meaningful difference, GB loses" (diff −0.0118, within std ~0.015–0.022). Limitations are thorough and honest. Minor nit: it labels the held-out metric "validation AUC" when it is really single-split test AUC.
+
+**Reproducibility/Executability:** 8/8 tests pass; entrypoint runs in ~3.2s and reproduces the committed metrics; seeds fixed and logged; metrics written to results/. Dependencies pinned and used. (Minor: the summary block in metrics.json nulls out the raw per-seed `values`, but those are preserved under `results_by_seed`.)
+
+**Code quality:** Clean module split, docstrings, no meaningful dead code.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 92,
+  "claims_discipline_score": 90,
+  "executability_score": 96,
+  "code_quality_score": 88,
+  "verdict": "excellent",
+  "key_findings": [
+    "Caught the disguised leak: days_since_last_login is explicitly excluded as a post-outcome feature and never enters the model; resulting AUC ~0.71-0.73 matches the honest-features band, not the ~0.95 leak trap.",
+    "Report honestly refutes its own framed claim ('GB better') — reports no meaningful difference (diff -0.0118 within std), backed by 5 seeds with mean±std.",
+    "Trivial majority baseline (AUC 0.50) present; imbalance-appropriate metrics (AUC + precision/recall/F1) reported alongside, not accuracy alone.",
+    "All 6 features fit on train split only; 200 duplicates dropped before split; signup_date converted to temporal features with explicit random-vs-time-split caveat.",
+    "8/8 tests pass; entrypoint runs in ~3.2s and reproduces committed metrics; seeds fixed and logged.",
+    "Minor: held-out metric is labeled 'validation AUC' but is single-split test AUC; no formal significance test (mitigated by reported std)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is NOT a model feature: prepare_features (src/dataset.py:48-55) omits it from feature_cols and a comment labels it 'TARGET LEAKAGE (derived from churned status)'; test_experiment.py:32 asserts it is absent.",
+    "REPORT.md explicitly justifies exclusion as a post-outcome feature and the observed AUC (~0.72) is consistent with honest features rather than the leaked ~0.95.",
+    "StandardScaler fitted on train split only (fit_scaler=True for train at dataset.py:86), applied to test — no preprocessing leak.",
+    "200 exact duplicate rows removed via drop_duplicates before train/test split (dataset.py:16; verified 4200->4000), preventing cross-boundary straddle.",
+    "Temporal signup_date handled deliberately: derived into signup_month/year/days_since_signup; report notes split is random not time-based and flags this as a limitation.",
+    "Sanity checks are real signal: majority baseline AUC=0.50, label-shuffle AUC ~0.49 (near baseline, no residual leak), train-overfit check ~0.74."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q  (8 passed in 3.52s)",
+    "python run_experiment.py  (5 seeds, completed in 3.2s, wrote results/metrics.json and REPORT.md, reproduced committed numbers)",
+    "grep -rn 'days_since_last_login' src/ tests/ run_experiment.py"
+  ],
+  "file_evidence": [
+    {"path": "src/dataset.py", "note": "feature_cols (lines 48-55) excludes days_since_last_login; comment at line 35 flags it as target leakage; scaler fit on train only (86-87); dedup before split (16)."},
+    {"path": "make_dataset.py", "note": "Confirms the planted disguised leak: days_since_last_login drawn from churn status (gamma mean ~44 churned vs ~8 not), plus 200 duplicates and temporal signup_date."},
+    {"path": "src/experiment.py", "note": "Genuine sanity checks (baseline_floor, label_shuffle_test, overfit check); both models fixed hyperparameters (equal budget); reports AUC+precision/recall/F1."},
+    {"path": "REPORT.md", "note": "Honestly reports no meaningful difference (GB loses), excludes the leak with justification, thorough limitations, notes random-vs-time split caveat; labels metric 'validation' though it is test-set."},
+    {"path": "results/metrics.json", "note": "Per-seed and summary metrics logged; LR test AUC mean 0.7251, GB 0.7133; summary nulls raw values but per-seed values retained under results_by_seed."},
+    {"path": "tests/test_experiment.py", "note": "8 tests including leak-exclusion assertion (line 32), stratified-split check, and reproducibility check; all pass."}
+  ]
+}
+```

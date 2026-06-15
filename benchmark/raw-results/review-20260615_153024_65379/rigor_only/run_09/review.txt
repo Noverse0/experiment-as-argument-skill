@@ -1,0 +1,57 @@
+All checks complete. The project handles the disguised leak correctly. Let me synthesize.
+
+**Findings:**
+- **Leakage (excellent):** `days_since_last_login` is dropped (`drop_leakage=True` in `dataset.py:49-50`), and the report explicitly justifies it as a target leak recorded at/after churn (`REPORT.md:29,177`). It flags the planted leak as a limitation and notes inclusion would yield near-perfect AUC (`REPORT.md:84`). Honest features give ~0.73 AUC, exactly the expected honest range. Scaler fit on train only (`preprocessing.py:18`). Duplicates removed *before* split (`experiment.py:33`) so they can't straddle. Time-based split on `signup_date` (`dataset.py:31-34`).
+- **Methodology weakness:** The "5 seeds" don't resample the train/test partition — the seed only shuffles row order *within* fixed temporal splits. Confirmed: train/test churn rates are byte-identical across all 5 seeds (0.2756/0.25), and LR std is exactly 0.0000. So the reported variance/error bars are illusory (only GB internal stochasticity contributes), which hollows out the significance test. Baseline present and beaten; full metric suite appropriate for the 27% imbalance; neither model tuned (equal budget, honestly stated).
+- **Reproducibility:** seeds logged, metrics+metadata written to `results/`, re-run reproduces identical values.
+- **Executability:** 10/10 tests pass, entrypoint runs in ~3s producing both outputs.
+- **Code quality:** clean modular layout; minor — `n_jobs=-1` is a no-op for lbfgs, some unused imports in `preprocessing.py`.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 68,
+  "reproducibility_score": 90,
+  "claims_discipline_score": 80,
+  "executability_score": 98,
+  "code_quality_score": 85,
+  "verdict": "good",
+  "key_findings": [
+    "Caught the disguised leak: days_since_last_login is dropped and explicitly justified as a target leak recorded at/after the outcome; report notes including it would give near-perfect AUC and treats that as a leakage signal, not a win.",
+    "Honest-feature AUC ~0.73 (LR 0.7323, GB 0.7222), matching the expected legitimate range; no inflated headline number.",
+    "Report is conservative: declares the GB-wins claim UNSUPPORTED and recommends LR for simplicity; limitations (small/synthetic data, no tuning, leakage surface) are honest.",
+    "Major methodological flaw: the 5-seed 'repetition' does not resample the train/test split (seed only shuffles row order within fixed temporal splits), so reported variance/error bars are illusory (LR std=0.0000) and the significance test rests on near-zero variance.",
+    "Tests pass (10/10) and the entrypoint runs end-to-end in ~3s; results are reproducible (re-run matches reported values exactly)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login dropped via get_features_and_target(drop_leakage=True) at dataset.py:49-50; run_experiment.py calls it with drop_leakage=True.",
+    "REPORT.md:29 and :177 justify exclusion as target leakage ('value recorded at/after churn'); REPORT.md:84 flags the planted leak and states inclusion yields near-perfect AUC.",
+    "StandardScaler fit on train only and applied to test (preprocessing.py:18-20) — no fit-on-test leakage.",
+    "200 exact duplicates removed before splitting (experiment.py:33, deduplicate in dataset.py:14-19), so duplicates cannot straddle the train/test boundary.",
+    "Temporal column handled deliberately via split_by_time on sorted signup_date (dataset.py:31-34); but the per-seed shuffle is a no-op for the partition, so it is effectively a single fixed temporal split, not 5 independent ones."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (10 passed in 2.78s)",
+    "python run_experiment.py  (completed in ~3.3s, wrote results/metrics.json and REPORT.md)",
+    "python -c '<inspect results/metrics.json aggregated AUC, std, per-seed values, baseline>'"
+  ],
+  "file_evidence": [
+    {"path": "src/dataset.py", "note": "drop_leakage drops days_since_last_login (49-50); split_by_time sorts by signup_date but seed only shuffles within splits (31-34) — partition identical across seeds."},
+    {"path": "make_dataset.py", "note": "Documents the disguised leak: days_since_last_login derived from churn outcome (gamma mean ~44 vs ~8 days), plus 200 duplicates and temporal signup_date traps."},
+    {"path": "src/preprocessing.py", "note": "Scaler fit on train only, transform applied to train and test — correct fit-on-train discipline."},
+    {"path": "REPORT.md", "note": "Declares GB-wins claim UNSUPPORTED; flags leak explicitly; honest limitations; but 'stable across 5 seeds / overlapping error bars' rests on illusory variance (LR std 0.0000)."},
+    {"path": "results/metrics.json", "note": "Identical train/test churn rates (0.2756/0.25) across all 5 seeds confirms the repetition does not resample the split; LR AUC values all 0.73227."},
+    {"path": "src/models.py", "note": "Majority-class baseline present; full metric suite (accuracy/AUC/F1/precision/recall); minor: n_jobs=-1 is a no-op for lbfgs solver."}
+  ]
+}
+```

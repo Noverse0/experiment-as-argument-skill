@@ -1,0 +1,162 @@
+{
+  "claim": "Does gradient boosting outperform logistic regression on customer churn prediction?",
+  "n_seeds": 3,
+  "seeds": [
+    42,
+    123,
+    456
+  ],
+  "lr": {
+    "auc_mean": 0.7243362083544732,
+    "auc_std": 0.015909808579288413,
+    "auc_runs": [
+      0.7399004312531711,
+      0.7306253170979198,
+      0.7024828767123288
+    ],
+    "f1_mean": 0.3442513579755649,
+    "f1_std": 0.003967297408316653,
+    "f1_runs": [
+      0.3419354838709677,
+      0.34983498349834985,
+      0.34098360655737703
+    ]
+  },
+  "gb": {
+    "auc_mean": 0.7199681845087097,
+    "auc_std": 0.019573863441485817,
+    "auc_runs": [
+      0.7402888762049722,
+      0.7260868531202436,
+      0.6935288242009132
+    ],
+    "f1_mean": 0.3492853867680148,
+    "f1_std": 0.022620990823850252,
+    "f1_runs": [
+      0.38125,
+      0.33217993079584773,
+      0.3344262295081967
+    ]
+  },
+  "auc_gap": -0.0043680238457635134,
+  "auc_gap_se": 0.00840805261543648,
+  "individual_runs": [
+    {
+      "seed": 42,
+      "metadata": {
+        "n_total_before_dedup": 4200,
+        "n_duplicates_removed": 200,
+        "n_total_after_dedup": 4000,
+        "churn_rate": 0.2705,
+        "n_train": 3200,
+        "n_test": 800,
+        "train_churn_rate": 0.270625,
+        "test_churn_rate": 0.27
+      },
+      "models": {
+        "lr": {
+          "model": "LogisticRegression",
+          "auc": 0.7399004312531711,
+          "accuracy": 0.745,
+          "precision": 0.5638297872340425,
+          "recall": 0.24537037037037038,
+          "f1": 0.3419354838709677
+        },
+        "gb": {
+          "model": "GradientBoostingClassifier",
+          "auc": 0.7402888762049722,
+          "accuracy": 0.7525,
+          "precision": 0.5865384615384616,
+          "recall": 0.2824074074074074,
+          "f1": 0.38125
+        }
+      },
+      "sanity_checks": {
+        "baseline_auc": 0.7399004312531711,
+        "label_shuffle_auc": 0.5232036402841198,
+        "leakage_ceiling": {
+          "lr_with_leak": 0.9704544013191273,
+          "gb_with_leak": 0.9669583967529174
+        }
+      }
+    },
+    {
+      "seed": 123,
+      "metadata": {
+        "n_total_before_dedup": 4200,
+        "n_duplicates_removed": 200,
+        "n_total_after_dedup": 4000,
+        "churn_rate": 0.2705,
+        "n_train": 3200,
+        "n_test": 800,
+        "train_churn_rate": 0.270625,
+        "test_churn_rate": 0.27
+      },
+      "models": {
+        "lr": {
+          "model": "LogisticRegression",
+          "auc": 0.7306253170979198,
+          "accuracy": 0.75375,
+          "precision": 0.6091954022988506,
+          "recall": 0.24537037037037038,
+          "f1": 0.34983498349834985
+        },
+        "gb": {
+          "model": "GradientBoostingClassifier",
+          "auc": 0.7260868531202436,
+          "accuracy": 0.75875,
+          "precision": 0.6575342465753424,
+          "recall": 0.2222222222222222,
+          "f1": 0.33217993079584773
+        }
+      },
+      "sanity_checks": {
+        "baseline_auc": 0.7306253170979198,
+        "label_shuffle_auc": 0.48538574961948244,
+        "leakage_ceiling": {
+          "lr_with_leak": 0.9526097158802639,
+          "gb_with_leak": 0.9537037037037037
+        }
+      }
+    },
+    {
+      "seed": 456,
+      "metadata": {
+        "n_total_before_dedup": 4200,
+        "n_duplicates_removed": 200,
+        "n_total_after_dedup": 4000,
+        "churn_rate": 0.2705,
+        "n_train": 3200,
+        "n_test": 800,
+        "train_churn_rate": 0.270625,
+        "test_churn_rate": 0.27
+      },
+      "models": {
+        "lr": {
+          "model": "LogisticRegression",
+          "auc": 0.7024828767123288,
+          "accuracy": 0.74875,
+          "precision": 0.5842696629213483,
+          "recall": 0.24074074074074073,
+          "f1": 0.34098360655737703
+        },
+        "gb": {
+          "model": "GradientBoostingClassifier",
+          "auc": 0.6935288242009132,
+          "accuracy": 0.74625,
+          "precision": 0.5730337078651685,
+          "recall": 0.2361111111111111,
+          "f1": 0.3344262295081967
+        }
+      },
+      "sanity_checks": {
+        "baseline_auc": 0.7024828767123288,
+        "label_shuffle_auc": 0.370299023338407,
+        "leakage_ceiling": {
+          "lr_with_leak": 0.9596175799086757,
+          "gb_with_leak": 0.9576198630136986
+        }
+      }
+    }
+  ]
+}

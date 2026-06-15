@@ -1,0 +1,21 @@
+{
+  "label_shuffle": {
+    "original_auc": 0.7251921840066153,
+    "shuffled_auc": 0.6253407246332425,
+    "baseline_auc": 0.7547619047619047,
+    "drop_detected": true,
+    "note": "Shuffled AUC should drop to ~baseline if no leakage."
+  },
+  "overfit_tiny": {
+    "tiny_subset_size": 10,
+    "train_auc_on_tiny": 0.9999999999999999,
+    "converged": true,
+    "note": "Model should achieve high training AUC on a tiny subset."
+  },
+  "leakage_demo": {
+    "honest_features_auc": 0.7251921840066153,
+    "with_leak_feature_auc": 0.9590364766775902,
+    "leak_boost": 0.23384429267097484,
+    "note": "The leak feature significantly inflates AUC; its exclusion is justified."
+  }
+}

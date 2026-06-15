@@ -1,0 +1,64 @@
+I have all the evidence I need. Let me summarize my findings.
+
+## Review Summary
+
+**Leakage (central test) — caught cleanly.** The project explicitly **excludes** `days_since_last_login` and correctly identifies it as a target leak using the right reasoning — not pattern-matching the name, but reasoning about *when* the value is known: "recorded after/at the outcome, making it post-hoc information." `signup_date` is excluded with justification (random split ignores time). 200 exact duplicates are removed *before* the split (verified: dedup → 4000 rows). `StandardScaler` is fit on train only and applied to test (split-before-transform). A label-shuffle sanity check acts as a real leak detector. This is the bullseye.
+
+**Reproducibility wrinkle.** `results/metrics.json` reproduces byte-identically on re-run (deterministic seeds, logged in `seed_log`). But the **committed `REPORT.md` was out of sync with `metrics.json`**: the report described a *2-seed* run (AUC 0.7382/0.7283) while `metrics.json` holds a *5-seed* run (0.7330/0.7257). Cause: `test_pipeline.py::test_save_results` runs `n_seeds=2` and `_write_report()` writes `REPORT.md` into the project cwd — so running pytest clobbers the tracked report with a 2-seed version. Re-running the entrypoint reconciles them.
+
+**Methodology/claims.** Majority-class baseline present; metrics appropriate for imbalance (AUC + P/R/F1/log-loss, not accuracy alone); both models use fixed hyperparameters (equal, untuned budget). Conclusion is conservative and honest ("No detectable difference," gap÷std = −0.33), with a genuine limitations section. The "overfit-tiny" check uses a weak threshold (loss < 0.7 vs ~0.69 baseline), making it nearly a no-op. The committed report's "2 seeds / 0.7382" mismatching the artifacts is a claims-vs-artifact ding.
+
+**Executability.** `pytest`: 14 passed in ~3s. `python3 run_experiment.py`: runs in seconds, generates dataset and writes both artifacts.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 84,
+  "reproducibility_score": 78,
+  "claims_discipline_score": 80,
+  "executability_score": 95,
+  "code_quality_score": 84,
+  "verdict": "good",
+  "key_findings": [
+    "Disguised leak caught: days_since_last_login is excluded and correctly justified via temporal reasoning (recorded at/after the outcome), not name pattern-matching — the central v2 test passes.",
+    "Honest AUC ~0.73 reported; no suspicious ~0.95, consistent with avoiding the leak.",
+    "Conclusion is conservative ('No detectable difference', gap/std = -0.33) with a genuine limitations section; no unbacked winner claim.",
+    "Tests pass (14 passed) and the entrypoint runs in seconds; metrics.json reproduces byte-identically on re-run.",
+    "Committed REPORT.md was stale/out-of-sync with metrics.json (2-seed report vs 5-seed artifacts).",
+    "The 'overfit-tiny' sanity check uses a near-no-op threshold (loss < 0.7 ~ baseline 0.69)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login: EXCLUDED in src/data.py select_features and REPORT.md, flagged as a target leak with correct when-is-it-known reasoning. Leak avoided.",
+    "signup_date: excluded with explicit justification (random split ignores time); no time-based split performed, but exclusion is deliberate and stated.",
+    "Duplicates: 200 exact duplicates removed before the split via drop_duplicates (verified n_total=4000), preventing train/test straddling.",
+    "Fit-on-train-only: StandardScaler.fit_transform on train, .transform on test; split-before-transform order is correct.",
+    "Label-shuffle sanity check (AUC collapses to baseline on shuffled labels) provides an active leakage tripwire.",
+    "Minor: the project did not demonstrate the ~0.95-AUC leaked variant as positive proof, but reasoned the exclusion correctly instead."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -m pytest -q  (result: 14 passed in 3.31s)",
+    "python3 run_experiment.py  (reproduced metrics.json: LR AUC 0.7330+/-0.0145, GB 0.7257+/-0.0079, 5 seeds)",
+    "diff of committed REPORT.md/metrics.json vs regenerated (metrics identical; report was 2-seed vs 5-seed)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "select_features excludes days_since_last_login as 'target leak'; scale_features fits scaler on train only; dedup before split."},
+    {"path": "make_dataset.py", "note": "Confirms days_since_last_login is generated from churn outcome (gamma mean ~44 churned vs ~8 retained) — the disguised post-outcome leak."},
+    {"path": "src/experiment.py", "note": "5-seed loop with logged split/model seeds; baseline-floor, label-shuffle, overfit-tiny sanity checks; _write_report writes REPORT.md to cwd."},
+    {"path": "results/metrics.json", "note": "5-seed results, reproduced byte-identically; logs seeds and config. Honest AUCs ~0.73."},
+    {"path": "REPORT.md", "note": "Committed version described a 2-seed run (0.7382/0.7283), inconsistent with the 5-seed metrics.json; conclusion 'No detectable difference' with honest limitations."},
+    {"path": "tests/test_pipeline.py", "note": "test_save_results runs n_seeds=2 and overwrites the project's REPORT.md as a side effect — the source of the report/artifact mismatch."},
+    {"path": "tests/test_data.py", "note": "Asserts select_features drops customer_id/signup_date/days_since_last_login and that the reason mentions 'target leak'."}
+  ]
+}
+```

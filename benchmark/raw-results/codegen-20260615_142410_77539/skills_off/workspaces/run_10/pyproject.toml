@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "churn-experiment"
+version = "0.1.0"
+description = "Churn prediction experiment: LogisticRegression vs GradientBoosting"
+requires-python = ">=3.9"
+dependencies = [
+    "scikit-learn==1.5.1",
+    "pandas==2.2.3",
+    "numpy==1.26.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.2.2"]

@@ -1,0 +1,29 @@
+Excellent! The experiment is complete and fully tested. Here's a summary:
+
+## Experiment Summary
+
+**Claim:** Gradient boosting outperforms logistic regression for churn prediction with proper data hygiene.
+
+**Design:**
+- **Data:** 4,000 rows after removing 200 duplicates
+- **Features:** tenure_months, monthly_spend, support_tickets (dropped `days_since_last_login` as a target leak)
+- **Evaluation:** 5 seeds × 5-fold stratified CV = 25 train/test boundaries
+- **Sanity checks:** Baseline, label shuffle, overfit tests (all passed ✓)
+
+**Results:** 
+- **Logistic Regression:** ROC-AUC 0.7359 ± 0.0115
+- **Gradient Boosting:** ROC-AUC 0.7272 ± 0.0119
+- **Honest conclusion:** No detectable difference (< 0.01 AUC gap). Both methods are equivalent on this dataset.
+
+**Artifacts:**
+- ✅ `src/` with pipeline and experiment code
+- ✅ `tests/` with 17 comprehensive pytest tests (all passing)
+- ✅ `run_experiment.py` entrypoint
+- ✅ `results/metrics.json` with machine-readable metrics
+- ✅ `REPORT.md` with methodology and findings
+- ✅ `pyproject.toml` with dependencies
+- ✅ Execution time: ~9 seconds (well under 5 minutes)
+
+```json
+{"files_created": ["src/__init__.py", "src/pipeline.py", "src/experiment.py", "tests/__init__.py", "tests/test_pipeline.py", "tests/test_experiment.py", "run_experiment.py", "pyproject.toml", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}
+```

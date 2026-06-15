@@ -1,0 +1,69 @@
+This confirms the variance concern. Now I have a complete picture.
+
+## Review
+
+**Leakage (the central test): PASSED.** The project correctly identified `days_since_last_login` as a disguised target leak and dropped it, with explicit, correct reasoning: *"recorded after the churn outcome (high value if churned, low if not)... dropped to prevent inflated performance estimates"* (`src/experiment.py:47-50`, REPORT.md §Risk #1). The reported honest AUC ~0.73 matches the expected honest-feature ceiling, not the leaked ~0.95. This is the best possible outcome on the central axis — it reasoned about *when* the value is known rather than pattern-matching the name.
+
+Supporting leakage discipline is solid: `StandardScaler` is fit on the train fold only and applied to test (`experiment.py:119-121`), per fold. The duplicate-straddling risk and the temporal `signup_date` issue are both correctly identified and disclosed (REPORT.md §Risk #2, #3) — but **not remediated**: the run uses a random split, so the 200 duplicate rows do straddle train/test and `signup_date` is not handled with a time-based split. Honest disclosure, partial fix.
+
+**Methodology:** Majority-class baseline present; a label-shuffle negative control is included (above requirement, though it only tracks accuracy, which is dominated by the 73% majority class — a weak control). Metrics go well beyond accuracy (precision/recall/F1/ROC-AUC) appropriate for the 27% imbalance. Both models use fixed hyperparameters (no tuning either way — equal but minimal budget). 5-fold CV × 3 seeds.
+
+**Reproducibility:** Seeds `[42,123,456]` fixed and logged; metrics written to `results/metrics.json`; a determinism test exists; and re-running regenerated REPORT.md **byte-identically**.
+
+**Claims discipline — the main weakness:** The report concludes "Logistic regression is modestly better" on a 0.0045 AUC gap, justified against a reported std of 0.0007. But that 0.0007 is the std *across the 3 seed-means*, which collapses the real variability. The per-fold AUC std is ~0.014 (LR) to ~0.022 (GB) — fold AUCs range 0.717–0.761. The 0.0045 gap is firmly within fold-level noise, so "modestly better" overstates a difference the data doesn't support; "no detectable difference" is the honest read. The headline number is plausibly low (good — no implausible-AUC blindness). Minor: the hardcoded "Total rows: 4201" is off (actual 4200; 200 duplicate pairs).
+
+**Executability:** `pytest` → 8 passed; `python run_experiment.py` completes in <10s and reproduces the report. Clean.
+
+**Code quality:** Readable, typed, modular, no dead code; dependencies declared and used.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 88,
+  "methodological_validity_score": 82,
+  "reproducibility_score": 92,
+  "claims_discipline_score": 68,
+  "executability_score": 95,
+  "code_quality_score": 88,
+  "verdict": "good",
+  "key_findings": [
+    "Central leak test PASSED: days_since_last_login was dropped with correct 'recorded after the outcome' reasoning; honest AUC ~0.73 reported rather than a leaked ~0.95.",
+    "Conclusion 'LR modestly better' is overstated: it relies on the std of 3 seed-means (0.0007), which hides real fold-level variability (~0.014-0.022); the 0.0045 AUC gap is within noise and should read 'no detectable difference'.",
+    "Duplicate-straddle and temporal-split risks are correctly identified but only disclosed, not remediated — the actual run uses a random split.",
+    "Strong reproducibility: seeds fixed/logged, metrics persisted to results/, and re-running regenerated REPORT.md byte-identically.",
+    "Good methodology breadth: majority baseline + label-shuffle negative control + imbalance-appropriate metrics (not accuracy alone)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login dropped in preprocess() (experiment.py:47-50) with explicit post-outcome justification — disguised leak correctly caught.",
+    "StandardScaler fit on train fold only and applied to test, per fold (experiment.py:119-121) — no fit-on-all leakage.",
+    "200 exact duplicate rows are NOT deduplicated; the random StratifiedKFold split lets them straddle train/test (REPORT.md Risk #2 discloses but does not fix this), mildly inflating metrics.",
+    "signup_date handled via extracted time features but split is random, not time-based (Risk #3 discloses but does not fix).",
+    "Honest AUC ~0.73 matches the legitimate-feature ceiling; no implausibly-high headline number was accepted uncritically."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q  (8 passed, 32 warnings)",
+    "head -1 churn.csv && wc -l churn.csv  (4201 lines incl header => 4200 rows)",
+    "timeout 110 python run_experiment.py  (completed; churn rate 26.98%, 400 rows flagged as dup incl originals)",
+    "diff /tmp/REPORT_orig.md REPORT.md  (IDENTICAL)",
+    "python -c '... compare per-fold vs seed-mean std ...'"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "preprocess() drops days_since_last_login as a target leak (L47-50); scaler fit on train fold only (L119-121); run_all_seeds aggregates std across seed-means, not folds (L168-172)."},
+    {"path": "make_dataset.py", "note": "Generator confirms days_since_last_login is the planted disguised leak (derived from churn outcome) and that dups/temporal are intended traps."},
+    {"path": "REPORT.md", "note": "Correctly flags and drops the leak (Risk #1); discloses dup-straddle and temporal issues (Risk #2/#3) without remediation; concludes 'LR modestly better' on a 0.0045 gap vs a 0.0007 seed-mean std."},
+    {"path": "results/metrics.json", "note": "Per-fold ROC-AUC ranges 0.717-0.761 (per-fold std ~0.014-0.022), showing the reported 0.0007 std understates true variability."},
+    {"path": "tests/test_experiment.py", "note": "8 tests incl determinism and beat-baseline checks; verifies leak column is dropped (L64); all pass."},
+    {"path": "run_experiment.py", "note": "Entrypoint runs end-to-end in <10s and regenerates REPORT.md identically; conclude() logic gates the winner claim on the too-small seed-mean std."}
+  ]
+}
+```

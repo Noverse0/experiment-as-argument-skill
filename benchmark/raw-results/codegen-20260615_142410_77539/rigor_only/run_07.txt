@@ -1,0 +1,38 @@
+Excellent! The experiment is complete and fully functional. Here's a summary:
+
+## Key Results
+
+**On clean features (no leakage):**
+- Logistic Regression: ROC-AUC 0.7367 ± 0.0052
+- Gradient Boosting: ROC-AUC 0.7260 ± 0.0078
+- **Conclusion:** No clear winner; overlapping confidence intervals
+
+**Leakage detection:**
+- Both models see +0.21-0.22 ROC-AUC improvement when `days_since_last_login` is included, confirming the dataset's deliberate leak
+- The experiment successfully identifies and excludes this target leakage
+
+**Quality assurance:**
+- All 12 unit tests pass
+- Experiment runs in ~7 seconds (well under 5-minute budget)
+- Results include baseline floor, seed determinism, stratified splits, and detailed methodology
+
+```json
+{
+  "files_created": [
+    "pyproject.toml",
+    "src/__init__.py",
+    "src/preprocessing.py",
+    "src/experiment.py",
+    "run_experiment.py",
+    "tests/__init__.py",
+    "tests/test_preprocessing.py",
+    "tests/test_experiment.py",
+    "REPORT.md",
+    "results/summary_clean.json",
+    "results/summary_leaked.json",
+    "churn.csv"
+  ],
+  "entrypoint": "python3 run_experiment.py",
+  "test_command": "python -m pytest tests/ -v"
+}
+```

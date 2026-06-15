@@ -1,0 +1,62 @@
+I have everything I need. This project is a strong contrast to a leaked one — it explicitly caught the disguised leak.
+
+## Review Summary
+
+**Leakage (the central test): caught — excellently.** `days_since_last_login` is explicitly excluded from `feature_cols` (`src/experiment.py:145`), justified in both the module docstring and REPORT.md §3 as a target leak ("encodes churn status"), and guarded by a test (`test_no_leakage_days_since_last_login`). The honest AUC lands at ~0.72–0.75, exactly the legitimate-feature range the guidance predicts — not the suspicious ~0.95. Dedup runs before the split (200 dupes removed → 4000 rows confirmed at runtime), the split is time-based on `signup_date`, and the scaler is fit on train only and applied to test. This is the ideal handling.
+
+**But the methodology has a real flaw: fake variance.** The "5 seeds" only reshuffle row order within the already-fixed train/test split. Since both fits are deterministic on identical data, this produces no genuine replication: LR AUC std = **0.0000** (five identical values) and GB std = 0.0002. The report then treats `gap_std = 0.0002` as a meaningful uncertainty and concludes "LogisticRegression outperforms with a gap of 0.0283 ± 0.0002" — manufacturing statistical confidence from pseudo-replication. A rigorous report would have flagged the std=0 as a sign the replication is degenerate; this one does not notice its own headline oddity.
+
+**Reporting bug:** REPORT.md's "Precision" section (generated at `experiment.py:285-286`) reuses `lr_auc`/`gb_auc`, so it prints AUC numbers mislabeled as Precision. The real precision values (LR 0.573, GB 0.534) exist in metrics.json but never reach the report.
+
+**Good marks elsewhere:** trivial majority-class baseline present (AUC 0.5), genuine sanity checks (overfit-batch, label-shuffle — real, not no-ops), imbalance-appropriate metrics, equal (zero) tuning for both models, honest and thorough limitations section (explicitly notes single split, no CV, small sample). Tests pass (8/8), the entrypoint runs clean from a clean state, and re-running reproduces metrics byte-for-byte.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 60,
+  "reproducibility_score": 80,
+  "claims_discipline_score": 56,
+  "executability_score": 95,
+  "code_quality_score": 78,
+  "verdict": "good",
+  "key_findings": [
+    "Disguised leak fully caught: days_since_last_login excluded from features, justified in docstring + REPORT.md, and guarded by a test; honest AUC ~0.72-0.75 (not the ~0.95 leak signature).",
+    "Solid hygiene: dedup before split (200 dupes removed at runtime), time-based split on signup_date, StandardScaler fit on train only.",
+    "Fake variance / pseudo-replication: the 5 'seeds' only reshuffle row order within a fixed split, so deterministic fits yield LR std=0.0000 and GB std=0.0002 — no genuine uncertainty is measured.",
+    "Report declares LR a winner (0.0283 ± 0.0002) treating the fake std as real significance, and never notices its own std=0.0000 anomaly.",
+    "Genuine sanity checks present (majority baseline AUC 0.5, overfit-one-batch, label-shuffle) and imbalance-aware metrics (AUC/P/R/F1).",
+    "Tests pass (8/8), entrypoint runs cleanly, metrics reproduce byte-for-byte on rerun."
+  ],
+  "leakage_findings": [
+    "days_since_last_login deliberately dropped at src/experiment.py:145; rationale 'encodes churn status' in REPORT.md item 3 and module docstring.",
+    "test_no_leakage_days_since_last_login asserts the leak column and 'churned' are absent from feature_cols.",
+    "Resulting AUC ~0.72-0.75 matches the legitimate-feature range; the project does NOT report a suspicious ~0.95, confirming the leak was avoided rather than exploited.",
+    "Exact-duplicate dedup (4200->4000) runs before the split, preventing dup straddle.",
+    "Temporal column handled deliberately: time_based_split sorts by signup_date (earliest->train), and a test verifies max(train date) <= min(test date).",
+    "Scaler fit on train split only (fit_transform on train, transform on test) inside the per-seed loop."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (8 passed)",
+    "python3 run_experiment.py  (ran end-to-end; AUC LR~0.746 / GB~0.717; baseline AUC 0.5)",
+    "rerun + diff metrics.json  (identical -> reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "Line 145 excludes days_since_last_login; lines 158-205 the 5-seed loop only permutes row order, producing degenerate (zero) variance; lines 285-286 print AUC values mislabeled as Precision in the report."},
+    {"path": "make_dataset.py", "note": "Confirms the planted disguised leak: days_since_last_login derived from churn (gamma mean ~44 if churned vs ~8 if not), plus 200 duplicates and temporal signup_date."},
+    {"path": "results/metrics.json", "note": "LR AUC std exactly 0.0 across 5 identical values; GB std 0.0002 — evidence the 'seeds' do not produce real replication."},
+    {"path": "results/REPORT.md", "note": "Claims LR wins 0.0283 ± 0.0002 treating fake std as significance; honest/thorough limitations (notes single split, no CV); Precision section displays AUC numbers due to the generation bug."},
+    {"path": "tests/test_experiment.py", "note": "8 tests covering dedup, time-order split, scaling discipline, and explicit no-leakage assertion; all pass."},
+    {"path": "requirements.txt", "note": "numpy/pandas/scikit-learn/pytest pinned and all used."}
+  ]
+}
+```

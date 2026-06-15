@@ -1,0 +1,57 @@
+Confirmed: honest features → AUC 0.7323; adding `days_since_last_login` → 0.9578. This project **correctly caught the disguised leak** and chose the honest 0.73 number.
+
+## Review Summary
+
+This is a strong, genuinely rigorous experiment that defeats the v2 trap. The disguised leak (`days_since_last_login`) is explicitly dropped with the *correct* causal reasoning ("recorded at/after the outcome"), not just pattern-matched. Dedup happens before the split, the split is time-based on `signup_date`, and the scaler is fit on train only. Tests pass (8/8) and the entrypoint runs end-to-end producing the reported 0.73 AUC.
+
+The main weakness is **illusory variance**: all 5 seeds produce identical results (std = 0.0000) because the time-split is deterministic and both models are effectively deterministic on this data. The "5 independent runs for stability" gives zero information, and the "no winner" conclusion compares a -0.0085 difference against a degenerate 0.0000 threshold — defensible by luck, but the report never notices that std=0 means the seeds aren't perturbing anything. There's also **no trivial/majority-class baseline** (a 73% accuracy headline against a 73% base rate is unremarked). Minor: `dataset.py` docstring says it returns `(df, metadata)` but returns a 4-tuple.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 60,
+  "reproducibility_score": 88,
+  "claims_discipline_score": 72,
+  "executability_score": 95,
+  "code_quality_score": 84,
+  "verdict": "good",
+  "key_findings": [
+    "Correctly caught the disguised leak: days_since_last_login is dropped and justified with the right causal reasoning (recorded at/after the outcome), not name-matched.",
+    "Confirmed honest AUC ~0.7323 vs ~0.9578 if the leak feature were included — the project chose the honest number, defeating the v2 trap.",
+    "Illusory variance: all 5 seeds give std=0.0000 because the time-split is deterministic and both models are effectively deterministic here; the 'mean ± std for stability' machinery measures nothing and the report never flags it.",
+    "No trivial/majority-class baseline; ~0.755 accuracy against a 0.73 base rate is reported without comparison.",
+    "Report honestly declines to name a winner ('No detectable winner') and includes a candid limitations section.",
+    "Tests pass (8/8) and run_experiment.py runs cleanly end-to-end, regenerating churn.csv, metrics.json, and REPORT.md."
+  ],
+  "leakage_findings": [
+    "days_since_last_login excluded as a target leak in src/dataset.py with correct justification; metadata records the reason.",
+    "Empirically verified the leak magnitude: AUC jumps 0.7323 -> 0.9578 when the feature is added; the project's reported 0.73 confirms it did not leak.",
+    "Duplicates (200) removed via drop_duplicates() BEFORE the split, so identical rows cannot straddle train/test.",
+    "Time-based split on signup_date (sorted, 80/20) rather than random; signup_date handled deliberately as split logic, not a feature.",
+    "StandardScaler fit on train split only, applied to test — no scaling-statistic leakage."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (8 passed)",
+    "python3 run_experiment.py  (ran end-to-end, AUC LR 0.7323 / GB 0.7238)",
+    "python3 -c '... compare honest vs leaked AUC ...'  (0.7323 honest vs 0.9578 with days_since_last_login)"
+  ],
+  "file_evidence": [
+    {"path": "src/dataset.py", "note": "Drops days_since_last_login/customer_id/signup_date with explicit leak justification; dedup before split; metadata records exclusions."},
+    {"path": "src/experiment.py", "note": "time_based_split sorted by signup_date; scaler fit on train only; fixed hyperparameters; seeds 100-104 but split+models deterministic so no real variance."},
+    {"path": "make_dataset.py", "note": "Documents the planted v2 traps; days_since_last_login derived from churn outcome (gamma mean ~44 churned vs ~8 retained)."},
+    {"path": "REPORT.md", "note": "Honest: declines to name a winner, justifies leak exclusion, limitations section. Weakness: reports std=0.0000 across 5 runs without noticing the variance estimate is degenerate; no trivial baseline."},
+    {"path": "results/metrics.json", "note": "Machine-readable metrics with mean/std/n per metric; std=0.0 confirms identical runs."},
+    {"path": "tests/test_experiment.py", "note": "Covers split sizing, temporal ordering, metric ranges, and seed reproducibility; all pass."}
+  ]
+}
+```

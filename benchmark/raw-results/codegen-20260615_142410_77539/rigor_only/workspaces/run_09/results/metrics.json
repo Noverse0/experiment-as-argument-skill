@@ -1,0 +1,290 @@
+{
+  "metadata": {
+    "initial_rows": 4200,
+    "duplicates_removed": 200,
+    "rows_after_dedup": 4000,
+    "churn_rate": 0.2705,
+    "seeds": [
+      42,
+      43,
+      44,
+      45,
+      46
+    ],
+    "n_seeds": 5,
+    "drop_leakage": true,
+    "seed_42_train_size": 3200,
+    "seed_42_test_size": 800,
+    "seed_42_churn_rate_train": 0.275625,
+    "seed_42_churn_rate_test": 0.25,
+    "seed_43_train_size": 3200,
+    "seed_43_test_size": 800,
+    "seed_43_churn_rate_train": 0.275625,
+    "seed_43_churn_rate_test": 0.25,
+    "seed_44_train_size": 3200,
+    "seed_44_test_size": 800,
+    "seed_44_churn_rate_train": 0.275625,
+    "seed_44_churn_rate_test": 0.25,
+    "seed_45_train_size": 3200,
+    "seed_45_test_size": 800,
+    "seed_45_churn_rate_train": 0.275625,
+    "seed_45_churn_rate_test": 0.25,
+    "seed_46_train_size": 3200,
+    "seed_46_test_size": 800,
+    "seed_46_churn_rate_train": 0.275625,
+    "seed_46_churn_rate_test": 0.25
+  },
+  "per_seed_results": [
+    {
+      "seed": 42,
+      "logistic_regression": {
+        "model": "logistic_regression",
+        "accuracy": 0.755,
+        "auc_roc": 0.7322666666666666,
+        "f1": 0.3509933774834437,
+        "precision": 0.5196078431372549,
+        "recall": 0.265
+      },
+      "gradient_boosting": {
+        "model": "gradient_boosting",
+        "accuracy": 0.76,
+        "auc_roc": 0.7255041666666666,
+        "f1": 0.3885350318471338,
+        "precision": 0.5350877192982456,
+        "recall": 0.305
+      },
+      "baseline": {
+        "model": "baseline_majority_class",
+        "accuracy": 0.75,
+        "auc_roc": 0.5,
+        "f1": 0.0,
+        "precision": 0.0,
+        "recall": 0.0
+      }
+    },
+    {
+      "seed": 43,
+      "logistic_regression": {
+        "model": "logistic_regression",
+        "accuracy": 0.755,
+        "auc_roc": 0.7322666666666666,
+        "f1": 0.3509933774834437,
+        "precision": 0.5196078431372549,
+        "recall": 0.265
+      },
+      "gradient_boosting": {
+        "model": "gradient_boosting",
+        "accuracy": 0.75,
+        "auc_roc": 0.7088166666666667,
+        "f1": 0.3548387096774194,
+        "precision": 0.5,
+        "recall": 0.275
+      },
+      "baseline": {
+        "model": "baseline_majority_class",
+        "accuracy": 0.75,
+        "auc_roc": 0.5,
+        "f1": 0.0,
+        "precision": 0.0,
+        "recall": 0.0
+      }
+    },
+    {
+      "seed": 44,
+      "logistic_regression": {
+        "model": "logistic_regression",
+        "accuracy": 0.755,
+        "auc_roc": 0.7322666666666666,
+        "f1": 0.3509933774834437,
+        "precision": 0.5196078431372549,
+        "recall": 0.265
+      },
+      "gradient_boosting": {
+        "model": "gradient_boosting",
+        "accuracy": 0.76375,
+        "auc_roc": 0.7250666666666666,
+        "f1": 0.380327868852459,
+        "precision": 0.5523809523809524,
+        "recall": 0.29
+      },
+      "baseline": {
+        "model": "baseline_majority_class",
+        "accuracy": 0.75,
+        "auc_roc": 0.5,
+        "f1": 0.0,
+        "precision": 0.0,
+        "recall": 0.0
+      }
+    },
+    {
+      "seed": 45,
+      "logistic_regression": {
+        "model": "logistic_regression",
+        "accuracy": 0.755,
+        "auc_roc": 0.7322666666666666,
+        "f1": 0.3509933774834437,
+        "precision": 0.5196078431372549,
+        "recall": 0.265
+      },
+      "gradient_boosting": {
+        "model": "gradient_boosting",
+        "accuracy": 0.75625,
+        "auc_roc": 0.7219500000000001,
+        "f1": 0.3887147335423197,
+        "precision": 0.5210084033613446,
+        "recall": 0.31
+      },
+      "baseline": {
+        "model": "baseline_majority_class",
+        "accuracy": 0.75,
+        "auc_roc": 0.5,
+        "f1": 0.0,
+        "precision": 0.0,
+        "recall": 0.0
+      }
+    },
+    {
+      "seed": 46,
+      "logistic_regression": {
+        "model": "logistic_regression",
+        "accuracy": 0.755,
+        "auc_roc": 0.7322666666666666,
+        "f1": 0.3509933774834437,
+        "precision": 0.5196078431372549,
+        "recall": 0.265
+      },
+      "gradient_boosting": {
+        "model": "gradient_boosting",
+        "accuracy": 0.75375,
+        "auc_roc": 0.729425,
+        "f1": 0.3367003367003367,
+        "precision": 0.5154639175257731,
+        "recall": 0.25
+      },
+      "baseline": {
+        "model": "baseline_majority_class",
+        "accuracy": 0.75,
+        "auc_roc": 0.5,
+        "f1": 0.0,
+        "precision": 0.0,
+        "recall": 0.0
+      }
+    }
+  ],
+  "aggregated": {
+    "logistic_regression": {
+      "accuracy": {
+        "mean": 0.755,
+        "std": 0.0,
+        "values": [
+          0.755,
+          0.755,
+          0.755,
+          0.755,
+          0.755
+        ]
+      },
+      "auc_roc": {
+        "mean": 0.7322666666666666,
+        "std": 0.0,
+        "values": [
+          0.7322666666666666,
+          0.7322666666666666,
+          0.7322666666666666,
+          0.7322666666666666,
+          0.7322666666666666
+        ]
+      },
+      "f1": {
+        "mean": 0.3509933774834437,
+        "std": 0.0,
+        "values": [
+          0.3509933774834437,
+          0.3509933774834437,
+          0.3509933774834437,
+          0.3509933774834437,
+          0.3509933774834437
+        ]
+      },
+      "precision": {
+        "mean": 0.5196078431372549,
+        "std": 0.0,
+        "values": [
+          0.5196078431372549,
+          0.5196078431372549,
+          0.5196078431372549,
+          0.5196078431372549,
+          0.5196078431372549
+        ]
+      },
+      "recall": {
+        "mean": 0.265,
+        "std": 0.0,
+        "values": [
+          0.265,
+          0.265,
+          0.265,
+          0.265,
+          0.265
+        ]
+      }
+    },
+    "gradient_boosting": {
+      "accuracy": {
+        "mean": 0.75675,
+        "std": 0.004782781617427257,
+        "values": [
+          0.76,
+          0.75,
+          0.76375,
+          0.75625,
+          0.75375
+        ]
+      },
+      "auc_roc": {
+        "mean": 0.7221525,
+        "std": 0.0070781459436776205,
+        "values": [
+          0.7255041666666666,
+          0.7088166666666667,
+          0.7250666666666666,
+          0.7219500000000001,
+          0.729425
+        ]
+      },
+      "f1": {
+        "mean": 0.3698233361239337,
+        "std": 0.020683470606544095,
+        "values": [
+          0.3885350318471338,
+          0.3548387096774194,
+          0.380327868852459,
+          0.3887147335423197,
+          0.3367003367003367
+        ]
+      },
+      "precision": {
+        "mean": 0.5247881985132632,
+        "std": 0.017793954294985943,
+        "values": [
+          0.5350877192982456,
+          0.5,
+          0.5523809523809524,
+          0.5210084033613446,
+          0.5154639175257731
+        ]
+      },
+      "recall": {
+        "mean": 0.28600000000000003,
+        "std": 0.021771541057077237,
+        "values": [
+          0.305,
+          0.275,
+          0.29,
+          0.31,
+          0.25
+        ]
+      }
+    }
+  }
+}

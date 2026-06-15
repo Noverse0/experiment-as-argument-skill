@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "n_rows_original": 4200,
+    "n_duplicates_removed": 200,
+    "n_rows_clean": 4000,
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "target": "churned",
+    "excluded_features": {
+      "customer_id": "no_signal",
+      "days_since_last_login": "target_leak_churned_customers_by_definition_logged_out_recently",
+      "signup_date": "temporal_feature_requires_time_split_not_random"
+    },
+    "class_distribution": {
+      "0": 2918,
+      "1": 1082
+    }
+  },
+  "results": {
+    "LogisticRegression": {
+      "auc": {
+        "mean": 0.7322666666666666,
+        "std": 0.0,
+        "n": 5
+      },
+      "precision": {
+        "mean": 0.5196078431372549,
+        "std": 0.0,
+        "n": 5
+      },
+      "recall": {
+        "mean": 0.265,
+        "std": 0.0,
+        "n": 5
+      },
+      "f1": {
+        "mean": 0.3509933774834437,
+        "std": 0.0,
+        "n": 5
+      },
+      "accuracy": {
+        "mean": 0.755,
+        "std": 0.0,
+        "n": 5
+      }
+    },
+    "GradientBoostingClassifier": {
+      "auc": {
+        "mean": 0.7238141666666666,
+        "std": 1.3333333333331865e-05,
+        "n": 5
+      },
+      "precision": {
+        "mean": 0.5294117647058824,
+        "std": 0.0,
+        "n": 5
+      },
+      "recall": {
+        "mean": 0.315,
+        "std": 0.0,
+        "n": 5
+      },
+      "f1": {
+        "mean": 0.3949843260188088,
+        "std": 0.0,
+        "n": 5
+      },
+      "accuracy": {
+        "mean": 0.75875,
+        "std": 0.0,
+        "n": 5
+      }
+    }
+  }
+}

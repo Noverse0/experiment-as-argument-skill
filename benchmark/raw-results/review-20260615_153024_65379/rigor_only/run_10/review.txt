@@ -1,0 +1,58 @@
+All commands work. Let me synthesize.
+
+**Summary of findings:**
+
+This project **caught the disguised leak**. `days_since_last_login` is explicitly dropped (`src/experiment.py:65`) with correct causal reasoning in both code comments and REPORT.md (lines 14, 290): "churned customers have stopped logging in by definition; value recorded at/after outcome." It also handles the two secondary traps: dedup before split (`load_and_deduplicate`), time-based split on `signup_date` (`split_by_time`), scaler fit on train only, and a customer-id straddle check. Honest features yield ~0.735–0.746 AUC — consistent with the expected honest range, and the report notes a leaked pipeline would inflate performance.
+
+**Key weakness — pseudo-variance:** The "5 seeds" produce no genuine variance. The data split is deterministic (sorted by `signup_date`, fixed ratio), so the seed only touches model `random_state`. The run output confirms identical test_auc across all five seeds (LR 0.7459 every time; GB std ~8e-6). The report reports `±0.0000` and even frames it as a "standard error" in limitation #3 — a confused claim that mistakes zero seed-sensitivity for a precise estimate. It's effectively a single split dressed as 5 runs; no resampled splits or CV.
+
+**Minor claims/code issues:** REPORT claims a naive pipeline would hit "~0.85 AUC" — a number never measured. `sanity_check_label_shuffle` is declared in the module docstring and tested but never called in the actual run pipeline.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 94,
+  "methodological_validity_score": 68,
+  "reproducibility_score": 88,
+  "claims_discipline_score": 74,
+  "executability_score": 97,
+  "code_quality_score": 84,
+  "verdict": "good",
+  "key_findings": [
+    "Caught the disguised leak: days_since_last_login is dropped with correct causal justification (recorded at/after the outcome), not pattern-matched on its name.",
+    "Solid data-contact discipline: dedup before split, time-based split on signup_date, StandardScaler fit on train only, and a customer_id straddle check.",
+    "Honest features give ~0.735-0.746 ROC-AUC, well below a leaked pipeline; report rejects its own hypothesis (LR slightly beats GB), which is intellectually honest.",
+    "Major methodological weakness: the 5 seeds do not perturb the (deterministic) split, so reported SD is ~0 by construction — effectively a single split presented as 5 runs, with no real variance or CV.",
+    "Report frames the ±0.0000 SD as a 'standard error' (limitation #3), conflating zero seed-sensitivity with a precise generalization estimate.",
+    "Tests (11) pass and the entrypoint runs in ~2s, reproducing committed metrics exactly."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is excluded from the feature set (src/experiment.py:65); only tenure_months, monthly_spend, support_tickets are used.",
+    "REPORT.md (line 14, 290) correctly explains WHY it leaks: a churned customer has by definition stopped logging in, so the value is recorded at/after the outcome.",
+    "Headline AUC (~0.735-0.746) is in the honest range; the report explicitly notes a naive all-feature pipeline would be inflated, treating high AUC as a leak signal rather than a win.",
+    "200 exact duplicate rows removed before splitting (drop_duplicates); time-based split prevents random straddling; scaler fitted on train only.",
+    "Minor: the customer_id straddle assertion is near-trivially true after dedup + time-based split, but is correct in intent and harmless.",
+    "Report claims a leaked pipeline would reach '~0.85 AUC' — this number was never actually measured by the code."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (11 passed in 1.94s)",
+    "time python3 run_experiment.py  (completed in ~2.1s; reproduced results/metrics.json exactly)"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "prepare_features (L59-70) drops the leak and keeps 3 honest features; time-based split L47-56; scaler fit-on-train L67-69; straddle check L143-148. sanity_check_label_shuffle (L106) defined/tested but never called in run_experiment."},
+    {"path": "REPORT.md", "note": "Correct leak justification (L14); honestly rejects its own claim (L59); but limitation #3 (L65) misframes ±0.0000 as standard error and L63 claims an unmeasured ~0.85 leaked AUC."},
+    {"path": "results/metrics.json", "note": "LR test_auc_std=0.0, GB std~8e-6 across 5 seeds — confirms seeds do not produce genuine variance because the split is deterministic."},
+    {"path": "make_dataset.py", "note": "Documents the three planted traps; days_since_last_login is derived from churn (gamma mean ~44 vs ~8 days), confirming it as a disguised target leak."},
+    {"path": "tests/test_pipeline.py", "note": "11 tests cover dedup, temporal split order, leak-drop (shape==3), train-only scaler, baseline/overfit/shuffle sanity checks; all pass."}
+  ]
+}
+```

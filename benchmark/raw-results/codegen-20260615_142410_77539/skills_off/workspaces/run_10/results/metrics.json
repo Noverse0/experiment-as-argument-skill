@@ -1,0 +1,186 @@
+{
+  "experiment": "churn_prediction",
+  "claim": "Gradient boosting achieves better validation AUC than logistic regression",
+  "n_seeds": 5,
+  "seeds": [
+    42,
+    99,
+    123,
+    456,
+    789
+  ],
+  "results_by_seed": [
+    {
+      "seed": 42,
+      "metrics": {
+        "lr_auc_train": 0.7367180805484148,
+        "lr_auc_test": 0.7428415144596652,
+        "lr_precision": 0.574468085106383,
+        "lr_recall": 0.25,
+        "lr_f1": 0.34838709677419355,
+        "gb_auc_train": 0.8294161912168941,
+        "gb_auc_test": 0.7438483003551497,
+        "gb_precision": 0.6161616161616161,
+        "gb_recall": 0.2824074074074074,
+        "gb_f1": 0.3873015873015873,
+        "n_train": 3200,
+        "n_test": 800
+      },
+      "sanity_checks": {
+        "baseline_auc": 0.5,
+        "overfit_check_auc_train": 0.7367180805484148,
+        "label_shuffle_auc": 0.4834157787924911
+      }
+    },
+    {
+      "seed": 99,
+      "metrics": {
+        "lr_auc_train": 0.737194519810572,
+        "lr_auc_test": 0.7395912607813293,
+        "lr_precision": 0.5747126436781609,
+        "lr_recall": 0.23148148148148148,
+        "lr_f1": 0.33003300330033003,
+        "gb_auc_train": 0.8358528213318135,
+        "gb_auc_test": 0.7331383181126332,
+        "gb_precision": 0.6105263157894737,
+        "gb_recall": 0.26851851851851855,
+        "gb_f1": 0.3729903536977492,
+        "n_train": 3200,
+        "n_test": 800
+      },
+      "sanity_checks": {
+        "baseline_auc": 0.5,
+        "overfit_check_auc_train": 0.737194519810572,
+        "label_shuffle_auc": 0.49991279807204464
+      }
+    },
+    {
+      "seed": 123,
+      "metrics": {
+        "lr_auc_train": 0.740493478273776,
+        "lr_auc_test": 0.7260987442922374,
+        "lr_precision": 0.6111111111111112,
+        "lr_recall": 0.25462962962962965,
+        "lr_f1": 0.35947712418300654,
+        "gb_auc_train": 0.8337367977344645,
+        "gb_auc_test": 0.706490201674277,
+        "gb_precision": 0.6455696202531646,
+        "gb_recall": 0.2361111111111111,
+        "gb_f1": 0.34576271186440677,
+        "n_train": 3200,
+        "n_test": 800
+      },
+      "sanity_checks": {
+        "baseline_auc": 0.5,
+        "overfit_check_auc_train": 0.740493478273776,
+        "label_shuffle_auc": 0.5162750507356672
+      }
+    },
+    {
+      "seed": 456,
+      "metrics": {
+        "lr_auc_train": 0.7458723439624311,
+        "lr_auc_test": 0.7036006468797565,
+        "lr_precision": 0.5760869565217391,
+        "lr_recall": 0.24537037037037038,
+        "lr_f1": 0.34415584415584416,
+        "gb_auc_train": 0.8382815236557288,
+        "gb_auc_test": 0.6986301369863014,
+        "gb_precision": 0.5544554455445545,
+        "gb_recall": 0.25925925925925924,
+        "gb_f1": 0.35331230283911674,
+        "n_train": 3200,
+        "n_test": 800
+      },
+      "sanity_checks": {
+        "baseline_auc": 0.5,
+        "overfit_check_auc_train": 0.7458723439624311,
+        "label_shuffle_auc": 0.49407423262303396
+      }
+    },
+    {
+      "seed": 789,
+      "metrics": {
+        "lr_auc_train": 0.7437706679648771,
+        "lr_auc_test": 0.7133355530187722,
+        "lr_precision": 0.5544554455445545,
+        "lr_recall": 0.25925925925925924,
+        "lr_f1": 0.35331230283911674,
+        "gb_auc_train": 0.8339868912412356,
+        "gb_auc_test": 0.6841704718417048,
+        "gb_precision": 0.5346534653465347,
+        "gb_recall": 0.25,
+        "gb_f1": 0.34069400630914826,
+        "n_train": 3200,
+        "n_test": 800
+      },
+      "sanity_checks": {
+        "baseline_auc": 0.5,
+        "overfit_check_auc_train": 0.7437706679648771,
+        "label_shuffle_auc": 0.48854087392186707
+      }
+    }
+  ],
+  "summary": {
+    "lr_auc_test": {
+      "mean": 0.7250935438863522,
+      "std": 0.015009194871626552,
+      "values": null
+    },
+    "gb_auc_test": {
+      "mean": 0.7132554857940132,
+      "std": 0.022076481863541636,
+      "values": null
+    },
+    "lr_auc_train": {
+      "mean": 0.7408098181120143,
+      "std": 0.0035863231541057427,
+      "values": null
+    },
+    "gb_auc_train": {
+      "mean": 0.8342548450360274,
+      "std": 0.0029161759882581737,
+      "values": null
+    },
+    "sanity_baseline_auc": {
+      "mean": 0.5,
+      "std": 0.0,
+      "values": null
+    },
+    "sanity_overfit_check_auc_train": {
+      "mean": 0.7408098181120143,
+      "std": 0.0035863231541057427,
+      "values": null
+    },
+    "gb_precision": {
+      "mean": 0.5922732926190687,
+      "std": 0.041217854015175644,
+      "values": null
+    },
+    "gb_recall": {
+      "mean": 0.25925925925925924,
+      "std": 0.01576795033882074,
+      "values": null
+    },
+    "gb_f1": {
+      "mean": 0.3600121924024017,
+      "std": 0.017517261625426706,
+      "values": null
+    },
+    "lr_precision": {
+      "mean": 0.5781668483923897,
+      "std": 0.018316623058521334,
+      "values": null
+    },
+    "lr_recall": {
+      "mean": 0.24814814814814815,
+      "std": 0.009532990871284258,
+      "values": null
+    },
+    "lr_f1": {
+      "mean": 0.3470730742504982,
+      "std": 0.009933673366020187,
+      "values": null
+    }
+  }
+}

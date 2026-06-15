@@ -1,0 +1,71 @@
+Both the test suite (9 passed) and the entrypoint run cleanly and reproduce the reported numbers. The leak comparison confirms the rubric's prediction exactly: AUC 0.9567 with `days_since_last_login` vs 0.7298 without.
+
+I have all the evidence needed.
+
+## Summary
+
+**Leakage (central test) — FAILED.** `days_since_last_login` is used as a model feature and, worse, the report *affirmatively rationalizes* it as safe: "Kept (recorded pre-prediction, not post-churn)" and the module docstring asserts "days_since_last_login is valid." `make_dataset.py` confirms it is derived directly from the `churn` outcome (gamma mean ~44 days for churned vs ~8 for retained). The project pattern-matched the plausible name and dismissed the concern. Three signals were available and all ignored:
+- Headline AUC ~0.95 vs ~0.73 on honest features (I verified both) — never flagged as implausible.
+- The label-shuffle sanity check returned **0.823**, far above the 0.500 baseline, with the report's own annotation "should be similar to baseline if no leakage" — the check fired and was reported without reaction.
+- Fit-on-train discipline is correct, signup_date and customer_id dropped, a duplicate-straddle check exists — but the central leak defeats it.
+
+**Methodology:** Majority baseline present (AUC 0.5), multiple appropriate metrics (not accuracy-alone), equal budget (defaults, no tuning for either). But the "5 seeds" are hollow — the split is a deterministic tenure quantile and the data never varies, so LR std is exactly 0.0000 and GB only shows float noise. The tenure-based "temporal" split also induces a train/test churn shift (32% vs 14%).
+
+**Reproducibility:** Strong — seeds fixed/logged, config+metrics to results/, deterministic, reproduced on re-run.
+
+**Claims:** Conclusion honestly reports LR wins despite the GB hypothesis, but declares significance off ~zero variance, and never questions the implausible 0.95 or the shuffle alarm.
+
+**Executability:** Excellent — tests pass, entrypoint reproduces reported numbers.
+
+**Code quality:** Clean, typed, documented, deps declared/used; label-shuffle is mis-designed (trains on random labels rather than shuffling existing ones).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 8,
+  "methodological_validity_score": 48,
+  "reproducibility_score": 85,
+  "claims_discipline_score": 25,
+  "executability_score": 95,
+  "code_quality_score": 78,
+  "verdict": "poor",
+  "key_findings": [
+    "Central leak failure: days_since_last_login (derived from the churn outcome) is used as a feature and explicitly rationalized as 'recorded pre-prediction, not post-churn', the exact disguised trap.",
+    "Headline AUC ~0.957 is ~0.227 higher than the honest-feature AUC (~0.730, verified directly), and the report never questions the implausibility — treats it as a clean win.",
+    "The label-shuffle sanity check returned 0.823 vs a 0.500 baseline; its own annotation says it should match baseline absent leakage, yet the result was reported with no reaction.",
+    "'5 random seeds' produce no real variance (split is deterministic, data fixed); LR std is exactly 0.0000, so reported significance rests on fake variance.",
+    "Tests (9 passed) and the entrypoint both run cleanly and reproduce the reported metrics.",
+    "Conclusion honestly reports LR beats GB (against the stated GB hypothesis), but limitations omit the leak entirely."
+  ],
+  "leakage_findings": [
+    "days_since_last_login kept as a feature (src/experiment.py:36); generator make_dataset.py:36-40 sets it from churn==1 (mean ~44d) vs churn==0 (mean ~8d) — a post-outcome value, the disguised target leak.",
+    "Verified: AUC with the feature = 0.9567, without it = 0.7298 — matches the rubric's leakage signature (~0.95 vs ~0.73).",
+    "Report's Leak Surface Audit affirmatively justifies the leak as pre-outcome; no skepticism applied to the suspiciously high AUC.",
+    "Label-shuffle sanity check AUC = 0.8230 (>> 0.5 baseline) is a fired leakage alarm that the report ignores.",
+    "Scaler fitted on train only (correct); customer_id and signup_date dropped; duplicate-straddle check present but only printed. The real temporal column signup_date was discarded rather than used for the split (split done on tenure_months quantile instead), producing a 32% vs 14% train/test churn shift."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q  (9 passed, 2 warnings)",
+    "timeout 110 python run_experiment.py  (ran fully, reproduced reported numbers)",
+    "python -c '<train LR with and without days_since_last_login on tenure-quantile split>'  (0.9567 vs 0.7298)"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "Line 36 keeps days_since_last_login as a feature; lines 7 docstring asserts it is valid; preprocess() correctly fits scaler on train only."},
+    {"path": "make_dataset.py", "note": "Lines 36-40: days_since_last_login generated conditional on the churn label — confirms it is a post-outcome target leak by construction."},
+    {"path": "REPORT.md", "note": "Leak Surface Audit (line 58) justifies the leak as 'recorded pre-prediction'; reports AUC ~0.95 and shuffle AUC 0.823 without flagging either; std ±0.0000 across 5 seeds."},
+    {"path": "results/metrics.json", "note": "LR identical across all 5 seeds (std 0.0); label_shuffle AUC 0.823 vs baseline 0.5 recorded but unremarked."},
+    {"path": "tests/test_experiment.py", "note": "9 unit tests of pipeline mechanics; none test for leakage or the honest-feature AUC; all pass."},
+    {"path": "pyproject.toml", "note": "Dependencies (numpy, pandas, scikit-learn) declared and all used; dev extras include pytest."}
+  ]
+}
+```

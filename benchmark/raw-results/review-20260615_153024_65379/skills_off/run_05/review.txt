@@ -1,0 +1,68 @@
+All audits complete. The project correctly caught the disguised leak: honest AUC=0.740 vs leaked AUC=0.970, and it reported the honest ~0.74 while excluding `days_since_last_login` with a sound *when-is-it-known* justification.
+
+## Summary
+
+**Leakage (the central test) — caught well.** `days_since_last_login` is explicitly classified as a post-outcome target leak (`LEAK_FEATURES`), excluded from `FEATURE_NAMES`, and never enters the model. The justification is correct reasoning about *when* the value is recorded, not name-matching. The reported honest AUC (~0.74) matches what I measured; I confirmed the leaked feature would inflate to ~0.97, exactly the "suspiciously high" signal the report describes. Dedup happens before the split; the scaler is fit on train only. `signup_date` temporal leak is acknowledged honestly in Limitations but not actually handled via a time-based split — the one residual gap.
+
+**Methodology — solid.** Majority-class baseline present; metrics go well beyond accuracy (AUC/precision/recall/F1) appropriate for the 27% imbalance; two meaningful sanity checks (overfit-tiny-batch passes, label-shuffle drops to ~0.5). Neither model is tuned, so budgets are trivially equal — honest but means "no tuning." 3 seeds vary only the split, not the data.
+
+**Reproducibility — strong.** Seeds fixed and logged; config + raw + summary metrics written to `results/results.json`; re-ran the entrypoint and it reproduced.
+
+**Claims — honest.** Despite the "GB outperforms LR" hypothesis in the header, the interpretation concludes "no clear winner; LR slightly better" with ±std reported. No overclaiming; limitations are candid.
+
+**Executability — clean.** 14 tests pass; entrypoint runs end-to-end.
+
+**Code quality — good** with minor dead code (`X_full`/`y_full` at run_experiment.py:58-59 unused; `find_duplicates` defined but not called by the entrypoint).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 90,
+  "claims_discipline_score": 88,
+  "executability_score": 95,
+  "code_quality_score": 84,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised leak caught: days_since_last_login classified as post-outcome target leak, excluded from features, with correct when-is-it-known justification.",
+    "Reported honest AUC ~0.740 matches my independent measurement; I confirmed the leaked feature inflates AUC to ~0.97, validating the project's reasoning.",
+    "Majority-class baseline present; imbalance-appropriate metrics (AUC/precision/recall/F1) reported, not accuracy alone.",
+    "Two real sanity checks: overfit-one-batch passes and label-shuffle collapses to ~0.5 AUC.",
+    "Header hypothesis 'GB outperforms LR' is honestly walked back in interpretation to 'no clear winner' with ±std across 3 seeds.",
+    "Tests pass (14/14) and entrypoint runs end-to-end and reproduces results.json.",
+    "Residual gaps: temporal signup_date leak only acknowledged, not handled via time-based split; 3 seeds vary the split only, not the data; no hyperparameter tuning for either model."
+  ],
+  "leakage_findings": [
+    "days_since_last_login placed in LEAK_FEATURES and omitted from FEATURE_NAMES; never passed to any model — leak prevented.",
+    "Report and code both justify exclusion as post-outcome (churned customers stop logging in), the correct disguised-leak reasoning rather than name pattern-matching.",
+    "Honest-feature AUC ~0.74 is reported and matches expectation; empirical check: honest=0.740, with-leak=0.970, so the project avoided the suspiciously-high result.",
+    "Deduplication runs before the train/test split (deduplicate_before_split), so the 200 planted duplicates cannot straddle the split.",
+    "StandardScaler is fit on X_train only and applied to X_test (preprocess), correct fit-on-train discipline; no imputer/encoder needed (no missing values or categoricals).",
+    "signup_date temporal column is NOT used in a time-based split; random stratified split is used and the gap is only acknowledged in Limitations — partial handling."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*'",
+    "python3 -m pytest -q  (14 passed)",
+    "python3 run_experiment.py  (ran end-to-end, regenerated results.json and REPORT.md)",
+    "python3 -c '<compare honest vs +days_since_last_login AUC>'  (honest=0.740, leaked=0.970)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "FEATURE_NAMES excludes days_since_last_login; LEAK_FEATURES isolates it; dedup-before-split and train-only scaler fitting."},
+    {"path": "make_dataset.py", "note": "Documents the planted disguised leak: days_since_last_login derived from churn outcome (gamma mean ~44 vs ~8 days), plus 200 duplicates and unused signup_date."},
+    {"path": "run_experiment.py", "note": "Entrypoint excludes leak with explicit WARNING, runs baseline + 2 models over 3 seeds; minor dead code at lines 58-59 (X_full/y_full unused)."},
+    {"path": "REPORT.md", "note": "Claims no clear winner despite GB hypothesis; reports ±std; honest limitations including unaddressed temporal leak."},
+    {"path": "results/results.json", "note": "Logs seeds [42,123,999], sanity checks, per-seed raw metrics and summary; LR AUC 0.740, GB 0.723, baseline 0.500."},
+    {"path": "tests/test_data.py", "note": "Covers loading, dedup, stratified split, train-only scaling; 14 tests pass overall."}
+  ]
+}
+```

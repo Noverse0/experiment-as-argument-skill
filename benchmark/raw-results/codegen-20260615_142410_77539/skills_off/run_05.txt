@@ -1,0 +1,39 @@
+## Summary
+
+I've built a rigorous ML experiment comparing gradient boosting vs logistic regression for customer churn prediction, following the "Experiment as Argument" framework from CLAUDE.md.
+
+**Key Design Decisions:**
+
+1. **Leak Detection & Exclusion**: Identified `days_since_last_login` as a post-outcome target leak (churned customers have systematically higher values: mean ~44 days vs ~8 days). This feature was excluded to ensure honest feature evaluation.
+
+2. **Data Discipline**:
+   - Removed 200 exact duplicate rows *before* splitting
+   - Stratified 80/20 split to preserve class balance
+   - Fit StandardScaler on train only, applied to test
+   - Used only honest features: tenure_months, monthly_spend, support_tickets
+
+3. **Sanity Checks** (all passed):
+   - Overfit one batch: both models reach 0.9+ accuracy on 10 samples ✓
+   - Label shuffle: both models fall to ~0.5 AUC with shuffled labels (no leakage) ✓
+   - Baseline majority class: 0.500 AUC ✓
+
+4. **Repetition**: 3 seeds (42, 123, 999) with mean ± std reported, not single-seed claims.
+
+**Results** (Mean ± Std across 3 seeds):
+- Logistic Regression: 0.740 ± 0.009 AUC-ROC
+- Gradient Boosting: 0.723 ± 0.016 AUC-ROC
+- **Conclusion**: No clear winner; logistic regression competitive or slightly better (difference within noise, overlapping confidence intervals).
+
+**Files created:**
+- `src/` — data loading, preprocessing, experiment logic
+- `tests/` — 14 unit tests (all passing)
+- `run_experiment.py` — entrypoint orchestrating the full pipeline
+- `pyproject.toml` — dependencies
+- `REPORT.md` — methodology and conclusions
+- `results/results.json` — machine-readable metrics
+
+Experiment completed in ~2 seconds, well under 5-minute requirement.
+
+```json
+{"files_created": ["pyproject.toml", "src/__init__.py", "src/data.py", "src/experiment.py", "tests/__init__.py", "tests/test_data.py", "tests/test_experiment.py", "run_experiment.py", "REPORT.md", "results/results.json"], "entrypoint": "python run_experiment.py", "test_command": "python -m pytest tests/ -v"}
+```

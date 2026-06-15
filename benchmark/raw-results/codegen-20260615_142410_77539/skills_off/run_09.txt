@@ -1,0 +1,12 @@
+Perfect! Everything works. Here's the final summary:
+
+**Experiment Summary:**
+- **Claim tested:** Does gradient boosting outperform logistic regression for churn prediction?
+- **Result:** No detectable difference (LR: 0.7350 ROC-AUC ± 0.0007 vs GB: 0.7305 ± 0.0028)
+- **Rigor:** Properly handles dataset traps—drops target leak (`days_since_last_login`), documents duplicates, uses stratified k-fold CV with 3 seeds
+- **Runtime:** ~10 seconds (well under 5-minute limit)
+- **Verification:** All 8 tests pass, sanity checks confirmed, metrics deterministic and reproducible
+
+```json
+{"files_created": ["pyproject.toml", "src/__init__.py", "src/experiment.py", "tests/__init__.py", "tests/test_experiment.py", "run_experiment.py", "REPORT.md", "results/metrics.json"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}
+```

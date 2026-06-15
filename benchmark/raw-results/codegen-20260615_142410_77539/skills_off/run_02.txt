@@ -1,0 +1,20 @@
+Perfect! The ML experiment is complete and fully functional. Here's what was built:
+
+## Summary
+
+**Claim tested:** Gradient boosting outperforms logistic regression for churn prediction.
+
+**Key design decisions:**
+- **Deduplication** before split (removed 200 exact duplicates)
+- **Time-based split** (70% earliest → train, 30% recent → test) respects temporal structure
+- **Feature selection** excludes the target leak (`days_since_last_login`); uses only: tenure_months, monthly_spend, support_tickets
+- **Rigorous evaluation**: 5 different seeds, StandardScaler fit-on-train-apply-to-test, sanity checks (baseline floor, class balance, label shuffle, overfit test)
+- **Full experiment runtime**: ~2.5 seconds (well under 5 minutes)
+
+**Result:** LogisticRegression AUC = 0.7459 ± 0.0000 vs GradientBoosting AUC = 0.7177 ± 0.0002. **LogisticRegression actually performs better** on this dataset, contrary to the initial hypothesis. The report documents this finding with limitations and caveats.
+
+**Tests:** 8 pytest tests covering data loading, deduplication, time-based splits, feature prep, model training, scaling discipline, and leak detection—all passing.
+
+```json
+{"files_created": ["requirements.txt", "run_experiment.py", "src/__init__.py", "src/experiment.py", "tests/__init__.py", "tests/test_experiment.py", "results/REPORT.md", "results/metrics.json"], "entrypoint": "python3 run_experiment.py --csv churn.csv --output results", "test_command": "python3 -m pytest tests/ -v"}
+```

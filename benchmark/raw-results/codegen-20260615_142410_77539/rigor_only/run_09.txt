@@ -1,0 +1,30 @@
+Perfect! The experiment framework is complete and fully functional. Here's a summary:
+
+## Implementation Summary
+
+**Architecture:**
+- `src/dataset.py` — Data loading, deduplication, time-based splitting, leakage-aware feature extraction
+- `src/preprocessing.py` — StandardScaler fitting/application with no train-test leakage
+- `src/models.py` — Model training (LogisticRegression, GradientBoostingClassifier) and evaluation with multiple metrics
+- `src/experiment.py` — Orchestrates the full pipeline: loads data, deduplicates (200 exact duplicates removed), time-splits, trains models across 5 seeds, aggregates results with variance
+- `tests/` — 10 pytest tests covering data loading, dedup, splitting, feature extraction, model training, and sanity checks
+
+**Rigor Discipline (per CLAUDE.md):**
+- ✅ Identified and excluded target leakage (`days_since_last_login`)
+- ✅ Deduplication before splitting (200 exact duplicates removed)
+- ✅ Time-based split respecting temporal order (signup_date)
+- ✅ Split-before-transform: StandardScaler fit only on train
+- ✅ Multiple seeds (5 runs) with aggregated mean ± std
+- ✅ Sanity checks: both models beat majority-class baseline
+- ✅ Comprehensive report with methodology, limitations, and honest conclusion
+
+**Results:**
+- Logistic Regression: AUC 0.7323 ± 0.0000 (5 seeds)
+- Gradient Boosting: AUC 0.7222 ± 0.0071 (5 seeds)
+- **Conclusion:** No statistically significant difference; logistic regression slightly better. Recommendation: use logistic regression for simplicity/speed unless larger/richer dataset shows GB advantage.
+
+**Performance:** Full experiment runs in ~4.4 seconds (well under 5-minute limit)
+
+```json
+{"files_created": ["src/dataset.py", "src/preprocessing.py", "src/models.py", "src/experiment.py", "src/__init__.py", "tests/test_dataset.py", "tests/test_models.py", "tests/__init__.py", "pyproject.toml", "REPORT.md"], "entrypoint": "python run_experiment.py", "test_command": "python -m pytest tests/ -v"}
+```

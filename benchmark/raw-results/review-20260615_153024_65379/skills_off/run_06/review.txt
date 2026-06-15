@@ -1,0 +1,75 @@
+I now have a complete picture. Both declared commands work, results reproduce exactly, and I've root-caused the label-shuffle anomaly.
+
+## Review
+
+**Leakage (the central test) — caught cleanly.** The disguised leak `days_since_last_login` is correctly excluded. `src/data.py:9` defines `FEATURE_COLS` as only the three honest features, and `LEAK_FEATURES = ["days_since_last_login"]` is explicitly named and dropped. The REPORT gives the *correct temporal reasoning* — "recorded AFTER churn outcome (churned customers have not logged in by definition)" — rather than pattern-matching the name. The pipeline lands at the honest AUC (~0.73–0.75) instead of the suspicious ~0.95, and does not treat that lower number as a loss. Supporting discipline is also right: `StandardScaler` is fit on train only (`data.py:55-57`), the 200 exact duplicates are removed *before* the split (`load_and_deduplicate`, dedup on all columns bar `customer_id`), and the split is time-based on `signup_date` with explicit rationale. This is a textbook catch of the v2 trap.
+
+**Methodology — real weaknesses.**
+- **Fake variance across seeds.** All 5 seeds produce identical AUC (LR std = 0.0, GB std ≈ 7e-6). Neither the time-based split nor LR depends on the seed, and GB here is effectively deterministic, so "n=5" conveys robustness that does not exist — it is one run reported five times. The report does not notice this.
+- **The 2σ significance test is meaningless.** With σ≈0, the conclusion logic (`diff > 2*max(std)`) would flag *any* nonzero difference as "significant." The negative direction (LR slightly better) happened to route it to the benign branch; a tiny GB lead would have been declared "significant."
+- **Broken label-shuffle sanity check.** It returns 0.71 for LR, far from the expected ~0.5. Root cause (verified): permuting an imbalanced binary target leaves 61% of labels unchanged, so a small correctly-signed residual correlation survives and AUC (a ranking metric) is robust to the attenuation. The check does not validate what it claims.
+- Positives: trivial majority-class baseline present (AUC 0.5), AUC plus precision/recall/F1, and equal (zero) tuning budget for both models.
+
+**Reproducibility — solid.** Seeds logged, full config + metrics written to `results/metrics.json`, deterministic dataset generation; re-running reproduced the reported numbers exactly.
+
+**Claims discipline — mixed-to-weak.**
+- The headline **Claim** asserts "Gradient boosting outperforms logistic regression," but the result is the opposite (diff −0.0112); the conclusion correctly contradicts the claim header, leaving a stale aspirational claim up top.
+- "All sanity checks passed, indicating the pipeline is sound" is **false**: the LR label-shuffle (0.71 vs expected ~0.5) and the LR overfit check (returns `False`, presented with a ✓) both visibly failed their stated expectations.
+- It does not flag the zero-variance issue.
+- Credit: it reports the null/negative result honestly rather than overclaiming, excludes the leak with rationale, and the limitations section is reasonable.
+
+**Executability — clean.** `pytest` → 9 passed; `python3 run_experiment.py` regenerates data, runs, and writes both outputs in <2s.
+
+**Code quality — good.** Clear module separation, type hints, docstrings, declared+used deps, no notable dead code. Minor: `validate_no_leak` only prints a warning rather than enforcing exclusion.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 57,
+  "reproducibility_score": 88,
+  "claims_discipline_score": 52,
+  "executability_score": 95,
+  "code_quality_score": 82,
+  "verdict": "good",
+  "key_findings": [
+    "Central leak caught: days_since_last_login is explicitly excluded with correct temporal reasoning (recorded at/after the churn outcome), and the pipeline lands at the honest AUC ~0.73-0.75 rather than chasing the suspicious ~0.95.",
+    "Fake variance: all 5 seeds yield identical AUC (LR std=0.0, GB std~7e-6) because neither the time-based split nor the models depend on the seed; 'n=5' implies robustness that does not exist, and the report never flags it.",
+    "The 2-sigma significance test is degenerate with std~0 — any nonzero difference would be declared 'significant'; only the negative direction kept the stated conclusion benign.",
+    "REPORT claims 'All sanity checks passed' but the LR label-shuffle (0.71) and LR overfit check (False) both failed their stated expectations.",
+    "Headline Claim asserts GB beats LR, but results show the opposite (diff -0.0112); the conclusion correctly contradicts the stale claim header.",
+    "Executability and reproducibility are strong: 9/9 tests pass, entrypoint runs in <2s, and reported metrics reproduce exactly."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is correctly treated as a disguised target leak: FEATURE_COLS (src/data.py:9) contains only tenure_months, monthly_spend, support_tickets; the leak column is named in LEAK_FEATURES and excluded.",
+    "REPORT.md gives the correct justification ('recorded AFTER churn outcome ... churned customers have not logged in by definition'), i.e. reasoning about when the value is known rather than the column name.",
+    "Honest AUC achieved (LR 0.746, GB 0.735); the project did not report a ~0.95 win, consistent with having dropped the leak.",
+    "StandardScaler fitted on train only (data.py:55-57) and applied to test — no preprocessing leakage.",
+    "200 exact duplicate rows removed before the split (load_and_deduplicate dedups on all columns except customer_id), so duplicates cannot straddle train/test.",
+    "Split is time-based on signup_date with explicit rationale, deliberately handling the temporal column.",
+    "Note: the label-shuffle sanity check returning 0.71 is NOT main-experiment leakage; it is an artifact of permuting an imbalanced binary target (61% of labels unchanged) combined with AUC's robustness to signal attenuation — a broken sanity check, not a leak."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (9 passed)",
+    "python3 run_experiment.py  (regenerated churn.csv, wrote results/metrics.json and REPORT.md; LR 0.7459, GB 0.7347, diff -0.0112)",
+    "python3 -c '<debug label-shuffle: 61% labels unchanged, residual corr ~0.02-0.03, test AUC 0.7073>'"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "FEATURE_COLS excludes days_since_last_login; LEAK_FEATURES names it; scaler fit on train only; dedup before time_based_split on signup_date."},
+    {"path": "src/experiment.py", "note": "Loops 5 seeds but split/models are seed-invariant -> std~0; config logged with excluded_leak_features; metrics written to results/."},
+    {"path": "src/models.py", "note": "sanity_label_shuffle permutes imbalanced binary y, leaving ~61% labels unchanged -> returns 0.71, not ~0.5; sanity_overfit_small returns False for LR with 3 features."},
+    {"path": "REPORT.md", "note": "Claim header asserts GB>LR (contradicted by results); states 'All sanity checks passed' though LR shuffle=0.71 and LR overfit=False; reports std with n=5 without noting variance is structurally zero; limitations section honest."},
+    {"path": "results/metrics.json", "note": "LR std=0.0, GB std=6.99e-6 across 5 seeds; lr_label_shuffle_auc=0.7073; baseline_auc=0.5; confirms fake variance and failed shuffle check."},
+    {"path": "make_dataset.py", "note": "Deterministic dataset; documents the planted v2 traps (disguised leak, 200 dupes, temporal signup_date)."}
+  ]
+}
+```

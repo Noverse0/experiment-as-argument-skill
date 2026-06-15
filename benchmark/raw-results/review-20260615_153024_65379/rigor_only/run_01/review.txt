@@ -1,0 +1,64 @@
+I have everything I need. Here's my assessment.
+
+## Summary
+
+**Leakage (central test): caught correctly.** The project excludes `days_since_last_login` and justifies it precisely — "Churned customers have, by definition, stopped logging in, so this value is recorded at/after the outcome." The honest-feature AUC lands at ~0.73 (LR 0.7323, GB 0.7238), exactly the legitimate baseline the guidance describes, confirming the leak was truly dropped rather than just renamed. A test (`test_get_feature_columns`) asserts the leak column stays out. Dedup-before-split removes the 200 exact duplicates, a test guards against straddling, and `signup_date` drives a deliberate time-based split. `StandardScaler` lives inside the Pipeline so it fits on train only. This is essentially a model answer for leakage.
+
+**Methodology — real weakness.** Trivial baseline (majority class, 0.75 = base rate), label-shuffle, and overfit-tiny sanity checks are all present, and metrics are imbalance-appropriate (AUC primary plus balanced-acc/precision/recall/F1). But the "3 seeds" are a **no-op**: both models are deterministic on a fixed train/test split (GB defaults to `subsample=1.0`, LR is convex), so all three runs return byte-identical numbers and `std=0.0000`. The replication protocol provides no actual variance estimate — it's `n=1` dressed as `n=3`.
+
+**Claims — internal contradiction.** Because `std=0`, `format_comparison` computes `z≈inf` and declares "**LogisticRegression** shows better performance" on a 0.0086 AUC gap. That "significance" is purely an artifact of artifactual zero variance, yet the Conclusion simultaneously says it avoids "claiming significance without statistical support." The report never notices that its own zero variance is a determinism artifact. Limitations are otherwise honest and the headline number is plausibly low (no implausible-AUC problem).
+
+**Executability/reproducibility:** 16/16 tests pass (~3s); entrypoint reproduces `metrics.json` exactly; seeds and metrics persisted. **Code quality:** clean modular structure; minor dead `import sys`.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 60,
+  "reproducibility_score": 87,
+  "claims_discipline_score": 57,
+  "executability_score": 97,
+  "code_quality_score": 87,
+  "verdict": "good",
+  "key_findings": [
+    "Central leak (days_since_last_login) correctly identified, excluded, and justified with when-is-it-known reasoning; honest-feature AUC ~0.73 confirms the leak is gone (not just renamed).",
+    "Dedup-before-split, time-based split on signup_date, and train-only StandardScaler (inside Pipeline) all handled deliberately, with tests guarding dedup and feature selection.",
+    "Major methodology flaw: the '3 seeds' are a no-op — both models are deterministic on a fixed split (GB subsample=1.0, LR convex), so all runs are identical and std=0.0000; claimed n=3 is effectively n=1.",
+    "Claims contradiction: format_comparison declares 'LogisticRegression shows better performance' via z≈inf, which is purely an artifact of artifactual zero variance, while the Conclusion claims to avoid unsupported significance.",
+    "Executable and reproducible: 16/16 tests pass, entrypoint reruns in ~3s and regenerates metrics.json byte-identically.",
+    "Limitations section is honest and thorough; report does not overclaim an implausible AUC."
+  ],
+  "leakage_findings": [
+    "days_since_last_login excluded in get_feature_columns() with correct rationale: value recorded at/after the churn outcome, so it is a disguised target leak.",
+    "Resulting AUC ~0.73 (not ~0.95) is strong positive evidence the leak was actually removed from the feature matrix.",
+    "test_get_feature_columns asserts 'days_since_last_login' not in features — leak exclusion is regression-tested.",
+    "StandardScaler is fit inside the Pipeline on the train split only (no fit-on-full-data leak); no imputer/encoder needed (no NaNs, numeric features).",
+    "200 exact duplicates dropped before splitting; test_no_duplicates_across_split verifies none straddle the boundary.",
+    "Temporal column signup_date handled via sorted time-based split (train = earlier signups), with verified train.max <= test.min ordering."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python -m pytest -q  (16 passed, 4 warnings in 2.66s)",
+    "timeout 110 python run_experiment.py  (completed; reproduced metrics.json exactly)",
+    "grep -n subsample/sys usage check"
+  ],
+  "file_evidence": [
+    {"path": "src/dataset.py", "note": "get_feature_columns() excludes days_since_last_login with leak rationale; time_based_split sorts by signup_date; load_and_deduplicate drops exact duplicates before split."},
+    {"path": "make_dataset.py", "note": "Confirms planted disguised leak: days_since_last_login drawn from churn outcome (gamma mean ~44 if churned vs ~8 if not); honest logit uses only tenure/spend/tickets."},
+    {"path": "run_experiment.py", "note": "Loops 3 seeds but GB uses default subsample=1.0 and LR is deterministic, so seeds change nothing -> std=0; unused 'import sys' (line 12)."},
+    {"path": "src/evaluation.py", "note": "format_comparison sets z=inf when combined_std==0 and then declares a winner — turns artifactual zero variance into a significance claim."},
+    {"path": "results/metrics.json", "note": "All *_std fields 0.0 with *_n=3, confirming the seeds produced identical runs (illusory replication)."},
+    {"path": "REPORT.md", "note": "Excellent leakage section; honest limitations; but Results declares LogisticRegression winner on +0.0086/z≈inf while Conclusion claims to avoid unsupported significance — internal contradiction."},
+    {"path": "tests/test_dataset.py", "note": "Tests dedup, temporal ordering, no cross-split duplicates, and leak-column exclusion — strong rigor-oriented test coverage."}
+  ]
+}
+```

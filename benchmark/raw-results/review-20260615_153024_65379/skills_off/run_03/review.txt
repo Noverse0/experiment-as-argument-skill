@@ -1,0 +1,68 @@
+I have all the evidence I need. Here's my review.
+
+## Summary
+
+**Leakage (the central test): caught cleanly.** The disguised leak `days_since_last_login` is dropped and explicitly justified as recorded post-outcome (`src/preprocessing.py:48-51`, REPORT limitations #5). The scaler is fit on train only (`FitOnTrainScaler`), duplicates are removed *before* splitting (so they can't straddle), and `signup_date` is dropped with an explicit justification. The label-shuffle sanity check returns F1≈0.029 (near zero), confirming no leak. The honest AUC lands at ~0.73 — exactly the "honest features" range, not the suspicious ~0.95 a leaked run would show. This is essentially ideal handling of the v2 trap.
+
+**The serious problem is report/claims integrity.** The committed `REPORT.md` did **not** match the committed `results/metrics.json`:
+- Committed report: n=1, seed 42 only, LR=0.700 / GB=0.750, "**Gradient Boosting shows a modest advantage** (+0.050)".
+- Committed metrics: 3 seeds, LR=0.335±0.029 / GB=0.346±0.047, diff +0.010 — *not significant*.
+
+Root cause: two tests (`test_save_results_creates_files`, `test_report_generated_with_conclusion`) call `save_results()`, which hardcodes `Path("REPORT.md")` (CWD = repo root, ignoring `output_dir`) and writes **fabricated fixture values** (0.7/0.75) over the real report. I confirmed this — running a single test clobbers the project's REPORT.md. So the shipped report was a test artifact claiming a winner the real data doesn't support.
+
+When run correctly, the entrypoint's own logic is honest: it regenerates "**No significant difference detected**" (n=3). But even the honest report contains **hardcoded sanity-check prose that doesn't match reality**: "Majority class rate ~57%" (actual 72.95%), "shuffle F1 ~0.45" (actual 0.029), "target rate ~43%" (actual ~27%). These are fixed narrative strings, not measured values.
+
+**Other findings:** 12/12 tests pass; entrypoint runs in seconds; deps declared/used. Baseline is only printed (a majority predictor gives F1=0, so it's a weak floor); no time-based split despite the temporal column; 3 seeds is modest; no config file capturing hyperparameters.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 74,
+  "reproducibility_score": 60,
+  "claims_discipline_score": 42,
+  "executability_score": 84,
+  "code_quality_score": 68,
+  "verdict": "mixed",
+  "key_findings": [
+    "Central leak (days_since_last_login) correctly identified as a disguised post-outcome target leak, dropped, and justified in code and report; honest AUC ~0.73 confirms no leak.",
+    "Committed REPORT.md contradicted committed results/metrics.json: report claimed GB wins (+0.050, n=1, 0.700/0.750) while metrics show n=3, diff +0.010, not significant.",
+    "Cause: test suite writes a hardcoded Path('REPORT.md') in repo root with fabricated fixture values (0.7/0.75), clobbering the real report — verified by re-running a single test.",
+    "Report's sanity-check section uses hardcoded prose decoupled from actual run: '~57%' majority (actual 73%), '~0.45' shuffle (actual 0.029), '~43%' target (actual ~27%).",
+    "When run via the entrypoint, the conclusion logic is honest: regenerated report correctly states 'No significant difference detected' (n=3).",
+    "12/12 tests pass; entrypoint runs in seconds; dependencies declared and used.",
+    "Baseline is only printed (majority predictor → F1=0), no time-based split, only 3 seeds, no config snapshot of hyperparameters."
+  ],
+  "leakage_findings": [
+    "days_since_last_login dropped in prepare_features (src/preprocessing.py:48-51) and justified as recorded post-outcome; flagged in REPORT limitations #5 and risk assessment.",
+    "Scaler (FitOnTrainScaler) fit on train split only, applied to test — no fit-on-test leakage.",
+    "200 exact duplicates removed via drop_duplicates() before train/test split, preventing train/test straddle.",
+    "signup_date dropped with explicit justification, though a time-based split was not used (random stratified split instead).",
+    "Label-shuffle sanity check returns F1≈0.029 (near zero) and honest AUC≈0.73, both consistent with no leakage; a leaked run would show ~0.95."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 --version; python3 -c 'import sklearn,pandas,numpy'  (Python 3.12.4, sklearn 1.4.2)",
+    "python3 -m pytest -q  (12 passed)",
+    "python3 run_experiment.py  (ran in ~seconds; 3 seeds; majority class 72.95%; shuffle F1 0.029)",
+    "python3 -m pytest tests/test_experiment.py::TestExperiment::test_report_generated_with_conclusion  (confirmed it overwrites repo-root REPORT.md with fixture values)"
+  ],
+  "file_evidence": [
+    {"path": "src/preprocessing.py", "note": "Lines 28-56: drops customer_id, days_since_last_login (justified as target leak), signup_date; uses only honest features. FitOnTrainScaler fits on train only."},
+    {"path": "src/experiment.py", "note": "save_results/_generate_report writes hardcoded Path('REPORT.md') in CWD (ignores output_dir); sanity-check prose in report template is hardcoded with stale magic numbers; conclusion logic itself is honest (no-significant-difference branch)."},
+    {"path": "tests/test_experiment.py", "note": "Lines 198-255: two tests call save_results(), writing fabricated 0.7/0.75 n=1 results to repo-root REPORT.md as a destructive side effect."},
+    {"path": "REPORT.md", "note": "As committed: claimed 'Gradient Boosting shows a modest advantage +0.050' with n=1 and ±nan — inconsistent with results/metrics.json; was a test artifact. Regenerated via entrypoint it correctly reports 'No significant difference detected' (n=3)."},
+    {"path": "results/metrics.json", "note": "3 seeds; LR F1 0.30-0.36, GB F1 0.31-0.40; AUC ~0.72-0.74 (honest, non-leaked range)."},
+    {"path": "results/summary.json", "note": "lr_f1_mean 0.335±0.029, gb_f1_mean 0.346±0.047, n_seeds 3 — difference well within combined uncertainty."}
+  ]
+}
+```

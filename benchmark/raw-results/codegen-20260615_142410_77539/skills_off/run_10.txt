@@ -1,0 +1,27 @@
+Perfect! Everything is complete. Here's the final summary:
+
+## Experiment Summary
+
+**Claim:** For predicting customer churn using legitimate features (tenure, spend, support tickets), gradient boosting achieves better validation AUC than logistic regression.
+
+**Key Results:**
+- LogisticRegression: AUC 0.7251 ± 0.0150
+- GradientBoosting: AUC 0.7133 ± 0.0221
+- **Conclusion:** No meaningful difference detected (GB performs slightly worse within noise)
+
+**Data Discipline:**
+- Deduplication before split (removed 200 exact duplicates)
+- Excluded `days_since_last_login` (target leakage by design)
+- Stratified random split (80/20)
+- Sanity checks: baseline floor, overfit check, label-shuffle test all pass
+
+**Verification:**
+- ✓ All 8 tests pass
+- ✓ Experiment runs in 3.5 seconds (< 5 minutes)
+- ✓ 5 seeds for variance estimation
+- ✓ Machine-readable results in JSON
+- ✓ Full methodology and limitations documented in REPORT.md
+
+```json
+{"files_created": ["src/__init__.py", "src/dataset.py", "src/experiment.py", "tests/test_experiment.py", "run_experiment.py", "requirements.txt", "pyproject.toml", "REPORT.md", "results/metrics.json"], "entrypoint": "python run_experiment.py", "test_command": "python -m pytest tests/ -v"}
+```

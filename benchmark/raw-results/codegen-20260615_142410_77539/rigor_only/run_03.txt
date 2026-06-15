@@ -1,0 +1,33 @@
+Perfect! The complete ML experiment is ready. Here's a summary of what was built:
+
+## Summary
+
+I've built a rigorous, CPU-only ML experiment that compares **gradient boosting vs. logistic regression** for customer churn prediction. The experiment follows best practices from the CLAUDE.md guidelines:
+
+### Key Features:
+- **Split-before-transform discipline:** Scaler fit on train set, applied to test set only
+- **Time-based split:** 80/20 by signup_date to respect temporal order (avoids time leakage)
+- **Target leak detection & removal:** Identified and dropped `days_since_last_login` (a post-outcome feature)
+- **Sanity checks:** Baseline floor, overfit test, label shuffle test (all passed ✓)
+- **Reproducibility:** Fixed random seeds, 5 runs per model
+- **Proper metrics:** ROC-AUC (primary), PR-AUC, F1 for imbalanced classification
+- **Comprehensive testing:** 13 pytest tests covering all pipeline components
+- **Runtime:** ~30 seconds (well under 5-minute limit)
+
+### Results:
+- **LogisticRegression:** 0.7254 ROC-AUC (deterministic)
+- **GradientBoosting:** 0.7108 ROC-AUC (0.0001 std)
+- **Conclusion:** LogisticRegression significantly outperforms GradientBoosting (non-overlapping 95% CI)
+
+### Files Created:
+1. `pyproject.toml` - Dependencies
+2. `run_experiment.py` - Main orchestrator
+3. `src/preprocessing.py` - Data pipeline
+4. `src/experiment.py` - Model comparison & sanity checks
+5. `tests/test_pipeline.py` - 13 passing tests
+6. `REPORT.md` - Full methodology & conclusions
+7. `results/metrics.json` - Machine-readable results
+
+```json
+{"files_created": ["pyproject.toml", "run_experiment.py", "src/__init__.py", "src/preprocessing.py", "src/experiment.py", "tests/__init__.py", "tests/test_pipeline.py", "REPORT.md", "results/metrics.json"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}
+```

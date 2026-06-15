@@ -1,0 +1,63 @@
+Everything runs and reproduces exactly. Let me synthesize my findings.
+
+**Summary of audit:**
+
+- **Leakage (central test): CAUGHT.** `days_since_last_login` is dropped in `engineer_features` (preprocessing.py:67-68) with correct reasoning (recorded at/after outcome). Honest AUC ~0.73, not the inflated ~0.95. Scaler is fit on train only via the `fit_scaler` pattern (lines 72-77, 92-93). Time-based split by `signup_date`. Label-shuffle sanity check confirms ~0.5. Duplicates are *detected* (`check_duplicates`) but never *removed* — though the sort-by-date split makes identical-date dup pairs land adjacently, so contamination is minimal rather than deliberately prevented.
+
+- **Methodology — fake variance.** The "5 seeds to estimate variance" is degenerate: the train/test split is fixed and seed only varies model `random_state`. LR is deterministic (std exactly 0.0); GB barely moves (4 identical values, one tiny change at seed 999). The CI machinery is fed near-zero variance from a source that isn't the real source of uncertainty (the data split). Baseline, PR-AUC/F1, and equal (default) budget for both models are all fine.
+
+- **Claims — overstated significance.** REPORT concludes "**LogisticRegression significantly outperforms** ... 95% CI non-overlapping" — but that "significance" is an artifact of the degenerate variance above, and the report never notices this. It does honestly report LR winning (answering "no" to the GB question), correctly treats the ~0.73 AUC as honest, and acknowledges the leak handling.
+
+- **Reproducibility:** Excellent — seeds logged, deterministic data gen (seed=7), config+metrics to `results/metrics.json`, reproduces bit-for-bit.
+
+- **Executability:** 13/13 tests pass; entrypoint runs end-to-end and regenerates matching metrics.
+
+- **Code quality:** Clean and modular; minor dead code (unused `import pandas` in experiment.py, unused `datetime` import in preprocessing.py; F1 computed but never surfaced to summary/report).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 90,
+  "methodological_validity_score": 66,
+  "reproducibility_score": 92,
+  "claims_discipline_score": 54,
+  "executability_score": 98,
+  "code_quality_score": 82,
+  "verdict": "good",
+  "key_findings": [
+    "Disguised leak caught: days_since_last_login is dropped with correct 'recorded at/after outcome' reasoning; honest ROC-AUC ~0.73 reported, not the inflated ~0.95.",
+    "Fake variance: '5 seeds' only varies model random_state on a fixed split, so LR std is exactly 0.0 and GB std ~0.0001 — the CI is fed a degenerate uncertainty source (not the data split).",
+    "Overstated claim: REPORT concludes 'significantly outperforms, 95% CI non-overlapping' off near-zero variance and never flags that the significance is an artifact.",
+    "Tests pass (13/13) and the entrypoint runs end-to-end, reproducing metrics.json exactly.",
+    "Reproducibility is strong: seeds and data-gen seed logged, config + metrics persisted to results/."
+  ],
+  "leakage_findings": [
+    "days_since_last_login dropped in engineer_features (preprocessing.py:67-68) and excluded from feature list; justified as a target leak in both code docstring and REPORT.md.",
+    "Scaler fitted on train only via fit_scaler argument (preprocessing.py:72-77, prepare_split lines 92-93) — fit-on-train discipline correct.",
+    "Time-based split by signup_date (time_based_split) instead of random split — temporal column handled deliberately.",
+    "Label-shuffle sanity check yields ~0.5 AUC, corroborating no residual leak through the kept features.",
+    "Duplicates are detected (check_duplicates) but NOT removed; the sort-by-date split keeps identical-date dup pairs adjacent so straddling is largely incidental rather than deliberately prevented."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (13 passed)",
+    "python3 run_experiment.py  (runs end-to-end, regenerates results/metrics.json and REPORT.md, metrics match)"
+  ],
+  "file_evidence": [
+    {"path": "make_dataset.py", "note": "Planted disguised leak: days_since_last_login drawn from gamma conditioned on churn (mean ~44 vs ~8 days); 200 exact dup rows appended; signup_date temporal column."},
+    {"path": "src/preprocessing.py", "note": "engineer_features drops days_since_last_login with leak rationale; fit-on-train scaler; time_based_split sorts by signup_date; check_duplicates counts but does not drop dups."},
+    {"path": "src/experiment.py", "note": "Baseline + overfit + label-shuffle sanity checks; ROC-AUC/PR-AUC/F1 computed; 5-seed loop only varies model random_state on a fixed split -> near-zero variance; unused 'import pandas'."},
+    {"path": "results/metrics.json", "note": "LR roc_auc_std exactly 0.0, GB std ~0.0001; honest AUC ~0.71-0.73; confirms degenerate variance."},
+    {"path": "REPORT.md", "note": "Correctly documents leak removal and honest AUC, but concludes 'significantly outperforms (95% CI non-overlapping)' off degenerate variance without flagging it."},
+    {"path": "tests/test_pipeline.py", "note": "13 tests incl. explicit test that days_since_last_login is dropped and label-shuffle ~0.5; all pass."}
+  ]
+}
+```

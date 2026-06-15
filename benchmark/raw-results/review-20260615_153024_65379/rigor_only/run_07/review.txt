@@ -1,0 +1,63 @@
+Tests pass (12/12), the entrypoint runs cleanly, and re-running reproduces the reported numbers exactly. Let me confirm the one subtle issue I spotted — where the scaler is fitted.
+
+The `preprocess_features` function calls `scaler.fit_transform(X)` on the **entire** dataset (all 4200 rows), and only *afterward* does `run_experiment` split into train/test via `create_stratified_split`. So the scaler statistics are computed over train+test combined — a fit-on-train-only violation, and the REPORT's claim "StandardScaler fitted on train, applied to test" is false.
+
+Here's my assessment.
+
+**Central leakage test — caught well.** The project correctly identified `days_since_last_login` as a target leak with the right reasoning ("churned customers have stopped logging in"), excluded it from the "clean" feature set, and ran a separate "leaked" comparison showing AUC jumps from ~0.73 → ~0.95, explicitly treating that as confirmation of leakage rather than a win. This is exactly the discriminating behavior the v2 dataset tests for.
+
+**Secondary leakage flaws.** (1) Scaler fitted on full dataset before splitting — real fit-on-train violation, and misrepresented in the report. (2) 200 exact duplicates can straddle train/test — honestly acknowledged but not fixed. (3) `signup_date` handled via random split, not time-based — acknowledged as a limitation.
+
+**Methodology** is solid: majority-class baseline, ROC-AUC primary for imbalance, equal (default) budgets for both models, 5 seeds, effect sizes. Weak spot: no CI/significance test, and the report says "overlapping error bars" for ROC-AUC where Cohen's d = -1.62 (large) — a slight mischaracterization, though the conservative "no winner" conclusion is defensible.
+
+**Claims** are mostly honest (no winner claimed, thorough limitations, leak flagged), but undermined by the false scaler claim.
+
+**Code quality**: clean and modular, but some dead code (`roc_curve` and `json` imported unused in experiment.py, `overlap` computed-then-discarded, `fit_scaler` param never exercised in the actual flow).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 78,
+  "methodological_validity_score": 77,
+  "reproducibility_score": 86,
+  "claims_discipline_score": 74,
+  "executability_score": 96,
+  "code_quality_score": 77,
+  "verdict": "good",
+  "key_findings": [
+    "Central disguised leak (days_since_last_login) correctly caught: excluded from the clean feature set, justified by when-the-value-is-known reasoning, and run as a separate 'leaked' comparison showing AUC ~0.73 -> ~0.95 treated as a leakage signal, not a win.",
+    "StandardScaler is fit on the FULL dataset in preprocess_features before train/test splitting in run_experiment — a fit-on-train-only violation; REPORT.md falsely claims 'StandardScaler fitted on train, applied to test'.",
+    "Trivial majority-class baseline present; ROC-AUC chosen as primary metric for the 27% churn imbalance, plus F1/precision/recall.",
+    "Both models use fixed defaults with no tuning, so the (lack of) tuning budget is symmetric and fair.",
+    "5 seeds vary only the split/model random_state; conclusion conservatively claims no winner, consistent with the modest effect.",
+    "Tests (12/12) pass, entrypoint runs in ~seconds, and re-running reproduces results/summary_clean.json numbers exactly.",
+    "No confidence intervals or significance test; report calls ROC-AUC error bars 'overlapping' despite Cohen's d=-1.62 (LR/GB ranges barely overlap)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login: correctly recognized as a disguised target leak (generated as gamma(2,22) for churn=1 vs gamma(2,4) for churn=0 per make_dataset.py); dropped from 'clean' and used only to quantify the leak. Strong pass on the central test.",
+    "Preprocessing leak: scaler.fit_transform(X) runs on all 4200 rows in src/preprocessing.py:68 before create_stratified_split; test-fold statistics leak into the scaler. Impact is small for StandardScaler + these models but is a genuine discipline violation and is misdescribed in the report.",
+    "Duplicate straddle: 200 exact duplicate rows (400 total) appended in make_dataset.py; random split lets pairs straddle train/test. Honestly flagged in REPORT.md but not mitigated by deduplication.",
+    "Temporal column signup_date converted to days_since_signup and split randomly rather than time-based; acknowledged as a limitation, not addressed."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (12 passed, 11 warnings in ~2.1s)",
+    "timeout 110 python run_experiment.py  (completed; regenerated results/ and REPORT.md, target rate 0.270, 400 duplicate rows detected)"
+  ],
+  "file_evidence": [
+    {"path": "src/preprocessing.py", "note": "Lines 62-68: StandardScaler.fit_transform on the whole dataset before any split; create_stratified_split (73-81) splits afterward — fit-on-train discipline broken."},
+    {"path": "src/experiment.py", "note": "run_experiment uses seeds range(5); compute_baseline gives majority-class floor; compute_effect_size returns Cohen's d. Unused 'overlap' var (115) and unused imports json/roc_curve (2,7)."},
+    {"path": "REPORT.md", "note": "Lines 19, 61-72: days_since_last_login correctly excluded and leak quantified (0.95 vs 0.73). Line 22/87: claims scaler 'fitted on train, applied to test' — contradicted by the code. Lines 87-94: honest limitations including duplicate straddle and temporal split."},
+    {"path": "make_dataset.py", "note": "Confirms the planted v2 traps: disguised leak via days_since_last_login, 200 appended duplicates, temporal signup_date."},
+    {"path": "results/summary_clean.json", "note": "Persisted machine-readable metrics; matches REPORT.md and reproduces on re-run (LR AUC 0.7367, GB AUC 0.7260)."}
+  ]
+}
+```

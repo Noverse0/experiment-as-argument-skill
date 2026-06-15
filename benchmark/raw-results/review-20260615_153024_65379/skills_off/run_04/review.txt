@@ -1,0 +1,59 @@
+All green: 9 tests pass, entrypoint runs, and re-running reproduces identical aggregated metrics. The project genuinely caught the disguised leak.
+
+Key observations:
+- **Leak caught correctly.** `FEATURE_COLS` excludes `days_since_last_login` with the exact right reasoning ("recorded after outcome"). Honest AUC ~0.72, not the ~0.95 a leaked pipeline would show. Scaler fit on train only; time-based split by `signup_date`; train dedup.
+- **No-op variance.** `time_based_split` ignores the seed and LogisticRegression is deterministic, so all 3 "seeds" yield std=0.0000 for LR. The reported ± is an artifact — the replication doesn't vary the split or anything meaningful. GB's `validation_fraction=0.1` is inert (no `n_iter_no_change`).
+- **Weak label-shuffle check.** It fits and evaluates on the same `X_test`/shuffled labels (train==test) — a slightly broken sanity check that wouldn't have caught the leak anyway since the feature was already dropped. The leak was caught by reasoning, not by this check.
+- **Minor claim slip.** Limitations say "20% churn" but actual/reported rate is 27%. No statistical test for the 0.0374 gap, but the conclusion is honestly hedged.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 90,
+  "methodological_validity_score": 60,
+  "reproducibility_score": 85,
+  "claims_discipline_score": 70,
+  "executability_score": 95,
+  "code_quality_score": 80,
+  "verdict": "good",
+  "key_findings": [
+    "Disguised leak caught: days_since_last_login is excluded from FEATURE_COLS with correct reasoning ('recorded after outcome'); honest AUC ~0.72 reported, not the ~0.95 a leaked pipeline would produce.",
+    "No-op multi-seed replication: time_based_split is seed-independent and LogisticRegression is deterministic, so all 3 seeds give std=0.0000 for LR; the reported ± variance is an artifact, not a genuine run-to-run estimate.",
+    "No trivial/majority-class baseline model is reported; the label-shuffle check loosely stands in but is not a DummyClassifier on the real task.",
+    "No hyperparameter tuning for either model (fixed hyperparameters), so 'equal tuning budget' is trivially met at zero; GB's validation_fraction=0.1 is inert without n_iter_no_change.",
+    "Conclusion is honestly hedged (LR marginally better by 0.0374, prefer simpler model); headline number is plausible and not flagged as implausibly high because it isn't.",
+    "Minor inconsistency: limitations text says '20% churn' while the measured/reported rate is ~27%.",
+    "Tests pass (9 passed), entrypoint runs cleanly, and a re-run reproduces aggregated metrics exactly."
+  ],
+  "leakage_findings": [
+    "days_since_last_login dropped deliberately; pipeline.py FEATURE_COLS = [tenure_months, monthly_spend, support_tickets] with comment '(days_since_last_login is target leak, excluded)'.",
+    "Justification is the correct temporal one (value recorded at/after the churn outcome), not just name pattern-matching.",
+    "Resulting AUC ~0.72 is consistent with the honest-feature signal; no suspiciously high AUC, confirming the leak feature is absent.",
+    "StandardScaler fit on train split only (fit_transform on X_train, transform on X_test) per train_and_evaluate.",
+    "signup_date handled with a deliberate time-based split (quantile cutoff), not a random split.",
+    "Duplicate handling: 200 exact dups detected; deduplicate_train removes ~174 from train. Note: because dups share signup_date with their originals, a time-based split already prevents straddling, so this is largely redundant but harmless.",
+    "Label-shuffle sanity check is implemented as fit-and-evaluate on the same X_test with shuffled labels (train==test) — methodologically weak and would not have detected the leak; the leak was caught by reasoning, not by this check."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (9 passed, 4 warnings)",
+    "python run_experiment.py  (ran end-to-end, wrote results/metrics.json and REPORT.md)",
+    "diff of aggregated metrics before/after re-run  (identical -> reproducible)"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "FEATURE_COLS excludes days_since_last_login with leak comment; time_based_split ignores seed (source of fake variance); scaler fit on train only; label_shuffle_test fits/evaluates on same set."},
+    {"path": "make_dataset.py", "note": "Confirms planted trap: days_since_last_login derived from churn outcome (noisy), 200 dups appended, signup_date temporal."},
+    {"path": "results/REPORT.md", "note": "Correctly flags leak, hedged conclusion (LR by 0.0374); reports ±0.0000 std as if meaningful; says '20% churn' vs actual 27%."},
+    {"path": "results/metrics.json", "note": "LR std=0.0 across all metrics and seeds, GB std~0.0003 — evidence the 3-seed replication does not vary the split."},
+    {"path": "tests/test_pipeline.py", "note": "9 tests covering loading, dedup, split, train/eval, reproducibility, invalid model; all pass."}
+  ]
+}
+```

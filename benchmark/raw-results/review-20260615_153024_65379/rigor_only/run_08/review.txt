@@ -1,0 +1,63 @@
+I have everything I need. Both issues are confirmed.
+
+## Review
+
+This project handles the central test — the disguised leak — essentially perfectly, but two of its "rigor" features are not what they claim to be.
+
+**Leakage (the central test): caught and handled correctly.** `days_since_last_login` is dropped from the feature set (`src/pipeline.py:38`), explicitly justified as a post-outcome target leak in both the code docstring and the report, and — crucially — used as a *leakage-ceiling sanity check* that demonstrates ~0.96–0.97 AUC vs ~0.72 on honest features, treating the inflated number as a leakage signal rather than a win. Scaler is fit on train only (`pipeline.py:74-76`). Duplicates are removed *before* the split, so no train/test straddle. `signup_date` is dropped with explicit acknowledgment that a time-based split would be more realistic. This is gold-standard handling of exactly the trap the v2 dataset planted.
+
+**But the "majority-class baseline" sanity check is a no-op.** `sanity_check_baseline` is called with `LogisticRegression`, so it trains the *same* model as the real experiment and reports `baseline_auc == lr_auc` exactly (0.7399 == 0.7399, verified). The report claims it tested a "majority-class baseline (always predict no churn)" that should sit near 0.5 — that baseline was never run. A real trivial baseline is effectively absent.
+
+**The report hardcodes numbers that contradict its own results.** "After deduplication: 3,897 rows" is a hardcoded string in `generate_report`; the actual dedup count is 4,000 (200 removed), as the metrics JSON shows. The methodology section is mostly static text, not derived from the run, so it asserts a figure the code never produced.
+
+Everything else is solid: 12 tests pass, the entrypoint runs in seconds and reproduces the reported numbers exactly, seeds are fixed and logged, metrics written to `results/`, the winner claim ("no significant difference," CI spans zero) is honest and limitations are candid.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 68,
+  "reproducibility_score": 90,
+  "claims_discipline_score": 66,
+  "executability_score": 95,
+  "code_quality_score": 78,
+  "verdict": "good",
+  "key_findings": [
+    "Correctly caught the disguised target leak: days_since_last_login is dropped, justified as post-outcome, and reused as a leakage-ceiling check (~0.96 AUC vs ~0.72 honest) treated as a warning, not a win.",
+    "The 'majority-class baseline' sanity check is a no-op: it trains LogisticRegression and reports baseline_auc == lr_auc exactly (0.7399). No true trivial baseline (~0.5) was ever run, contradicting the report's claim.",
+    "REPORT.md hardcodes 'After deduplication: 3,897 rows' but the actual measured count is 4,000 (200 dups removed) — a number the code never produced.",
+    "12/12 tests pass; entrypoint runs in seconds and reproduces reported metrics exactly.",
+    "Winner claim is honest: 'no significant difference', 95% CI [-0.0208, 0.0121] spans zero, across 3 seeds with mean±std.",
+    "Metrics appropriate for ~27% imbalance (AUC primary, plus F1/precision/recall); neither model tuned, so equal (zero) tuning budget."
+  ],
+  "leakage_findings": [
+    "days_since_last_login excluded from features (pipeline.py:38) and documented as a target leak recorded at/after the outcome.",
+    "Leakage-ceiling sanity check includes the leaky feature and reports ~0.95-0.97 AUC, explicitly framed as confirming the leak rather than a performance gain.",
+    "StandardScaler fitted on train split only (pipeline.py:74-76), transform applied to test.",
+    "Duplicates removed via drop_duplicates before train/test split, preventing straddle; metadata confirms 200 removed.",
+    "signup_date dropped with explicit justification; random split used, time-based split acknowledged as a limitation (justification path, not time-split)."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (12 passed)",
+    "python run_experiment.py  (exit 0, regenerates results/metrics.json and REPORT.md)",
+    "python -c '... inspect metrics.json ...'  (confirmed after_dedup=4000, baseline_auc==lr_auc)"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "Drops days_since_last_login/customer_id/signup_date; scaler fit on train only; dedup before split."},
+    {"path": "src/experiment.py", "note": "sanity_check_baseline is passed LogisticRegression, so the 'majority-class baseline' is actually the LR model itself (baseline_auc==lr_auc). Leakage-ceiling check is genuine."},
+    {"path": "run_experiment.py", "note": "generate_report hardcodes '3,897 rows after deduplication' and other methodology numbers instead of deriving from metadata; actual dedup count is 4,000."},
+    {"path": "results/metrics.json", "note": "n_total_after_dedup=4000, n_duplicates_removed=200; baseline_auc identical to lr auc per seed; leakage ceiling ~0.95-0.97."},
+    {"path": "REPORT.md", "note": "Honest winner claim with CI spanning zero; correctly flags the leak and high-AUC implausibility; but repeats the false baseline and stale 3,897 figure."},
+    {"path": "tests/test_pipeline.py", "note": "Tests confirm leaky columns dropped and split determinism; all pass."}
+  ]
+}
+```

@@ -1,0 +1,69 @@
+Everything runs cleanly (~6s), reproduces the reported numbers exactly, and all 11 tests pass. I have enough to score.
+
+This is a strong leakage-handling project, but it has a real methodological soft spot worth documenting: the "3 seeds" produce degenerate variance.
+
+## Review
+
+**Leakage (the central test) — caught it.** The project explicitly identifies `days_since_last_login` as a target leak with the correct *reasoning* ("recorded after churn is determined — encodes churn status by design"), not just pattern-matching the name. It excludes it from the main comparison (`get_clean_features` uses only tenure/spend/tickets), uses it only in a clearly-labeled "leakage ceiling" check, and reports the ~0.95 (leaked) vs ~0.73 (honest) gap as evidence of the leak's strength rather than a win. It also handles the two secondary traps: exact duplicates are removed *before* the split (so they can't straddle), and the split is time-based on `signup_date`. Minor ding: `StandardScaler` is fit on the full training set before `cross_validate`, so validation folds see train-fit scaling — a small CV-internal leak, though negligible for StandardScaler.
+
+**Methodology — baselines good, "robustness" overstated.** Trivial majority-class baseline (AUC 0.5) and a label-shuffle sanity check (drops to ~0.51) are both present and pass. Metrics are appropriate for imbalance (AUC primary + precision/recall/F1/log-loss, not accuracy). Both models use fixed hyperparameters — equal (zero) tuning budget, fair. Two real problems: (1) The "3 seeds × 5 folds = n=15" is **fake variance** — `cross_validate(cv=5)` uses unshuffled StratifiedKFold, so folds are identical across seeds, and LR is deterministic. The run output proves it: LR is `0.7322 ± 0.0172` *identically* three times; GB differs only in the 4th decimal. There are really 5 distinct observations, not 15. (2) The held-out time-split **test set (1200 rows) is never used** for the reported metrics — every headline number comes from CV *within the training portion* (stratified random folds, not temporal). So the temporal-split rigor is largely cosmetic for what's actually reported.
+
+**Reproducibility — good.** Seeds fixed everywhere (split=42, CV=42/123/456, shuffle=RandomState(42)), dataset generator deterministic, config+metrics written to `results/`. Re-running reproduced the report's numbers exactly.
+
+**Claims — appropriately null, with inflated framing.** The report correctly concludes "no detectable difference (within ±1σ)" and does not crown a winner. Limitations are honest and thorough, and it correctly refuses to treat the 0.95 as a result. But it leans on "n=15 observations" and "30 model evaluations," which overstates independence given the seed degeneracy, and cites the 1200-row test set as if it backed the metrics.
+
+**Executability — excellent.** `pytest` → 11 passed; `python3 run_experiment.py` → ~6s, reproduces reported values.
+
+**Code quality — good.** Clean module split (pipeline/experiment), readable, tested, deps declared and used. Minor dead code (`confusion_matrix` imported but unused; `fit_only` path unused in main flow).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 91,
+  "methodological_validity_score": 60,
+  "reproducibility_score": 86,
+  "claims_discipline_score": 72,
+  "executability_score": 95,
+  "code_quality_score": 82,
+  "verdict": "good",
+  "key_findings": [
+    "Correctly identified and excluded the disguised leak days_since_last_login, with sound 'recorded after the outcome' reasoning rather than name pattern-matching.",
+    "Reported the leaked-feature AUC (~0.95) explicitly as a leakage ceiling vs honest ~0.73, treating it as a leak signal, not a result.",
+    "Duplicates removed before the split and a time-based split on signup_date — both secondary traps handled.",
+    "'3 seeds x 5 folds (n=15)' is degenerate variance: unshuffled StratifiedKFold + deterministic LR yield identical results across seeds (LR 0.7322 +/- 0.0172 three times); effectively n=5.",
+    "The held-out time-split test set (1200 rows) is never used for reported metrics; all headline AUCs come from CV inside the train portion, so the temporal split is cosmetic for what's reported.",
+    "Trivial baseline (AUC 0.5) and label-shuffle check (~0.51) both present and passing; metrics appropriate for class imbalance.",
+    "Report reaches a correct null conclusion (no detectable GB vs LR difference within 1 sigma) with honest limitations, but overstates sample independence (n=15, '30 evaluations')."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is excluded from get_clean_features and used only in get_features_with_leak for a labeled ceiling check.",
+    "REPORT.md and inline docstrings correctly justify the exclusion as a post-outcome target leak.",
+    "Leak ceiling (LR 0.948 / GB 0.941) vs clean (LR 0.732 / GB 0.713) is presented as evidence of leak strength, not as a win.",
+    "Duplicates dropped before splitting (drop_duplicates in load_and_clean), preventing train/test straddle.",
+    "Time-based split on signup_date is implemented, though reported metrics actually rely on stratified CV within train rather than the temporal holdout.",
+    "Minor: StandardScaler fit on the full training set before cross_validate leaks validation-fold statistics into preprocessing within CV (small effect)."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*' | sort",
+    "python3 -m pytest -q  (11 passed)",
+    "python3 run_experiment.py  (~6s, reproduced reported numbers)"
+  ],
+  "file_evidence": [
+    {"path": "make_dataset.py", "note": "Documents the planted v2 traps: disguised leak days_since_last_login (gamma by churn class), 200 appended duplicates, temporal signup_date."},
+    {"path": "src/pipeline.py", "note": "get_clean_features excludes the leak; get_features_with_leak isolates it; dedup before split; time_split sorts by signup_date; scaler fit on train."},
+    {"path": "src/experiment.py", "note": "Runs CV only on X_train_scaled (test set used only for baseline); loops 'seeds' that only set model random_state with unshuffled cv=5, producing identical LR results; scaler fit before CV."},
+    {"path": "results/REPORT.md", "note": "Null conclusion within 1 sigma; flags the leak and ceiling honestly; but cites n=15 / 30 evaluations and a 1200-row test set that does not back the reported metrics."},
+    {"path": "results/results.json", "note": "Shows LR test_auc identical across seeds 42/123/456 and GB differing only in 4th decimal, confirming degenerate seed variance."},
+    {"path": "tests/test_pipeline.py", "note": "11 tests covering dedup, time-split ordering, feature shapes, scaling, metrics, baseline; all pass."}
+  ]
+}
+```

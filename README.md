@@ -29,9 +29,12 @@ Four experiments so far (10 repeats per arm each, review Opus), reported per the
 
 Every model from Haiku up already catches this prompt's headline target-leak trap, so the binding constraint is prompt headroom, not capability.
 
-A fourth experiment (exp-004) raised the difficulty with `ml-experiment-v2`, which hides the leak inside a plausibly-named feature (`days_since_last_login`). On Sonnet this produced the **first positive direction for the skill** — 92.9 vs 91.4 — but still inside the noise (p=0.16), and the gain came from methodology/claims discipline, not leakage: Sonnet caught the disguised leak in 10/10 runs of *both* arms. The disguise needs a weaker model (or larger n) to bite; that is exp-005.
+Two further experiments raised the difficulty with `ml-experiment-v2`, which hides the leak inside a plausibly-named feature (`days_since_last_login`):
 
-Full per-run analysis lives in the append-only [benchmark/EXPERIMENTS.md](benchmark/EXPERIMENTS.md) ledger; method and reproduction commands in [benchmark/README.md](benchmark/README.md).
+- **exp-004 (Sonnet):** first positive *direction* for the skill (92.9 vs 91.4) but inside the noise (p=0.16), and from methodology/claims, not leakage — Sonnet caught the disguised leak in 10/10 of *both* arms.
+- **exp-005 (Haiku):** the disguise finally bit on a weak model — and the skill **backfired**. By an objective code check (not reviewer opinion), the skill arm leaked the disguised feature in **5/10** runs vs the baseline's **1/10**. Reviewer weighted means hid this (−1.0, p=0.50); the leak rate and the leakage subscore (83.4 vs 91.8) exposed it.
+
+**Honest five-experiment verdict:** the skill has produced no detectable score win in any setting — absorbed by the ceiling on strong models, and actively *increasing* leakage and variance on a weak one. This is reported as-is, per the skill's own claims discipline; the next step is fixing the skill (a mechanical "drop anything recorded at/after the outcome" checklist), not the benchmark. Full per-run analysis and the objective leak-check are in the append-only [benchmark/EXPERIMENTS.md](benchmark/EXPERIMENTS.md) ledger; method and reproduction in [benchmark/README.md](benchmark/README.md).
 
 ## Install
 

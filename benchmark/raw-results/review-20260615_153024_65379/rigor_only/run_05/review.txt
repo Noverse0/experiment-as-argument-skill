@@ -1,0 +1,59 @@
+All checks done. Let me synthesize.
+
+**Summary of findings:**
+
+This project **correctly caught the disguised leak**. `days_since_last_login` is dropped from the main experiment (`drop_leaked_features=True` is the default), and it is documented as a target leak in both `data.py` and `make_dataset.py` reasoning. Critically, the report does not bury or boast about the high AUC — it uses the leaked feature *only* as a "leakage ceiling" sanity check, reporting 0.9411 (with leak) vs 0.708 (honest features) and treating the 0.23-point gap as confirmation of leakage rather than a win. The honest headline is ~0.71–0.75. This is precisely the intended catch.
+
+Other rigor checks hold: dedup-before-split (200 exact dups removed), time-based split on `signup_date`, scaler fit on train only, trivial majority-class baseline, label-shuffle test, and full reproducibility of the main metrics (verified via rerun — identical values).
+
+Weaknesses: the "3 seeds" only vary `train_fraction` via `sin(split_seed)` with a fixed model `random_state=42` and deterministic data — so the reported variance reflects sensitivity to the split point, not genuine resampling variance. The "no overlap" significance claim from `1.96*std` over three near-identical configs is statistically thin (though limitations acknowledge n=3 is rough). The `label_shuffle_test` uses unseeded `np.random.permutation`, so that one sanity number is not reproducible (confirmed: 0.4637 vs 0.4851 on rerun).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 74,
+  "reproducibility_score": 80,
+  "claims_discipline_score": 80,
+  "executability_score": 95,
+  "code_quality_score": 88,
+  "verdict": "good",
+  "key_findings": [
+    "Disguised leak caught: days_since_last_login dropped from main experiment and explicitly labeled a target leak in data.py and make_dataset.py.",
+    "High leaked-feature AUC (0.9411) is reported only as a 'leakage ceiling' sanity check vs 0.708 honest, treated as a leak signal not a win — exactly the intended behavior.",
+    "Solid methodology scaffolding: majority-class baseline, label-shuffle test, AUC/precision/recall/F1 (not accuracy alone), equal (untuned) hyperparameters for both models.",
+    "Weak repetition design: 3 'seeds' only vary train_fraction via sin(split_seed) with fixed model random_state=42 and deterministic data, so reported std measures split-point sensitivity, not true sampling variance; 'no overlap' significance claim is statistically thin.",
+    "Main metrics fully reproducible on rerun (identical values); tests pass (11) and entrypoint runs in seconds."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is excluded from model features by default (drop_leaked_features=True in extract_features_and_target); main experiment runs only on tenure_months, monthly_spend, support_tickets.",
+    "Leak is reasoned about by timing, not just name: docstrings state churned customers stop logging in so the value is recorded at/after the outcome.",
+    "Report contrasts ~0.94 (with leak) vs ~0.71 (honest) and frames the gap as leakage evidence rather than a headline result.",
+    "Deduplication (200 exact dups) happens in load_and_clean before any split; duplicates cannot straddle train/test.",
+    "Temporal column handled deliberately: time_based_split sorts by signup_date, trains on earlier customers, tests on later.",
+    "Preprocessing discipline correct: StandardScaler.fit_transform on train, transform on test (preprocess_after_split)."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (11 passed)",
+    "python run_experiment.py  (ran ~seconds; produced results/metrics.json and REPORT.md)",
+    "diff of original vs re-run metrics.json (main model metrics identical; shuffle_auc differs)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "extract_features_and_target defaults to dropping days_since_last_login; dedup-before-split in load_and_clean; time_based_split on signup_date; scaler fit on train only."},
+    {"path": "src/experiment.py", "note": "Main experiment uses drop_leaked_features=True; leaked feature used only in run_sanity_checks as a leakage ceiling; claim derived from CI overlap logic."},
+    {"path": "src/models.py", "note": "label_shuffle_test uses unseeded np.random.permutation — that sanity number is non-reproducible; LR n_jobs=-1 is a no-op with lbfgs (harmless)."},
+    {"path": "REPORT.md", "note": "Drops days_since_last_login as 'target leak', reports 0.9411 vs 0.708 leak ceiling, honest limitations including n=3 variance; 'no overlap' claim slightly overstates significance given contrived variance source."},
+    {"path": "results/metrics.json", "note": "Records per-seed values, means/stds, and sanity checks; main metrics reproduce exactly on rerun."},
+    {"path": "make_dataset.py", "note": "Confirms days_since_last_login is the planted disguised leak (derived from churn outcome) plus 200 dup rows and temporal signup_date trap."}
+  ]
+}
+```

@@ -1,0 +1,153 @@
+{
+  "config": {
+    "n_duplicates_removed": 200,
+    "class_balance": {
+      "churn_rate": 0.2705,
+      "n_churned": 1082,
+      "n_retained": 2918,
+      "n_total": 4000
+    },
+    "n_seeds": 5,
+    "seed_log": [
+      {
+        "seed_idx": 0,
+        "split_seed": 1000,
+        "model_seed": 2000
+      },
+      {
+        "seed_idx": 1,
+        "split_seed": 1001,
+        "model_seed": 2001
+      },
+      {
+        "seed_idx": 2,
+        "split_seed": 1002,
+        "model_seed": 2002
+      },
+      {
+        "seed_idx": 3,
+        "split_seed": 1003,
+        "model_seed": 2003
+      },
+      {
+        "seed_idx": 4,
+        "split_seed": 1004,
+        "model_seed": 2004
+      }
+    ]
+  },
+  "results": {
+    "logistic_regression": {
+      "model": "LogisticRegression",
+      "roc_auc_mean": 0.7329673846153846,
+      "roc_auc_std": 0.014454121028797676,
+      "precision_mean": 0.43465654273542337,
+      "precision_std": 0.010239098757655269,
+      "recall_mean": 0.6572307692307693,
+      "recall_std": 0.021895934614962677,
+      "f1_mean": 0.5231999780335753,
+      "f1_std": 0.013459365707114307,
+      "neg_log_loss_mean": -0.6081126011186807,
+      "neg_log_loss_std": 0.007577243088063654
+    },
+    "gradient_boosting": {
+      "model": "GradientBoosting",
+      "roc_auc_mean": 0.7256882637362636,
+      "roc_auc_std": 0.007892544901555186,
+      "precision_mean": 0.5464415058833608,
+      "precision_std": 0.027504634779641175,
+      "recall_mean": 0.26892307692307693,
+      "recall_std": 0.018726306528865148,
+      "f1_mean": 0.36022745321435823,
+      "f1_std": 0.02113033125891337,
+      "neg_log_loss_mean": -0.5237875047095109,
+      "neg_log_loss_std": 0.0058858595887260915
+    }
+  },
+  "all_seeds": {
+    "logistic_regression": [
+      {
+        "model": "LogisticRegression",
+        "roc_auc": 0.7538953846153846,
+        "precision": 0.43359375,
+        "recall": 0.683076923076923,
+        "f1": 0.5304659498207885,
+        "neg_log_loss": -0.5984268164004117
+      },
+      {
+        "model": "LogisticRegression",
+        "roc_auc": 0.7224123076923077,
+        "precision": 0.42355371900826444,
+        "recall": 0.6307692307692307,
+        "f1": 0.5067985166872683,
+        "neg_log_loss": -0.6106413199749594
+      },
+      {
+        "model": "LogisticRegression",
+        "roc_auc": 0.7469010989010989,
+        "precision": 0.4539877300613497,
+        "recall": 0.683076923076923,
+        "f1": 0.5454545454545454,
+        "neg_log_loss": -0.5999116493784563
+      },
+      {
+        "model": "LogisticRegression",
+        "roc_auc": 0.7224967032967033,
+        "precision": 0.4306122448979592,
+        "recall": 0.6492307692307693,
+        "f1": 0.5177914110429448,
+        "neg_log_loss": -0.6148766624800855
+      },
+      {
+        "model": "LogisticRegression",
+        "roc_auc": 0.7191314285714285,
+        "precision": 0.4315352697095436,
+        "recall": 0.64,
+        "f1": 0.5154894671623296,
+        "neg_log_loss": -0.6167065573594903
+      }
+    ],
+    "gradient_boosting": [
+      {
+        "model": "GradientBoosting",
+        "roc_auc": 0.7380483516483516,
+        "precision": 0.5739644970414202,
+        "recall": 0.29846153846153844,
+        "f1": 0.39271255060728744,
+        "neg_log_loss": -0.5129128419773623
+      },
+      {
+        "model": "GradientBoosting",
+        "roc_auc": 0.7184843956043956,
+        "precision": 0.49390243902439024,
+        "recall": 0.24923076923076923,
+        "f1": 0.3312883435582822,
+        "neg_log_loss": -0.5299597763949099
+      },
+      {
+        "model": "GradientBoosting",
+        "roc_auc": 0.7319683516483517,
+        "precision": 0.5526315789473685,
+        "recall": 0.25846153846153846,
+        "f1": 0.3522012578616352,
+        "neg_log_loss": -0.5228911372311698
+      },
+      {
+        "model": "GradientBoosting",
+        "roc_auc": 0.7189802197802198,
+        "precision": 0.5608108108108109,
+        "recall": 0.2553846153846154,
+        "f1": 0.35095137420718814,
+        "neg_log_loss": -0.5270256122634105
+      },
+      {
+        "model": "GradientBoosting",
+        "roc_auc": 0.72096,
+        "precision": 0.5508982035928144,
+        "recall": 0.28307692307692306,
+        "f1": 0.37398373983739835,
+        "neg_log_loss": -0.5261481556807021
+      }
+    ]
+  }
+}

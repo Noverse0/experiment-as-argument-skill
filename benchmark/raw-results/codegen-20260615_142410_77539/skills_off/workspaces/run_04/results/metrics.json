@@ -1,0 +1,132 @@
+{
+  "claim": "Does gradient boosting outperform logistic regression on customer churn?",
+  "design": {
+    "split": "time-based (80% train by signup date, 20% test)",
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets"
+    ],
+    "preprocessing": "StandardScaler (fit on train only)",
+    "seeds": [
+      42,
+      123,
+      999
+    ],
+    "n_repeats": 3
+  },
+  "sanity_checks": {
+    "label_shuffle": {
+      "baseline_auc": 0.5,
+      "shuffled_auc": 0.5385498535983974,
+      "churn_rate": 0.24641148325358853
+    },
+    "dataset_duplicates": 200,
+    "class_balance": {
+      "not_churned": 3067,
+      "churned": 1133,
+      "churn_rate": 0.26976190476190476
+    }
+  },
+  "raw_results_by_seed": {
+    "42": {
+      "logistic_regression": {
+        "auc_roc": 0.724711049468331,
+        "precision": 0.5094339622641509,
+        "recall": 0.2621359223300971,
+        "f1": 0.34615384615384615
+      },
+      "gradient_boosting": {
+        "auc_roc": 0.6869432886423178,
+        "precision": 0.46099290780141844,
+        "recall": 0.3155339805825243,
+        "f1": 0.3746397694524496
+      }
+    },
+    "123": {
+      "logistic_regression": {
+        "auc_roc": 0.724711049468331,
+        "precision": 0.5094339622641509,
+        "recall": 0.2621359223300971,
+        "f1": 0.34615384615384615
+      },
+      "gradient_boosting": {
+        "auc_roc": 0.6876830020033904,
+        "precision": 0.42758620689655175,
+        "recall": 0.30097087378640774,
+        "f1": 0.35327635327635326
+      }
+    },
+    "999": {
+      "logistic_regression": {
+        "auc_roc": 0.724711049468331,
+        "precision": 0.5094339622641509,
+        "recall": 0.2621359223300971,
+        "f1": 0.34615384615384615
+      },
+      "gradient_boosting": {
+        "auc_roc": 0.6872437971952535,
+        "precision": 0.42758620689655175,
+        "recall": 0.30097087378640774,
+        "f1": 0.35327635327635326
+      }
+    }
+  },
+  "aggregated": {
+    "logistic_regression": {
+      "auc_roc": {
+        "mean": 0.724711049468331,
+        "std": 0.0,
+        "n": 3
+      },
+      "precision": {
+        "mean": 0.5094339622641509,
+        "std": 0.0,
+        "n": 3
+      },
+      "recall": {
+        "mean": 0.2621359223300971,
+        "std": 0.0,
+        "n": 3
+      },
+      "f1": {
+        "mean": 0.3461538461538461,
+        "std": 5.551115123125783e-17,
+        "n": 3
+      }
+    },
+    "gradient_boosting": {
+      "auc_roc": {
+        "mean": 0.6872900292803205,
+        "std": 0.00030375101470838723,
+        "n": 3
+      },
+      "precision": {
+        "mean": 0.4387217738648406,
+        "std": 0.015748069831268006,
+        "n": 3
+      },
+      "recall": {
+        "mean": 0.3058252427184466,
+        "std": 0.006865114380451941,
+        "n": 3
+      },
+      "f1": {
+        "mean": 0.3603974920017187,
+        "std": 0.010070810964952064,
+        "n": 3
+      }
+    }
+  },
+  "comparison": {
+    "lr_auc_mean": 0.724711049468331,
+    "gb_auc_mean": 0.6872900292803205,
+    "auc_difference": -0.03742102018801052,
+    "winner": "logistic_regression"
+  },
+  "risk": [
+    "days_since_last_login was dropped to avoid target leak (recorded after outcome)",
+    "Time-based split respects temporal nature but may miss recent churn patterns",
+    "Class imbalance (20% churn) mitigated by reporting multiple metrics (AUC, F1, precision, recall)"
+  ]
+}

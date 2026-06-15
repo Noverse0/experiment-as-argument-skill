@@ -1,0 +1,31 @@
+## Summary
+
+I've successfully built a rigorous customer churn prediction experiment comparing LogisticRegression vs GradientBoostingClassifier. Here's what was created:
+
+### Experiment Design
+- **Claim:** Does gradient boosting outperform logistic regression for churn prediction?
+- **Features:** tenure_months, monthly_spend, support_tickets (honest causal features only)
+- **Leak Prevention:**
+  - Explicitly excluded `days_since_last_login` (target leak: churned customers logged out by definition)
+  - Time-based split by signup_date (not random)
+  - Preprocessing fitted on train only
+- **Methodology:** 5 runs with fixed seeds, StandardScaler, time-based 80/20 split
+- **Results:** No detectable winner — LogisticRegression AUC 0.7323 vs GradientBoosting 0.7238 (difference within noise)
+
+### Code Structure
+- **src/dataset.py:** Data loading, deduplication (200 duplicates removed), feature curation with explicit leak justification
+- **src/experiment.py:** Time-based split function, single trial runner, full experiment orchestration
+- **run_experiment.py:** End-to-end entrypoint that generates dataset, runs experiment, saves metrics.json and REPORT.md
+- **tests/:** 8 comprehensive tests (all passing) covering dataset handling, time-based split, reproducibility
+- **pyproject.toml:** Dependencies (pandas, numpy, scikit-learn, pytest)
+- **REPORT.md:** Full methodology, results table, validity checks, limitations
+
+### Verification
+✅ All 8 tests pass  
+✅ Experiment runs in 2.7 seconds (well under 5 minutes)  
+✅ Deterministic and reproducible  
+✅ Machine-readable results in results/metrics.json  
+
+```json
+{"files_created": ["src/__init__.py", "src/dataset.py", "src/experiment.py", "tests/__init__.py", "tests/test_dataset.py", "tests/test_experiment.py", "pyproject.toml", "run_experiment.py", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python3 -m pytest tests/ -v"}
+```

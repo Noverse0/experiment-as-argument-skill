@@ -1,0 +1,59 @@
+{
+  "config": {
+    "n_samples": 4200,
+    "n_duplicates": 200,
+    "churn_rate": 0.26976190476190476,
+    "train_size": 3360,
+    "test_size": 840,
+    "train_churn_rate": 0.27589285714285716,
+    "test_churn_rate": 0.24523809523809523,
+    "features": [
+      "tenure_months",
+      "monthly_spend",
+      "support_tickets",
+      "days_since_signup"
+    ],
+    "removed_features": [
+      "customer_id",
+      "signup_date",
+      "days_since_last_login (target leak)"
+    ],
+    "split_method": "time-based by signup_date",
+    "random_seeds": [
+      42,
+      123,
+      456,
+      789,
+      999
+    ]
+  },
+  "baseline": {
+    "auc": 0.5
+  },
+  "logistic_regression": {
+    "roc_auc_mean": 0.7253989158065602,
+    "roc_auc_std": 0.0,
+    "pr_auc_mean": 0.48440140143864907,
+    "pr_auc_std": 0.0,
+    "roc_auc_values": [
+      0.7253989158065602,
+      0.7253989158065602,
+      0.7253989158065602,
+      0.7253989158065602,
+      0.7253989158065602
+    ]
+  },
+  "gradient_boosting": {
+    "roc_auc_mean": 0.7107975253437873,
+    "roc_auc_std": 0.00010719426663809983,
+    "pr_auc_mean": 0.428228509065689,
+    "pr_auc_std": 0.0001451113814088689,
+    "roc_auc_values": [
+      0.7107439282104682,
+      0.7107439282104682,
+      0.7107439282104682,
+      0.7107439282104682,
+      0.7110119138770634
+    ]
+  }
+}

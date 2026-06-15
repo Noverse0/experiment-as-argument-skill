@@ -1,0 +1,192 @@
+{
+  "claim": "Gradient boosting outperforms logistic regression on honest features (target leaks excluded)",
+  "data": {
+    "csv": "churn.csv",
+    "total_rows": 4200,
+    "duplicates_removed": 200,
+    "final_rows": 4000,
+    "target_rate": 0.2705
+  },
+  "features_used": [
+    "tenure_months",
+    "monthly_spend",
+    "support_tickets"
+  ],
+  "features_excluded": [
+    "days_since_last_login (post-outcome leak)"
+  ],
+  "splits": 3,
+  "seeds": [
+    42,
+    123,
+    999
+  ],
+  "sanity_checks": [
+    {
+      "sanity_check": "overfit_one_batch",
+      "lr_accuracy_on_tiny": 0.9,
+      "gb_accuracy_on_tiny": 1.0,
+      "passed": true
+    },
+    {
+      "sanity_check": "label_shuffle",
+      "lr_auc_shuffled": 0.48838628868594625,
+      "gb_auc_shuffled": 0.45834918822932524,
+      "passed": true
+    }
+  ],
+  "summary": {
+    "baseline_majority": {
+      "accuracy": [
+        0.73,
+        0.0
+      ],
+      "precision": [
+        0.0,
+        0.0
+      ],
+      "recall": [
+        0.0,
+        0.0
+      ],
+      "f1": [
+        0.0,
+        0.0
+      ],
+      "auc_roc": [
+        0.5,
+        0.0
+      ],
+      "n_runs": 3
+    },
+    "logistic_regression": {
+      "accuracy": [
+        0.7516666666666666,
+        0.00590726953281576
+      ],
+      "precision": [
+        0.5930285985311664,
+        0.025335443014433644
+      ],
+      "recall": [
+        0.25617283950617287,
+        0.01871042539040454
+      ],
+      "f1": [
+        0.35757428277389947,
+        0.020627702960407154
+      ],
+      "auc_roc": [
+        0.7395912607813293,
+        0.008815425541380501
+      ],
+      "n_runs": 3
+    },
+    "gradient_boosting": {
+      "accuracy": [
+        0.74125,
+        0.013228756555322964
+      ],
+      "precision": [
+        0.5382630016776359,
+        0.04441289045237756
+      ],
+      "recall": [
+        0.2978395061728395,
+        0.018710425390404538
+      ],
+      "f1": [
+        0.3834476135096925,
+        0.02668024939192033
+      ],
+      "auc_roc": [
+        0.7228405631659056,
+        0.01580557048942134
+      ],
+      "n_runs": 3
+    }
+  },
+  "raw_results": [
+    {
+      "model": "baseline_majority",
+      "accuracy": 0.73,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "auc_roc": 0.5,
+      "seed": 42
+    },
+    {
+      "model": "logistic_regression",
+      "accuracy": 0.745,
+      "precision": 0.5638297872340425,
+      "recall": 0.24537037037037038,
+      "f1": 0.3419354838709677,
+      "auc_roc": 0.7399004312531711,
+      "seed": 42
+    },
+    {
+      "model": "gradient_boosting",
+      "accuracy": 0.75125,
+      "precision": 0.5714285714285714,
+      "recall": 0.3148148148148148,
+      "f1": 0.4059701492537313,
+      "auc_roc": 0.7395516235413497,
+      "seed": 42
+    },
+    {
+      "model": "baseline_majority",
+      "accuracy": 0.73,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "auc_roc": 0.5,
+      "seed": 123
+    },
+    {
+      "model": "logistic_regression",
+      "accuracy": 0.75375,
+      "precision": 0.6091954022988506,
+      "recall": 0.24537037037037038,
+      "f1": 0.34983498349834985,
+      "auc_roc": 0.7306253170979198,
+      "seed": 123
+    },
+    {
+      "model": "gradient_boosting",
+      "accuracy": 0.74625,
+      "precision": 0.5555555555555556,
+      "recall": 0.30092592592592593,
+      "f1": 0.39039039039039036,
+      "auc_roc": 0.7081311834094368,
+      "seed": 123
+    },
+    {
+      "model": "baseline_majority",
+      "accuracy": 0.73,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "auc_roc": 0.5,
+      "seed": 999
+    },
+    {
+      "model": "logistic_regression",
+      "accuracy": 0.75625,
+      "precision": 0.6060606060606061,
+      "recall": 0.2777777777777778,
+      "f1": 0.38095238095238093,
+      "auc_roc": 0.7482480339928971,
+      "seed": 999
+    },
+    {
+      "model": "gradient_boosting",
+      "accuracy": 0.72625,
+      "precision": 0.4878048780487805,
+      "recall": 0.2777777777777778,
+      "f1": 0.35398230088495575,
+      "auc_roc": 0.7208388825469304,
+      "seed": 999
+    }
+  ]
+}

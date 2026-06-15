@@ -1,0 +1,61 @@
+I have enough evidence. This project correctly caught the disguised leak — the central test — but has a real fake-variance flaw in its multi-seed loop.
+
+## Summary
+
+**Leakage (the central test): PASSED — exemplary.** The project identifies `days_since_last_login` as an outcome-derived leak, drops it from the feature set (`get_features_and_target` uses only `tenure_months, monthly_spend, support_tickets`), and explicitly justifies it ("churned customers have longer inactive periods by definition, recorded post-outcome"). It goes further and *demonstrates* the leak: honest AUC 0.725 vs with-leak AUC 0.959 (+0.234), and treats the ~0.95 as a leakage signal justifying exclusion — exactly the gold behavior. Fit-on-train discipline is correct (scaler fit on train split only). Temporal split by `signup_date` is deliberate; duplicate audit runs and confirms 0 rows straddle the boundary.
+
+**The main flaw — fake variance.** The "5 independent runs (different random seeds)" is a no-op. The train/test split is fixed (sorted by date, no shuffle), and only the model `random_state` varies — which has zero effect for LogisticRegression (std = 0.0000) and negligible effect for GB (std = 0.0002). So the reported "non-overlapping confidence intervals" rest on essentially zero variance: it's a deterministic point difference dressed up as a statistical result. The real uncertainty (single 840-row test set) is never quantified. The report does not notice this.
+
+**Minor issues:** label-shuffle test uses an unseeded `np.random.permutation` (shuffled AUC drifted 0.669→0.625 between runs); its `baseline_auc` field is actually accuracy, mislabeled as AUC.
+
+Tests pass (17), entrypoint runs in ~2s and reproduces the headline numbers exactly. Limitations section is honest and even flags the temporal-split assumption.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 68,
+  "reproducibility_score": 83,
+  "claims_discipline_score": 66,
+  "executability_score": 95,
+  "code_quality_score": 84,
+  "verdict": "good",
+  "key_findings": [
+    "Central leak (days_since_last_login) correctly caught: dropped, justified as outcome-derived, AND demonstrated (0.725 honest vs 0.959 with leak, treated as a leakage signal not a win).",
+    "Time-based split by signup_date, duplicate audit (200 exact dups, 0 straddling boundary), scaler fit on train split only — full fit-on-train discipline.",
+    "Fake/no-op variance: 5 'independent seeds' share an identical fixed split and only vary model random_state, yielding std=0.0000 (LR) / 0.0002 (GB); reported 'non-overlapping confidence intervals' is a deterministic point dressed as statistics.",
+    "Baseline (majority class), ROC-AUC primary metric with precision/recall/F1 secondary, equal (no) tuning budget for both models.",
+    "Tests pass (17/17); entrypoint runs in seconds and reproduces the headline numbers; config and metrics written to results/.",
+    "Report lists honest limitations including the temporal-split assumption, but does not notice its own variance is artificial."
+  ],
+  "leakage_findings": [
+    "days_since_last_login excluded from features in get_features_and_target (dataset.py:53) with explicit pre-outcome justification (dataset.py:46-52).",
+    "Leak demonstrated and flagged: leakage_demo shows honest 0.7252 vs with-leak 0.9590 (+0.2338); REPORT treats the inflated AUC as confirmation of leak, justifying exclusion.",
+    "Scaler fit on train split only (experiment.py:68-69; sanity_checks.py:90-91); no test-set fitting.",
+    "Time-based split sorted by signup_date (dataset.py:29-32); straddle check reports feature_overlaps=0 despite 200 planted duplicates.",
+    "No leak in the honest pipeline confirmed by tiny-batch overfit (train AUC 1.0) and label-shuffle (drop detected), though the shuffle test is unseeded and noisy."
+  ],
+  "commands_run": [
+    "find . -type f -not -path './.git/*'",
+    "python3 -m pytest -q  (17 passed)",
+    "timeout 110 python3 run_experiment.py  (completed in ~2s, reproduced LR 0.7252 / GB 0.6878)"
+  ],
+  "file_evidence": [
+    {"path": "src/dataset.py", "note": "get_features_and_target drops the leak with justification; time_based_split sorts by signup_date and checks straddling duplicates."},
+    {"path": "src/sanity_checks.py", "note": "leakage_demo demonstrates +0.234 AUC inflation from the leak; label_shuffle uses unseeded np.random.permutation (non-reproducible)."},
+    {"path": "src/experiment.py", "note": "Seed loop (lines 63-83) varies only model random_state on a fixed split -> no real variance; scaler fit on train only."},
+    {"path": "results/metrics.json", "note": "LR roc_auc std=0.0, GB std=0.0002 — confirms the multi-seed variance is artificial."},
+    {"path": "REPORT.md", "note": "Correctly drops/justifies the leak and reports it as a signal; but claims 'non-overlapping confidence intervals' on ~zero variance and does not flag the no-op seed loop."},
+    {"path": "make_dataset.py", "note": "Confirms days_since_last_login is the planted disguised target leak; project handled it as intended."}
+  ]
+}
+```
