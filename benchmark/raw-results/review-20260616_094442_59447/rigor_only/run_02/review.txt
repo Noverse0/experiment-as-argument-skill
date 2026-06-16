@@ -1,0 +1,56 @@
+Confirmed the leak: honest features give AUC ~0.74, adding `days_since_last_login` jumps to ~0.97. The project correctly excluded it and reports the honest ~0.73.
+
+## Summary
+
+This project **caught the disguised leak**. It drops `days_since_last_login` with correct timing reasoning (recorded at/after the outcome, unknown at prediction time), deduplicates before the split, and fits the scaler on train only. The reported AUC (~0.73) matches the honest-feature baseline, and my independent check confirms including the leak would inflate AUC to ~0.97.
+
+Minor gaps: `signup_date` is acknowledged as temporal but handled with a random stratified split rather than a time-based split (flagged honestly in limitations, not the central leak). The "CI overlap" test uses ±1.96·std of 3 values as a rough heuristic, but the conclusion ("no significant difference") is conservative and correct. Both models share the same fixed (untuned) budget, baseline is present, metrics suit the 27% imbalance, seeds are logged, and everything runs reproducibly from a clean state.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 90,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 90,
+  "claims_discipline_score": 87,
+  "executability_score": 95,
+  "code_quality_score": 85,
+  "verdict": "excellent",
+  "key_findings": [
+    "Caught the disguised target leak: days_since_last_login is dropped with correct 'recorded at/after outcome' timing reasoning (src/pipeline.py:42-47, REPORT.md:20-21).",
+    "Reported AUC ~0.73 matches the honest-feature baseline; no implausibly-high headline number to explain away.",
+    "Trivial majority-class baseline present (AUC 0.5); imbalance-appropriate metrics (ROC-AUC primary plus precision/recall/F1), not accuracy alone.",
+    "Conclusion is conservative and honest: 'no statistically significant difference' across 3 seeds; no unsupported winner claim.",
+    "signup_date handled only via random stratified split, not a time-based split; acknowledged as future work but not executed.",
+    "Both models untuned with fixed defaults (equal budget); 3 seeds vary only the split/model state, not the data (generated once with seed 7)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login explicitly excluded as a target leak; independent check: honest features AUC=0.7448 vs with-leak AUC=0.9694, confirming it is a strong disguised leak that was correctly avoided.",
+    "200 planted exact duplicates removed via drop_duplicates() BEFORE the train/test split, preventing straddling (src/pipeline.py:35).",
+    "StandardScaler fit on train split only, transform applied to test (src/pipeline.py:125-127); no train/test contamination in preprocessing.",
+    "Temporal column signup_date used only as extracted year/month features with a random split — no time-based split; honestly flagged as a limitation but a remaining methodological gap.",
+    "Report does not show the ~0.95-with-leak comparison, but justifies exclusion via correct pre-outcome reasoning, which satisfies the leakage-catch criterion."
+  ],
+  "commands_run": [
+    "python3 -m pytest -q  (9 passed in 8.89s)",
+    "python3 run_experiment.py  (completed <120s; LR 0.7339±0.0173, GB 0.7132±0.0153, no significant difference)",
+    "independent leak check: LR AUC honest=0.7448 vs +days_since_last_login=0.9694"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "Lines 28-47: drops days_since_last_login as target leak with timing reasoning; line 35 dedup before split; lines 125-127 scaler fit on train only."},
+    {"path": "make_dataset.py", "note": "Lines 35-40: days_since_last_login is generated from churn outcome (gamma mean ~44 churned vs ~8 not) — confirms it is the planted disguised leak; line 52 appends 200 duplicates."},
+    {"path": "REPORT.md", "note": "Lines 20-21 leakage exclusion; lines 84-90 honest 'no significant difference'; lines 92-98 limitations include temporal split not done."},
+    {"path": "results/metrics.json", "note": "Seeds [42,123,456] logged with per-seed metrics; LR mean 0.7339, GB 0.7132, baseline 0.5 — reproducible on rerun."},
+    {"path": "tests/test_pipeline.py", "note": "9 tests including test_preprocessing_leakage_exclusion (asserts leak dropped), dedup, stratification, split reproducibility, baseline sanity — all pass."}
+  ]
+}
+```

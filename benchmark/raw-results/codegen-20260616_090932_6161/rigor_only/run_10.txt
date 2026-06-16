@@ -1,0 +1,21 @@
+Perfect! I've built a complete ML experiment comparing gradient boosting vs logistic regression for customer churn prediction. Here's what was delivered:
+
+## Summary
+
+**Claim:** On this customer churn dataset, does gradient boosting outperform logistic regression?
+
+**Finding:** No detectable difference. LogisticRegression (AUC 0.7178 ± 0.0132) vs GradientBoosting (AUC 0.7081 ± 0.0171) show an effect size of -0.0097, well within noise.
+
+**Key Design Decisions:**
+- Dropped `days_since_last_login` (explicit target leak: churned customers have high values by design)
+- Deduped 406 exact-duplicate rows before train/test split
+- Used 5 random seeds × stratified splits (70/15/15) for robust variance estimates
+- Ran sanity checks: overfit test, label-shuffle test, leakage ceiling check
+- Both models beat baseline (AUC 0.5) and AUC < 0.95 (no suspicious leakage)
+- Completed in 3.2 seconds (well under 5-min requirement)
+
+**Report highlights:** 0.271 churn rate, 3 features (tenure_months, monthly_spend, support_tickets), StandardScaler preprocessing fit on train only, fixed hyperparameters (no tuning to avoid test-set contamination).
+
+```json
+{"files_created": ["src/experiment.py", "src/__init__.py", "tests/test_pipeline.py", "tests/__init__.py", "run_experiment.py", "requirements.txt", "results/metrics.json", "REPORT.md"], "entrypoint": "python3 run_experiment.py", "test_command": "python -m pytest tests/ -v"}
+```

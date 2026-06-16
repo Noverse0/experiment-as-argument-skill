@@ -1,0 +1,52 @@
+All tests pass, the entrypoint runs cleanly and reproduces the recorded metrics exactly. Let me synthesize the review.
+
+The project handled the disguised leak correctly: `days_since_last_login` is dropped in `src/data.py:30-35` with sound causal reasoning, duplicates are removed before splitting, the scaler is fit on train only, and the honest AUC (~0.73–0.75) confirms no leak slipped through. A few minor weaknesses: the "winner" claim rests on a 0.014 AUC gap over just 3 seeds, there's some dead code in `evaluate_model`, and a small numeric inconsistency in the limitations section ("4200 rows after dedup" vs. the 4000 reported everywhere else).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 90,
+  "claims_discipline_score": 72,
+  "executability_score": 97,
+  "code_quality_score": 82,
+  "verdict": "good",
+  "key_findings": [
+    "The disguised leak (days_since_last_login) was correctly identified and dropped with explicit causal reasoning that it is recorded at/after the outcome — the central v2 trap was caught.",
+    "Honest features yield AUC ~0.73-0.75, consistent with the expected non-leaked range (~0.73); no implausible ~0.95 was reported or chased.",
+    "Methodology is solid: majority-class baseline, ROC-AUC + F1 (not accuracy alone) suited to 27% imbalance, label-shuffle sanity check, equal fixed hyperparameters for both models, 3 seeds for variance.",
+    "Fully executable and reproducible: pytest 9/9 pass; entrypoint reruns and regenerates metrics matching results/metrics.json exactly.",
+    "Claims are mildly overstated: 'Logistic Regression wins' is declared on a -0.0143 AUC gap over only 3 seeds with no significance test, though the report flags it as unexpected and recommends investigation.",
+    "Minor numeric inconsistency: limitations cite '4200 rows after dedup' while every other figure reports 4000 post-dedup (4200 is pre-dedup)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login dropped as a target leak in src/data.py:30-35 and REPORT.md:16-19 with correct 'known only at/after outcome' justification.",
+    "200 exact duplicates removed via drop_duplicates BEFORE the train/test split (src/data.py:22-25), preventing straddling; verified 4200->4000 at runtime.",
+    "StandardScaler fit on the train split only and applied to test (src/data.py:60-62) — no preprocessing leakage.",
+    "signup_date is dropped rather than used for a time-based split; this is acknowledged as a limitation (REPORT.md:64) rather than handled rigorously — the one weaker spot in temporal discipline.",
+    "Label-shuffle sanity check shows F1 collapsing from ~0.37 to ~0.15-0.18, consistent with no residual label leakage."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (9 passed, 6 warnings)",
+    "python run_experiment.py  (completed; regenerated results/metrics.json and REPORT.md, metrics reproduce exactly)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "Drops leak feature with causal rationale, dedups before split, fits scaler on train only."},
+    {"path": "make_dataset.py", "note": "Confirms days_since_last_login is derived from churn outcome — the disguised leak the project correctly excluded."},
+    {"path": "src/models.py", "note": "Baseline, label-shuffle test, ROC-AUC/F1 metrics; dead code: roc_curve/fpr/tpr computed but unused (lines 52-53), 'auc' imported unused."},
+    {"path": "src/experiment.py", "note": "3-seed loop, aggregation with mean/std, overlap check for winner determination; report generator declares a winner on non-overlapping ±1σ over only 3 seeds."},
+    {"path": "REPORT.md", "note": "Honest AUC ~0.73-0.75, good limitations, but overclaims 'Logistic Regression wins' on 0.014 gap and states '4200 rows after dedup' inconsistent with 4000 elsewhere."},
+    {"path": "results/metrics.json", "note": "Seeds and per-seed/aggregated metrics logged; reproduced exactly on rerun."}
+  ]
+}
+```

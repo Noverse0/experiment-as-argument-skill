@@ -1,0 +1,18 @@
+Perfect! All tests pass and the experiment runs in 3.2 seconds. Here's the summary:
+
+**Experiment Results:**
+- **LogisticRegression AUC:** 0.7409 ± 0.0000 (n=5)
+- **GradientBoostingClassifier AUC:** 0.7187 ± 0.0004 (n=5)
+- **Conclusion:** Gradient Boosting UNDERPERFORMS Logistic Regression by -0.0222 AUC
+
+**Key Design Decisions:**
+1. **Removed target leak** (`days_since_last_login`): churned customers have high values *because* they churned, recorded post-outcome
+2. **Time-based split** (70%/30%): respects signup_date order to avoid temporal leakage
+3. **Deduplication**: removed 200 exact duplicate rows before splitting to prevent train-test contamination
+4. **Features used**: tenure_months, monthly_spend, support_tickets, days_since_signup
+5. **5 random seeds** with proper data split: provides variance estimates and shows deterministic behavior of LR vs stochastic GB
+6. **Sanity checks**: baseline floor (0.7183 acc) and label-shuffle test (verify no spurious signal)
+
+```json
+{"files_created": ["src/__init__.py", "src/pipeline.py", "src/experiment.py", "run_experiment.py", "tests/__init__.py", "tests/test_pipeline.py", "pyproject.toml", "churn.csv", "REPORT.md", "results/metrics.json"], "entrypoint": "python run_experiment.py results", "test_command": "python -m pytest tests/ -v"}
+```

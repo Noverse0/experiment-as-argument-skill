@@ -1,0 +1,62 @@
+I have all the evidence needed. Summary of findings:
+
+**Leakage (central test):** The project correctly identified `days_since_last_login` as a disguised target leak, dropped it, and gave the right temporal reasoning ("recorded at/after the outcome, encoding the target"). It also dedups before the split (preventing the 200 planted duplicates from straddling), fits the StandardScaler on train only, drops `signup_date` while explicitly acknowledging the random-split-ignores-time limitation, and adds label-shuffle + leakage-ceiling sanity checks. Result is the honest ~0.72 AUC, not the inflated ~0.95. This is essentially the ideal handling.
+
+**Discrepancies found (claims discipline):**
+- Report states "Churn rate in full dataset: 0.500" — actual churn rate is **0.271**. The template mislabels `baseline_auc` (0.5) as the churn rate.
+- Report claims "200 duplicates found" but the feature-only dedup actually removed 203 rows (406 flagged). The true full-row dup count is exactly 200, so it's roughly right but the displayed mechanism is loose.
+- Report says overfit check requires "train AUC > 0.90", but the code asserts `> 0.65`.
+- Calls 5 repeated random splits "cross-validation" (it's repeated holdout, not k-fold).
+
+Everything is executable (6 tests pass, entrypoint runs in ~5s, reproduces the reported numbers exactly).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 95,
+  "methodological_validity_score": 85,
+  "reproducibility_score": 92,
+  "claims_discipline_score": 70,
+  "executability_score": 98,
+  "code_quality_score": 85,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised leak days_since_last_login was correctly caught with proper temporal reasoning, dropped, and excluded from features — honest ~0.72 AUC results, no inflated ~0.95.",
+    "Trivial majority-class baseline (AUC 0.5) present; metrics include precision/recall/F1 (appropriate for the 27% churn imbalance), not accuracy alone.",
+    "5 seeds run with mean ± SD reported; conclusion 'no detectable difference' (-0.0097) is honest given overlapping variance.",
+    "Report mislabels baseline AUC (0.5) as 'Churn rate in full dataset: 0.500'; the true churn rate is 0.271 — a factual error stated as data.",
+    "Report claims overfit check requires train AUC > 0.90, but the code asserts only > 0.65; minor internal inconsistency.",
+    "All declared commands work from clean state: 6/6 tests pass, entrypoint completes in ~5s and reproduces the reported metrics exactly."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is NOT used as a feature; explicitly dropped with correct justification that a churned customer has by definition stopped logging in, so the value is recorded at/after the outcome.",
+    "StandardScaler is fit on the train split only and applied to val/test (src/experiment.py:127-130).",
+    "Exact duplicates are removed before the split, preventing the 200 planted duplicate rows from straddling train/test; verified 200 true full-row duplicates exist (feature-only dedup removed 203).",
+    "signup_date is dropped and the random-split-ignores-temporal-ordering risk is named as a limitation rather than silently ignored.",
+    "Sanity checks present: label-shuffle (AUC stays ~0.5 with shuffled labels) and a leakage-ceiling guard warning if test AUC > 0.95.",
+    "Note: deduplication keys on the 3 feature columns only, so rows with identical features but differing labels are resolved arbitrarily — negligible here but not strictly exact-row dedup."
+  ],
+  "commands_run": [
+    "python3 -m pytest tests/ -q",
+    "python3 run_experiment.py",
+    "python3 -c '<inspect churn.csv churn rate and duplicate counts>'"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "Lines 37-38 select only honest features, dropping the leaky days_since_last_login; lines 42-49 dedup before split; lines 127-130 fit scaler on train only; lines 80-97 label-shuffle sanity check."},
+    {"path": "make_dataset.py", "note": "Confirms the planted disguised leak (days_since_last_login derived from churn outcome) and 200 appended duplicate rows; deterministic with seed."},
+    {"path": "REPORT.md", "note": "Line 15 gives the correct leakage justification; line 23 mislabels churn rate as 0.500 (actual 0.271); line 36 claims overfit train AUC > 0.90 vs code's >0.65."},
+    {"path": "run_experiment.py", "note": "Line 77 feeds config['baseline_auc'] into the 'Churn rate' field, the source of the 0.500 mislabel; conclusion logic at lines 48-53 is reasonable."},
+    {"path": "results/metrics.json", "note": "Seeds [42,123,456,789,999] and full per-seed metrics logged; LR 0.7178±0.0132 vs GB 0.7081±0.0171, reproduced exactly on re-run."},
+    {"path": "tests/test_pipeline.py", "note": "6 tests including leaky-feature-removal assertion (lines 54-57) and a reproducibility test (lines 123-134); all pass."}
+  ]
+}
+```

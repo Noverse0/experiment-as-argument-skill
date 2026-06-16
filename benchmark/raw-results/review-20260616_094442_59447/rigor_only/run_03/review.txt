@@ -1,0 +1,65 @@
+## Review
+
+This is a strong project on the dimension that matters most for v2: **it caught the disguised leak.** `days_since_last_login` is dropped by default in `prepare_features`, `detect_leaks` flags it via a churned/non-churned ratio test (5.5×), and REPORT.md explicitly justifies the drop with the correct *temporal* reasoning ("churned customers have longer days by definition," recorded at/after outcome). The resulting AUC ~0.73 sits exactly at the honest-feature ceiling the rubric describes — not the suspicious ~0.95 a leaked pipeline would show. Duplicates (200) are removed before splitting, a test confirms no straddling, the split is deliberately time-based on `signup_date`, and the scaler is fit only on the train split via an sklearn Pipeline. This is close to a model leakage result.
+
+The weaknesses are in **claims and methodology**, surfaced by running the code rather than reading it:
+
+- **Misreported sanity check.** REPORT.md states "Label shuffle: With randomized labels, AUC drops to 0.5 ± 0.1." The actual run shows LR shuffled-label AUC = **0.722** — barely below its real 0.732. The shuffle works (label↔feature correlation drops to ~0.01), but a single-permutation check evaluated against real test labels lands at 0.72 by sign-coincidence on this seed, and the wide assertion band (0.2–0.8) lets it pass silently. The report claims a result the code did not produce.
+- **Hollow variance / overclaimed winner.** The "3 independent runs" only vary model `random_state`; the data split is deterministic and LR is fully deterministic (auc_std ≈ 1e-16, GB ≈ 2e-5). So the confidence rule (`gap > lr_std + gb_std`) declares any nonzero gap "high." A 0.009 AUC gap is then headlined as "Logistic Regression wins (confidence: high)" / "a real, reproducible advantage" with no CV or bootstrap behind it. The limitations section does partially walk this back (limitation #4), but the headline contradicts it.
+
+Reproducibility and executability are excellent (20/20 tests pass, entrypoint reproduces metrics.json byte-for-identical, seeds/config/metrics written to results/). Code is clean and modular with minor dead code (`baseline_random`, unused imports in metrics.py, unused `temporal_features` local).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 66,
+  "reproducibility_score": 90,
+  "claims_discipline_score": 58,
+  "executability_score": 95,
+  "code_quality_score": 80,
+  "verdict": "good",
+  "key_findings": [
+    "Disguised leak correctly caught: days_since_last_login dropped by default, flagged by detect_leaks (5.5x ratio), and justified in REPORT.md with correct temporal/at-outcome reasoning. Honest AUC ~0.73, not the ~0.95 of a leaked pipeline.",
+    "Label-shuffle sanity check is misreported: REPORT.md claims shuffled AUC 'drops to 0.5 ± 0.1', but the actual run shows LR shuffled AUC = 0.722 (≈ its real 0.732). The check is non-diagnostic (single permutation, wide 0.2–0.8 band) and the report states a result the code did not produce.",
+    "Variance estimate is hollow: seeds [42,123,456] only vary model random_state; the time-based split is deterministic and LR is fully deterministic (std≈1e-16). 'Mean ± std across 3 runs' captures no real uncertainty.",
+    "A 0.009 AUC gap is headlined as 'Logistic Regression wins (confidence: high)' and 'a real, reproducible advantage', driven by a confidence rule that trips on ~0 std; the limitations section partially contradicts this.",
+    "Strong reproducibility/executability: 20/20 tests pass, entrypoint reruns and reproduces metrics.json identically, seeds and config logged to results/.",
+    "Methodology positives: majority baseline present, AUC + precision/recall/F1 reported for 25% class balance (not accuracy alone), equal (zero) tuning budget for both models."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is excluded from features by default (prepare_features drop_leaks=True); run_experiment.py calls get_split(drop_leaks=True).",
+    "detect_leaks() computes churned/non-churned mean ratio (43.9d vs 7.9d = 5.5x) and prints a LEAK warning; tests assert it is detected.",
+    "REPORT.md gives the correct rationale: the feature is derived from the outcome (a churned customer has stopped logging in), recorded at/after the prediction point — temporal reasoning, not name pattern-matching.",
+    "200 exact duplicates removed before the split; test_no_leakage_across_split confirms no duplicate straddles train/test after dedup.",
+    "Split is time-based on signup_date (train dates <= test dates, asserted in test_time_based_split), addressing the temporal trap deliberately.",
+    "Preprocessing discipline is correct: StandardScaler lives inside the sklearn Pipeline and is fit only on X_train, applied to X_test via predict.",
+    "No leak in the final model; the AUC is ~0.73 (honest ceiling), and the project never reports or chases a ~0.95 figure."
+  ],
+  "commands_run": [
+    "ls -la; git log --oneline -15",
+    "python -m pytest -q  (20 passed)",
+    "python run_experiment.py  (runs, reproduces results/metrics.json; sanity check output shows LR shuffled AUC=0.722, GB=0.490)",
+    "python -c '... refit LR on shuffled labels ...'  (confirmed LR shuffled-test AUC=0.7216, label-feature corr ~0.01)",
+    "python -c '... variance analysis ...'  (confirmed seeds vary only model RNG; LR std≈1e-16, GB≈2e-5)"
+  ],
+  "file_evidence": [
+    {"path": "src/dataset.py", "note": "prepare_features drops days_since_last_login by default; detect_leaks ratio test; time_based_split on signup_date; dedup before split."},
+    {"path": "make_dataset.py", "note": "Confirms the planted disguised leak (gamma mean 44 vs 8 days), 200 duplicates, temporal column — all addressed by the project."},
+    {"path": "src/models.py", "note": "LR scaler is inside a Pipeline fit on X_train only; GB unscaled (correct for trees). Equal fixed hyperparameters."},
+    {"path": "src/sanity_checks.py", "note": "check_label_shuffle uses a single permutation and a wide 0.2<auc<0.8 band; LR passes at 0.722 — non-diagnostic."},
+    {"path": "REPORT.md", "note": "Headlines 'LR wins (confidence: high)' on a 0.009 gap; claims label shuffle 'drops to 0.5 ± 0.1' (false for LR, actual 0.722). Limitations section partially hedges the noise issue."},
+    {"path": "results/metrics.json", "note": "Reproduced identically on rerun; lr auc_std=1.1e-16, gb auc_std=2.4e-5 — confirms seeds provide no real variance."},
+    {"path": "tests/test_dataset.py", "note": "20 tests pass; assert leak detection, dedup count, no-straddle, deterministic split, time order."}
+  ]
+}
+```

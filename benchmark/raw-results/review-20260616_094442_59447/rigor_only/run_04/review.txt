@@ -1,0 +1,62 @@
+Confirmed: `time_based_split`'s `seed` parameter (line 46) is never used in the function body — the split is fully deterministic and identical across all five "seeds." Only the label-shuffle check uses its seed.
+
+I have everything needed for the review.
+
+## Review Summary
+
+**Leakage (the central test): passed strongly.** The project correctly identified `days_since_last_login` as a disguised target leak, dropped it, and articulated the right reasoning ("churned customers have high values *because* they churned, recorded post-outcome"). The resulting AUC ~0.74 is the honest-feature range, not the ~0.95 leak signature — strong confirmation. Deduplication happens before splitting, the scaler is fit on train only, and `signup_date` drives a deliberate time-based split.
+
+**Main weakness — fake variance.** `time_based_split` accepts a `seed` but never uses it; the split is deterministic. So all 5 "seeds" run on the identical train/test partition. LR is deterministic → `± 0.0000`; only GB's internal RNG yields `± 0.0004`. The report presents `0.7409 ± 0.0000 (n=5)` as if replicated, and declares a winner on a 0.022 gap, without acknowledging the split never varies. The variance estimate is essentially meaningless and the n=5 is illusory.
+
+**Other notes.** Baseline (majority class) is computed but only printed at seed 0, never compared to model accuracy in the report. Label-shuffle return value is printed, not asserted. `sanity_check_baseline` contains leftover dead code. Tests (8) pass; entrypoint runs and reproduces exactly.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 92,
+  "methodological_validity_score": 55,
+  "reproducibility_score": 85,
+  "claims_discipline_score": 55,
+  "executability_score": 95,
+  "code_quality_score": 76,
+  "verdict": "good",
+  "key_findings": [
+    "Disguised leak days_since_last_login correctly identified and dropped with sound timing-based reasoning; honest AUC ~0.74 confirms the leak is gone (no ~0.95 signature).",
+    "Deduplication occurs before the split, scaler is fit on train only, and signup_date drives a deliberate time-based split — all the leakage-discipline boxes are checked.",
+    "Critical methodology flaw: time_based_split ignores its seed parameter, so all 5 'seeds' use the identical deterministic split; LR std is exactly 0.0000 and GB std is only 0.0004 from internal RNG.",
+    "Report declares LR > GB on a 0.022 gap with ± 0.0000 (n=5), presenting non-existent replication variance as if it were a real estimate, with no statistical test or caveat.",
+    "Baseline (majority class) computed but only printed once and never compared against model performance in the report; label-shuffle check printed but not asserted.",
+    "Tests (8) pass; entrypoint runs in seconds, writes results/metrics.json and REPORT.md, and reproduces exactly."
+  ],
+  "leakage_findings": [
+    "days_since_last_login dropped in preprocess() (src/pipeline.py:37) with explicit post-outcome justification — the disguised leak was caught.",
+    "Measured AUC ~0.74 (results/metrics.json) matches the honest-feature regime, not the leaked ~0.95, providing empirical confirmation the leak was removed.",
+    "Duplicate rows removed via deduplicate() before splitting, preventing train/test straddling of the 200 planted duplicates.",
+    "StandardScaler fit on train only, applied to test (scale_features, src/pipeline.py:78-80) — no scaler leakage.",
+    "signup_date handled deliberately: engineered into days_since_signup and used for a time-based split rather than a random split.",
+    "Label-shuffle sanity check exists but its returned AUC is only printed, not asserted, so it would not fail the run if leakage reappeared."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (8 passed)",
+    "python run_experiment.py results  (ran to completion, reproduced metrics)",
+    "grep -n seed src/pipeline.py  (confirmed time_based_split seed is unused)"
+  ],
+  "file_evidence": [
+    {"path": "src/pipeline.py", "note": "preprocess() drops days_since_last_login with correct leak reasoning (line 37); scaler fit on train only (78-80); BUT time_based_split seed param (line 46) is never used — split is identical across all seeds."},
+    {"path": "src/experiment.py", "note": "Loops seeds 0-4 but the data split is seed-independent; LR therefore identical every seed. Uses AUC/F1/precision/recall/accuracy appropriately; baseline only run at seed 0."},
+    {"path": "results/metrics.json", "note": "LR AUC 0.7409 across all 5 seeds (std 0.0), GB AUC ~0.7187 std 0.0004 — confirms fake variance and honest (non-leaked) performance."},
+    {"path": "REPORT.md", "note": "Claims LR beats GB by 0.0222 with '± 0.0000 (n=5)' presented as replication; honest about synthetic data/small N/no tuning, and correctly lists the leak as removed."},
+    {"path": "make_dataset.py", "note": "Documents the planted v2 traps (disguised leak, 200 duplicates, temporal column); the experiment addresses all three."},
+    {"path": "tests/test_pipeline.py", "note": "8 tests including test_preprocess_removes_leak asserting days_since_last_login is dropped; all pass."}
+  ]
+}
+```

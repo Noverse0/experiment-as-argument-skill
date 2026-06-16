@@ -1,0 +1,61 @@
+Tests pass (7/7), the entrypoint runs end-to-end, and the metrics reproduce exactly. This project caught the disguised leak. Let me record my assessment.
+
+## Audit Summary
+
+**Leakage (central test):** ✅ Caught. `days_since_last_login` is explicitly dropped with the exactly-correct reasoning: "A churned customer has, by definition, stopped logging in. This value is recorded at/after the outcome, not before prediction." The features used are the honest set (`tenure_months, monthly_spend, support_tickets, signup_year, signup_month`), and the resulting AUC is ~0.72 — matching the expected honest ~0.73, not the suspicious ~0.95. A test (`test_no_target_leak`) asserts the leaked column is absent. Scaler is fit on train only. Duplicates (400) are deduplicated *before* the split. `signup_date` is extracted to year/month and the random-split-ignores-time issue is acknowledged in limitations (though no actual time-based split was done).
+
+**Methodology:** ✅ Trivial baseline (majority-class → AUC 0.5; accuracy 0.73), label-shuffle test (degrades to ~0.5), and overfit-tiny-subset check (0.866) all present. AUC chosen appropriately for imbalance. Both models get equal (zero) tuning budget — fair comparison. Uses 5 seeds but single split per seed (no CV), acknowledged.
+
+**Reproducibility:** ✅ Seeds fixed (42–46) and logged per-run in `results/metrics.json`; re-running reproduced identical numbers. Minor bug: `metadata.n_seeds` reports 2 (integer-division artifact in `save_results`) while the true count is 5 — `n_runs` is correct, so the report is unaffected.
+
+**Claims:** ✅ Honest "no detectable difference (95% CIs overlap)" with reported variance, n=5. Limitations section is candid (no CV, random vs temporal split, minimal tuning). No over-claiming; headline number is plausible.
+
+**Minor nits:** report compares accuracy baseline (0.73) to AUC (0.72) loosely; `config.leaked_feature` field is unused; "respects time ordering implicitly" is a slightly imprecise phrasing (but contradicted/corrected in limitations).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 91,
+  "methodological_validity_score": 88,
+  "reproducibility_score": 87,
+  "claims_discipline_score": 91,
+  "executability_score": 98,
+  "code_quality_score": 85,
+  "verdict": "excellent",
+  "key_findings": [
+    "Disguised leak fully caught: days_since_last_login dropped with correct temporal reasoning (value recorded at/after outcome), not pattern-matched on name.",
+    "Honest AUC ~0.72 achieved, matching expected ~0.73 on legitimate features rather than the ~0.95 leaked result.",
+    "Strong methodology: majority-class baseline, label-shuffle test, overfit-tiny check, AUC metric for imbalance, equal (zero) tuning budget for both models.",
+    "Honest claim of 'no detectable difference' across 5 seeds with reported variance and overlapping CIs; candid limitations section.",
+    "Tests pass (7/7), entrypoint runs end-to-end, and metrics.json reproduces exactly on re-run.",
+    "Minor metadata bug: n_seeds reported as 2 instead of 5 due to integer division (n_runs is correct, report unaffected)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login explicitly dropped as a target leak with correct justification; test_no_target_leak asserts its absence and pins the exact feature list.",
+    "StandardScaler fit on train split only (fit_transform on X_train, transform on X_test) — no train/test contamination.",
+    "400 duplicate rows identified and removed via drop_duplicates BEFORE the split, preventing train/test straddle.",
+    "signup_date handled deliberately (extracted to year/month) and random-vs-temporal-split limitation explicitly acknowledged, though no actual time-based split was performed.",
+    "Resulting AUC ~0.72 is consistent with honest features; project did not produce or celebrate a suspicious ~0.95."
+  ],
+  "commands_run": [
+    "python -m pytest tests/ -q  → 7 passed",
+    "python run_experiment.py  → ran clean; LR 0.7237±0.0182, GB 0.7187±0.0189, reproduced metrics.json"
+  ],
+  "file_evidence": [
+    {"path": "src/experiment.py", "note": "Lines 65-73: days_since_last_login dropped as target leak; scaler fit on train only (98-100); dedup before split (53-54)."},
+    {"path": "REPORT.md", "note": "Lines 20, 53-54: correct leak justification; honest 'no detectable difference' claim with CI overlap and candid limitations."},
+    {"path": "make_dataset.py", "note": "Confirms the planted disguised leak: days_since_last_login derived from churn outcome (gamma mean ~44 vs ~8 days)."},
+    {"path": "tests/test_experiment.py", "note": "test_no_target_leak and test_load_and_preprocess assert leaked/id/date columns excluded; test_determinism checks reproducibility."},
+    {"path": "results/metrics.json", "note": "Per-seed runs logged; baseline_auc 0.5 and label_shuffle_auc ~0.5 confirm sanity checks; metadata.n_seeds=2 is a minor bug (true 5)."}
+  ]
+}
+```

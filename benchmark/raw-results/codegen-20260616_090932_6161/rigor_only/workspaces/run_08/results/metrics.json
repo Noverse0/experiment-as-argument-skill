@@ -1,0 +1,45 @@
+{
+  "summary": {
+    "LogisticRegression": {
+      "test_auc_mean": 0.7616739749211477,
+      "test_auc_std": 0.0,
+      "test_auc_values": [
+        0.7616739749211477,
+        0.7616739749211477,
+        0.7616739749211477,
+        0.7616739749211477,
+        0.7616739749211477
+      ],
+      "test_accuracy_mean": 0.7647768395657418,
+      "test_accuracy_std": 0.0,
+      "test_f1_mean": 0.36482084690553745,
+      "test_f1_std": 0.0,
+      "n_seeds": 5
+    },
+    "GradientBoostingClassifier": {
+      "test_auc_mean": 0.7327217478267558,
+      "test_auc_std": 0.0,
+      "test_auc_values": [
+        0.7327217478267558,
+        0.7327217478267558,
+        0.7327217478267558,
+        0.7327217478267558,
+        0.7327217478267558
+      ],
+      "test_accuracy_mean": 0.767189384800965,
+      "test_accuracy_std": 0.0,
+      "test_f1_mean": 0.4097859327217125,
+      "test_f1_std": 5.551115123125783e-17,
+      "n_seeds": 5
+    }
+  },
+  "n_seeds": 5,
+  "test_month": 10,
+  "dataset": "churn.csv",
+  "class_distribution": {
+    "n_samples": 4200,
+    "n_churn": 1133,
+    "n_no_churn": 3067,
+    "churn_rate": 0.26976190476190476
+  }
+}

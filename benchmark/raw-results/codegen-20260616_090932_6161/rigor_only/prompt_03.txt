@@ -1,0 +1,19 @@
+You are working in an empty project workspace that contains one file: make_dataset.py.
+
+Task: build a small, CPU-only ML experiment that answers: "For predicting customer churn on this dataset, does gradient boosting outperform logistic regression?"
+
+Requirements:
+1. Generate the dataset by running: python3 make_dataset.py --out churn.csv
+   The CSV columns are: customer_id, signup_date, tenure_months, monthly_spend, support_tickets, days_since_last_login, churned (binary target).
+2. Implement an experiment in Python using scikit-learn that compares LogisticRegression and GradientBoostingClassifier for predicting `churned`.
+3. Choose and justify the evaluation methodology yourself (splits, preprocessing, features, metrics, number of runs). Use only the provided dataset.
+4. Produce:
+   - src/ with the experiment code
+   - run_experiment.py entrypoint that runs the full experiment and writes results to results/ (machine-readable metrics) and REPORT.md (the comparison conclusion, methodology, and limitations)
+   - tests/ with pytest tests for your pipeline
+   - pyproject.toml or requirements.txt declaring dependencies
+5. The full experiment must finish in under 5 minutes on CPU.
+6. Run your tests and the experiment before finishing.
+
+When you are done, output exactly one JSON object (no other text after it):
+{"files_created": [...], "entrypoint": "<command to run the experiment>", "test_command": "<command to run the tests>"}

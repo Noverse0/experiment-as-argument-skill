@@ -1,0 +1,25 @@
+Excellent! The ML experiment is complete. Here's a summary:
+
+## ✅ Experiment Summary
+
+**Experiment Design:**
+- **Claim:** Comparing LogisticRegression vs GradientBoostingClassifier for customer churn prediction
+- **Features Used:** tenure_months, monthly_spend, support_tickets
+- **Dropped Features:** Identified `days_since_last_login` as having timing leakage (fails the test: "is this value fixed at prediction time?")
+- **Methodology:** 5 random seeds, 70/30 stratified split, preprocessing fitted on train only
+- **Sanity Checks:** Baseline floor, label-shuffle test, determinism all passed
+
+**Results:**
+- LogisticRegression ROC-AUC: 0.7364 ± 0.0068
+- GradientBoostingClassifier ROC-AUC: 0.7352 ± 0.0110
+- **Conclusion:** No significant difference (gap of 0.0012 is within noise)
+- **Recommendation:** Choose LogisticRegression for interpretability and speed
+
+**Performance:**
+- Experiment completes in 3.3 seconds (well under 5-minute requirement)
+- All 19 tests pass
+- Full reports and metrics generated
+
+```json
+{"files_created": ["src/pipeline.py", "src/experiment.py", "run_experiment.py", "pyproject.toml", "tests/test_pipeline.py", "tests/test_experiment.py", "results/REPORT.md", "results/metrics.json"], "entrypoint": "python run_experiment.py", "test_command": "python -m pytest tests/ -v"}
+```

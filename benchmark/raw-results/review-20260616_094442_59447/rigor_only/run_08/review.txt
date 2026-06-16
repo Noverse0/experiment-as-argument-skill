@@ -1,0 +1,61 @@
+Everything runs cleanly: 11 tests pass, entrypoint completes in ~6s and reproduces the reported numbers exactly. I have what I need to assess.
+
+## Summary
+
+**Leakage (central test): caught and handled correctly.** The disguised leak `days_since_last_login` is excluded from features (`HONEST_FEATURES` only), justified with exactly the right timing reasoning ("at prediction time, is this value already final? No"), and there's a dedicated test asserting it's not used. AUC sits at the honest ~0.73–0.76 range, not the ~0.95 the leak would produce. Scaler fit on train only. Time-based split on `signup_date` is deliberate. Duplicates are noted, and the reasoning that a time-based split keeps duplicates from straddling (they share a signup_date with their original) is actually correct.
+
+**Main weaknesses:**
+- The "5 seeds" are a sham: the time-based split is deterministic and both models hardcode `random_state=0`, so all 5 runs are byte-identical (std = 0.000). This is wasted computation dressed up as a robustness/variance estimate. The report half-acknowledges it ("deterministic") but still describes "5 independent time-based splits" and cites "variance... 0.000... suggesting stable estimates" — misleading.
+- No genuine variance/significance test backs the 0.029 AUC "winner" claim; concluding LR "performs better" overstates a tiny gap with no real CI.
+- No trivial/majority-class baseline (LR is treated as the simple baseline).
+- Minor dead code: `LEAKY_FEATURES` and the `seed` param in `time_based_split` are unused.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 93,
+  "methodological_validity_score": 64,
+  "reproducibility_score": 88,
+  "claims_discipline_score": 63,
+  "executability_score": 96,
+  "code_quality_score": 81,
+  "verdict": "good",
+  "key_findings": [
+    "Central leak caught: days_since_last_login is excluded from model features, justified via a correct timing argument, and guarded by a test. AUC stays in the honest ~0.73-0.76 range, not the ~0.95 leakage signature.",
+    "The '5 seeds' produce byte-identical results (std=0.000) because the split is deterministic and both models hardcode random_state=0; the seed loop does nothing, so reported 'stable estimates' rests on fake repetition rather than genuine variance.",
+    "Conclusion declares LogisticRegression the winner by 0.029 AUC with no real variance estimate or significance test — overclaims a small gap.",
+    "No trivial/majority-class baseline; both models are untuned (equal budget, but no tuning at all).",
+    "Sanity checks (label-shuffle AUC~0.51, tiny-overfit) are present and pass; nice additions.",
+    "Tests (11) pass and run_experiment.py completes in ~6s, reproducing the reported numbers exactly."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is correctly identified as a disguised target leak and dropped; get_features_and_target uses only HONEST_FEATURES.",
+    "Report applies the right test: 'at prediction time, is this value already final? No' — reasoning about when the value is known rather than pattern-matching the name.",
+    "StandardScaler is fit on train only and applied to test (src/experiment.py:108-110) — fit-on-train discipline respected.",
+    "signup_date handled deliberately via a time-based split (train signup_month<10, test>=10).",
+    "200 duplicate rows are noted; report's claim that the time-based split prevents straddling is correct, but duplicates are not dropped within splits (minor residual bias).",
+    "Honest-feature AUC (~0.73-0.76) is consistent with the documented expectation; no implausibly high headline number to explain away."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (11 passed)",
+    "python run_experiment.py  (ran ~6s, reproduced reported metrics)"
+  ],
+  "file_evidence": [
+    {"path": "src/preprocessing.py", "note": "HONEST_FEATURES excludes days_since_last_login; get_features_and_target returns only honest features. LEAKY_FEATURES and seed param are defined but unused."},
+    {"path": "src/experiment.py", "note": "Scaler fit on train only; both models hardcode random_state=0, so per-seed runs are identical. roc_curve+auc, F1/precision/recall computed."},
+    {"path": "REPORT.md", "note": "Correctly drops and justifies the leak; but frames 5 identical reruns as '5 independent splits' with '0.000 variance ... stable estimates' and declares a 0.029-AUC winner without a significance test."},
+    {"path": "make_dataset.py", "note": "Documents the planted traps: disguised leak, 200 duplicates, temporal column — confirms the leak is target-derived and noisy."},
+    {"path": "results/metrics.json", "note": "All 5 test_auc_values identical (LR 0.7617, GB 0.7327), confirming the seed loop adds no variance."},
+    {"path": "tests/test_preprocessing.py", "note": "test_honest_features_excludes_leak explicitly asserts the leak is not a feature."}
+  ]
+}
+```

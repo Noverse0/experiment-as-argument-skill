@@ -1,0 +1,91 @@
+{
+  "claim": "Gradient boosting outperforms logistic regression for churn prediction",
+  "variable": "Model type (GradientBoostingClassifier vs LogisticRegression)",
+  "features": [
+    "tenure_months",
+    "monthly_spend",
+    "support_tickets"
+  ],
+  "data_contact": "time-based split, days_since_last_login dropped (leak)",
+  "n_seeds": 3,
+  "seeds": [
+    42,
+    123,
+    456
+  ],
+  "train_size": 3200,
+  "test_size": 800,
+  "churn_rate_train": 0.275625,
+  "churn_rate_test": 0.25,
+  "runs": {
+    "seed_42": {
+      "lr": {
+        "auc": 0.7322666666666666,
+        "f1": 0.3509933774834437,
+        "precision": 0.5196078431372549,
+        "recall": 0.265
+      },
+      "gb": {
+        "auc": 0.7237458333333334,
+        "f1": 0.3949843260188088,
+        "precision": 0.5294117647058824,
+        "recall": 0.315
+      }
+    },
+    "seed_123": {
+      "lr": {
+        "auc": 0.7322666666666666,
+        "f1": 0.3509933774834437,
+        "precision": 0.5196078431372549,
+        "recall": 0.265
+      },
+      "gb": {
+        "auc": 0.7237958333333333,
+        "f1": 0.3949843260188088,
+        "precision": 0.5294117647058824,
+        "recall": 0.315
+      }
+    },
+    "seed_456": {
+      "lr": {
+        "auc": 0.7322666666666666,
+        "f1": 0.3509933774834437,
+        "precision": 0.5196078431372549,
+        "recall": 0.265
+      },
+      "gb": {
+        "auc": 0.7237458333333334,
+        "f1": 0.3949843260188088,
+        "precision": 0.5294117647058824,
+        "recall": 0.315
+      }
+    }
+  },
+  "aggregate": {
+    "lr": {
+      "auc_mean": 0.7322666666666665,
+      "auc_std": 1.1102230246251565e-16,
+      "auc_values": [
+        0.7322666666666666,
+        0.7322666666666666,
+        0.7322666666666666
+      ],
+      "f1_mean": 0.3509933774834437,
+      "f1_std": 0.0
+    },
+    "gb": {
+      "auc_mean": 0.7237625,
+      "auc_std": 2.3570226039496653e-05,
+      "auc_values": [
+        0.7237458333333334,
+        0.7237958333333333,
+        0.7237458333333334
+      ],
+      "f1_mean": 0.3949843260188088,
+      "f1_std": 0.0
+    },
+    "winner": "Logistic Regression",
+    "gap": 0.008504166666666535,
+    "confidence": "high"
+  }
+}

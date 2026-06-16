@@ -1,0 +1,57 @@
+Both the test suite (20 passed) and the entrypoint run cleanly and reproduce `results/metrics.json` exactly. Let me verify the one methodological concern I spotted — the scaler fitting location.
+
+The experiment fits `StandardScaler` on the full `self.X` (`experiment.py:138-139`) *before* `cross_validate`, rather than inside a per-fold `Pipeline`. This contradicts the report's explicit claim ("Feature scaling: Applied only after CV fold split, fitted on train data only"). Also, the report hardcodes "✓ PASS: Both models can overfit a small batch" while the code's own check flagged a WARNING (LR reached only 74%).
+
+Here is my assessment.
+
+The project correctly caught the disguised leak — `days_since_last_login` is excluded by default, justified via an explicit timing test (churned 43.9d vs active 7.9d), and the honest AUC lands at ~0.736 exactly where the legitimate-features ceiling should be. Deduplication happens before splitting, `signup_date` is excluded with a temporal-structure caveat in limitations. The blemishes are real but secondary: the global scaler fit (a minor cross-fold leak that the report falsely describes as train-only), the hardcoded sanity-check "PASS" overriding an actual WARNING, std-of-run-means understating true variance, and dead code (`run_with_leaky_feature` placeholder, several unused imports).
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 86,
+  "methodological_validity_score": 80,
+  "reproducibility_score": 92,
+  "claims_discipline_score": 68,
+  "executability_score": 95,
+  "code_quality_score": 72,
+  "verdict": "good",
+  "key_findings": [
+    "Caught the disguised leak: days_since_last_login is excluded by default (prepare_features include_leaky=False) and justified via an explicit timing test, not name pattern-matching.",
+    "Honest AUC ~0.736 on the three legitimate features — consistent with the expected ~0.73 ceiling, not the suspicious ~0.95 a leaked pipeline would produce.",
+    "Methodology is sound: majority-class baseline (73.0%), AUC as primary metric for the 27% imbalance, label-shuffle (~0.49) and overfit sanity checks, both models run with the same (fixed, untuned) budget.",
+    "Fully reproducible: seeds 1000-1004 fixed and logged, results/metrics.json written, and a clean re-run reproduced the headline numbers exactly. 20/20 tests pass.",
+    "Claims are conservative on the model comparison (reports LR equal-or-better, gap -0.0102, refuses a GB win) and limitations are honest about tuning, temporal split, and single dataset.",
+    "Two report/code mismatches: scaler is fit on full data despite the 'fitted on train data only' claim; overfit check is reported as 'PASS' though the code flagged a WARNING (LR only 74%)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login correctly identified as a post-outcome target leak and excluded; report explains a churned customer has by definition stopped logging in, and treats the strong churned-vs-active gap (43.9 vs 7.9 days) as a leak signal.",
+    "Resulting AUC ~0.736 matches the honest-feature expectation; no inflated ~0.95 claim — the central v2 trap was avoided.",
+    "Duplicate rows (200 appended) are removed before CV splitting via deduplicate(), preventing train/test straddle; check_duplicates correctly ignores customer_id.",
+    "signup_date handled deliberately: excluded as redundant with tenure and flagged in limitations that random CV (vs time-based split) may overestimate performance.",
+    "WEAKNESS: StandardScaler is fit on the full X before cross_validate (experiment.py:138-139) rather than per-fold inside a Pipeline — a minor cross-fold leak, and it directly contradicts the report's stated 'fitted on train data only' data-contact policy."
+  ],
+  "commands_run": [
+    "python -m pytest -q  (20 passed, 24 deprecation warnings)",
+    "python run_experiment.py  (completed; reproduced results/metrics.json: LR 0.7358, GB 0.7256, gap -0.0102)"
+  ],
+  "file_evidence": [
+    {"path": "src/data.py", "note": "prepare_features defaults include_leaky=False (3 safe features); detect_leak_days_since_login implements the timing test; deduplicate() removes dups before splitting."},
+    {"path": "src/experiment.py", "note": "Lines 138-139: scaler.fit_transform(self.X) on full data before cross_validate — not a per-fold pipeline. Dead code: run_with_leaky_feature placeholder (214-231); unused imports json/train_test_split/make_scorer/report_class_distribution."},
+    {"path": "run_experiment.py", "note": "Entrypoint; generate_report hardcodes '✓ PASS: Both models can overfit a small batch' (line ~180) even though overfit_check.both_above_90 is False and the console printed a WARNING."},
+    {"path": "REPORT.md", "note": "Conservative verdict (no GB advantage), honest limitations. But claims train-only scaler fitting (false) and PASS on overfit check (LR only 74%)."},
+    {"path": "results/metrics.json", "note": "Seeds 1000-1004 logged; per-run and summary stats persisted; label_shuffle ~0.49, baseline 0.7295; reproduced exactly on re-run."},
+    {"path": "make_dataset.py", "note": "Confirms the planted disguised leak (days_since_last_login derived from churn), 200 duplicates, and signup_date temporal trap — all of which the project addressed."},
+    {"path": "tests/test_experiment.py", "note": "20 tests covering loading, dedup, leak-detection stats, feature prep, sanity checks, and end-to-end; all pass."}
+  ]
+}
+```

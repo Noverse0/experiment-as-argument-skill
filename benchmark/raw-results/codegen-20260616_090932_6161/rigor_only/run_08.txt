@@ -1,0 +1,1 @@
+{"files_created": ["src/__init__.py", "src/preprocessing.py", "src/experiment.py", "tests/__init__.py", "tests/test_preprocessing.py", "tests/test_experiment.py", "run_experiment.py", "pyproject.toml", "REPORT.md", "results/metrics.json", "churn.csv"], "entrypoint": "python3 run_experiment.py", "test_command": "python -m pytest tests/ -v"}

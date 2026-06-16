@@ -1,0 +1,5 @@
+Excellent! The experiment is complete and fully verified. Let me output the final JSON:
+
+```json
+{"files_created": ["src/experiment.py", "tests/test_experiment.py", "run_experiment.py", "requirements.txt", "REPORT.md", "results/metrics.json", "churn.csv"], "entrypoint": "python run_experiment.py", "test_command": "python -m pytest tests/"}
+```

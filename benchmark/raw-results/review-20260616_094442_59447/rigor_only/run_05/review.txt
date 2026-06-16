@@ -1,0 +1,62 @@
+I have enough evidence. Let me compile the findings.
+
+**Summary of audit:**
+
+- **Leakage (central test):** The disguised leak `days_since_last_login` is **correctly excluded** with accurate reasoning ("derived from the outcome... churned → high days_since_login"). `engineer_features` uses only `tenure_months, monthly_spend, support_tickets, days_since_signup`. Honest test AUC ~0.74 reported (not the suspicious ~0.95). Dedup happens *before* split (prevents straddle). Scaler is in a Pipeline → fit on train only. `signup_date` deliberately converted to `days_since_signup`, random split acknowledged as a limitation. A label-shuffle leakage check exists (though its threshold mixes accuracy and AUC).
+- **Reproduces exactly** (re-ran → identical to results.json). Tests pass (12).
+- **Claims weakness:** Report's Sanity Checks / Limitations sections contain hardcoded numbers that don't match measured reality: "~52% accuracy" baseline (actual 0.729), "churn rate ~52%" (actual 27%), "test AUC drops to ~0.5" (actual shuffled = 0.294), "4200 rows after deduplication" (actual 4000 after dedup; 4200 is raw). Also declares "Logistic Regression is better" where the gap (0.020) equals the combined std (0.020) — within noise — though limitations do note the overlap.
+- **Methodology:** baseline floor + appropriate imbalance metrics + multi-seed variance, but neither model is tuned (GB overfits, train AUC 0.94) and the `baseline` model object is created but never run through evaluation.
+
+```json
+{
+  "rubric_version": "experiment-as-argument-review-v2",
+  "score_scale": "0-100 per category",
+  "weights": {
+    "leakage_prevention": 0.25,
+    "methodological_validity": 0.20,
+    "reproducibility": 0.15,
+    "claims_discipline": 0.15,
+    "executability": 0.15,
+    "code_quality": 0.10
+  },
+  "leakage_prevention_score": 90,
+  "methodological_validity_score": 74,
+  "reproducibility_score": 88,
+  "claims_discipline_score": 55,
+  "executability_score": 95,
+  "code_quality_score": 74,
+  "verdict": "good",
+  "key_findings": [
+    "Disguised leak caught: days_since_last_login is excluded with correct, mechanism-based reasoning, not just name-matching. Honest test AUC ~0.74 reported instead of the suspicious ~0.95.",
+    "Experiment is fully executable and reproducible: 12 tests pass, entrypoint runs from clean state and reproduces results.json numbers exactly; dataset auto-regenerates deterministically.",
+    "Methodology is sound but not rigorous: trivial baseline + imbalance-appropriate metrics (ROC-AUC/PR-AUC/F1/precision/recall) + 3-seed variance, but neither model is tuned (GB depth=5 overfits to train AUC 0.94) so the comparison uses arbitrary hyperparameters.",
+    "Headline conclusion 'Logistic Regression is better' is weak: gap (0.020) equals combined std (0.020), i.e. within noise; limitations partially acknowledge the overlap.",
+    "Report's Sanity Checks/Limitations sections are hardcoded boilerplate with several numbers that contradict measured output (52% baseline vs actual 73%, '~52% churn rate' vs 27%, shuffle '~0.5' vs 0.294, '4200 rows after dedup' vs 4000)."
+  ],
+  "leakage_findings": [
+    "days_since_last_login is NOT used as a feature: src/dataset.py:50 feature_cols = ['tenure_months','monthly_spend','support_tickets','days_since_signup']; explicitly justified at dataset.py:31 and REPORT.md:33 as outcome-derived.",
+    "make_dataset.py confirms the leak design: days_since_last_login is generated conditionally on churn (mean ~44 days churned vs ~8 days retained); the project's exclusion matches the true leakage mechanism.",
+    "Duplicate rows are removed before the split (load_and_deduplicate runs before get_train_test_split), so the 200 planted duplicates cannot straddle train/test. Verified 4200 -> 4000.",
+    "Preprocessing is leak-safe: StandardScaler is inside an sklearn Pipeline (models.py:38), so it is fit on the train fold only within each model.fit(X_train).",
+    "Temporal column handled deliberately: signup_date -> days_since_signup with a fixed reference date; random stratified split used, with the time-based-split omission explicitly flagged as a limitation (REPORT.md:36).",
+    "A label-shuffle leakage check is present and passes (shuffled AUC 0.294), but it is buggy: it compares the shuffled AUC against a 'baseline_auc' that is actually majority-class ACCURACY (0.729), so the pass threshold is loose; conclusion happens to be correct.",
+    "GB train AUC 0.94 vs test 0.72 is overfitting (large depth/estimators), not leakage; test performance matches the honest LR level (~0.74)."
+  ],
+  "commands_run": [
+    "ls -laR (file inventory)",
+    "python3 -c '... dedup/churn-rate check' -> raw 4200, dedup 4000, churn 0.270",
+    "python3 -m pytest -q -> 12 passed",
+    "python3 run_experiment.py --seeds 3 -> LR test AUC 0.742, GB 0.721, conclusion 'Logistic Regression is better' (reproduced results.json)",
+    "python3 run_experiment.py --seeds 3 | grep baseline/shuffle/overfit -> baseline acc 0.729, shuffled AUC 0.294, overfit loss 0.448"
+  ],
+  "file_evidence": [
+    {"path": "src/dataset.py", "note": "feature_cols at line 50 excludes days_since_last_login; dedup-before-split in load_and_deduplicate; signup_date->days_since_signup with fixed reference date."},
+    {"path": "src/models.py", "note": "StandardScaler inside Pipeline (fit-on-train-only); DummyMajority baseline defined; GB uses fixed n_estimators=100/max_depth=5 with no tuning."},
+    {"path": "src/experiment.py", "note": "3-seed loop, metrics aggregated with mean/std/n; conclusion threshold abs(gap) < gap_margin/2 is lenient; baseline model created at line 59 but never evaluated."},
+    {"path": "src/sanity_checks.py", "note": "baseline floor, overfit-tiny-subset, and label-shuffle checks present; label_shuffle compares shuffled AUC against majority accuracy (unit mismatch)."},
+    {"path": "results/results.json", "note": "test_churn_rate 27.05; LR test roc_auc 0.7415, GB 0.7213; GB train roc_auc 0.943 (overfit). n_seeds=3."},
+    {"path": "REPORT.md", "note": "Correctly flags the leak and honest AUC, but Sanity/Limitations contain wrong hardcoded numbers (52% baseline, '~52% churn rate', shuffle ~0.5, '4200 rows after deduplication'); declares a winner within noise."},
+    {"path": "make_dataset.py", "note": "Documents the planted traps: disguised days_since_last_login leak, 200 duplicates, temporal signup_date."}
+  ]
+}
+```

@@ -1,0 +1,109 @@
+{
+  "summary": {
+    "LogisticRegression": {
+      "test_auc_mean": 0.7236967275494673,
+      "test_auc_std": 0.01817615400158676,
+      "test_auc_min": 0.7028158295281584,
+      "test_auc_max": 0.7466863267376966,
+      "n_runs": 5
+    },
+    "GradientBoosting": {
+      "test_auc_mean": 0.7186976788432268,
+      "test_auc_std": 0.018899965978210916,
+      "test_auc_min": 0.6981901636225267,
+      "test_auc_max": 0.7449819254185692,
+      "n_runs": 5
+    }
+  },
+  "sanity_checks": {
+    "baseline_accuracy": 0.7295,
+    "overfit_tiny_auc": 0.8662280701754386
+  },
+  "metadata": {
+    "n_duplicates": 400,
+    "churn_rate": 0.2705,
+    "n_seeds": 2
+  },
+  "all_runs": [
+    {
+      "seed": 42,
+      "model": "LogisticRegression",
+      "train_auc": 0.7367081856520045,
+      "test_auc": 0.7428494419076611,
+      "baseline_auc": 0.5,
+      "label_shuffle_auc": 0.4609731735159817
+    },
+    {
+      "seed": 42,
+      "model": "GradientBoosting",
+      "train_auc": 0.7792824616919086,
+      "test_auc": 0.7374468860984272,
+      "baseline_auc": 0.5,
+      "label_shuffle_auc": 0.5128622843734145
+    },
+    {
+      "seed": 43,
+      "model": "LogisticRegression",
+      "train_auc": 0.7350968017715823,
+      "test_auc": 0.7466863267376966,
+      "baseline_auc": 0.5,
+      "label_shuffle_auc": 0.6472523465246068
+    },
+    {
+      "seed": 43,
+      "model": "GradientBoosting",
+      "train_auc": 0.7774345897872796,
+      "test_auc": 0.7449819254185692,
+      "baseline_auc": 0.5,
+      "label_shuffle_auc": 0.5335965246067986
+    },
+    {
+      "seed": 44,
+      "model": "LogisticRegression",
+      "train_auc": 0.7466456301168982,
+      "test_auc": 0.7028158295281584,
+      "baseline_auc": 0.5,
+      "label_shuffle_auc": 0.396538876204972
+    },
+    {
+      "seed": 44,
+      "model": "GradientBoosting",
+      "train_auc": 0.7875823008008929,
+      "test_auc": 0.6981901636225267,
+      "baseline_auc": 0.5,
+      "label_shuffle_auc": 0.44995798452562147
+    },
+    {
+      "seed": 45,
+      "model": "LogisticRegression",
+      "train_auc": 0.7454137155138122,
+      "test_auc": 0.7061929223744292,
+      "baseline_auc": 0.5,
+      "label_shuffle_auc": 0.6109049974632167
+    },
+    {
+      "seed": 45,
+      "model": "GradientBoosting",
+      "train_auc": 0.7906855876875825,
+      "test_auc": 0.7030932902080163,
+      "baseline_auc": 0.5,
+      "label_shuffle_auc": 0.5225654807204465
+    },
+    {
+      "seed": 46,
+      "model": "LogisticRegression",
+      "train_auc": 0.7422048006079425,
+      "test_auc": 0.7199391171993912,
+      "baseline_auc": 0.5,
+      "label_shuffle_auc": 0.4104119101978691
+    },
+    {
+      "seed": 46,
+      "model": "GradientBoosting",
+      "train_auc": 0.7850096277342071,
+      "test_auc": 0.7097761288685948,
+      "baseline_auc": 0.5,
+      "label_shuffle_auc": 0.4576634639776763
+    }
+  ]
+}
