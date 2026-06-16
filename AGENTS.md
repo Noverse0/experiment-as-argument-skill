@@ -23,7 +23,7 @@ If you cannot answer 1–3, the experiment is not designed yet. Stop and design 
 ## Data Discipline
 
 - **Split before transform.** Any fit-like operation (scaler, vocabulary, imputation, feature selection, target encoding) happens after the split, fitted on train only, applied to the rest.
-- **Hunt target leakage.** Drop or justify every feature that could be derived from the label or recorded after the outcome (status flags, closure dates, post-hoc aggregates). Justify in code comments or the report, not in your head.
+- **Hunt target leakage with the timing test, not the name.** For every feature ask: at the instant you would make the prediction, is this value already final? If it keeps moving as the outcome unfolds — a churned customer's "days since last login" grows *because* they churned — it encodes the label and must be dropped. A plausible name ("it's just login activity," "recorded pre-prediction") is not a justification; the only valid justification is "this value is provably fixed before the outcome occurs." When you cannot prove that, drop it and state the assumption. Usual offenders: status flags, closure dates, post-hoc aggregates, and recency/inactivity counters.
 - **Deduplicate across the boundary.** Exact or near-duplicate rows must not straddle train/test. Check for duplicates before splitting; say in the report how many you found.
 - **Respect time.** If any column is temporal and the task is forward-looking, use a time-based split. Random splits on temporal data are leakage.
 - **Class balance is a fact, not a footnote.** Report the target rate; choose metrics that survive imbalance (not accuracy alone).
