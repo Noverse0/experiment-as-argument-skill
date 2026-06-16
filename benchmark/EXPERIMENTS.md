@@ -13,7 +13,25 @@ Failed and null results stay in the ledger. Deleting an entry because it disappo
 
 ---
 
-## 2026-06-15 — exp-005: make the disguised leak bite (Haiku + v2)
+## 2026-06-16 — exp-005 CORRECTION: the "skill leaks 5×" conclusion was wrong
+
+The exp-005 entry below claimed the skill arm leaked the disguised feature 5/10 vs the baseline's 1/10, from `analyze.py leak-check`. **That conclusion was an artifact of a flawed tool and is retracted.** On re-reading every flagged workspace's code:
+
+- 4 of the 5 `rigor_only` "leaks" (run_04, 05, 07, 08) and the 1 `skills_off` "leak" (run_08) were **leakage-ceiling demos, not real leaks**: the main pipeline dropped `days_since_last_login` and used it only in a separate analysis that intentionally trains *with* the leak to show how much it inflates AUC — exactly the skill's "leakage ceiling" sanity check, a good behavior. `leak-check` scanned all code and counted those demo `features=[...]` lines as real usage.
+- Only **rigor_only/run_06** is a genuine main-pipeline leak (it judged the column "valid (recorded pre-prediction)" and kept it).
+
+**Corrected main-pipeline leak rate: `skills_off` 0/10, `rigor_only` 1/10** — a one-run difference, well within noise, consistent with the reviewer's null (−1.0, p=0.50). The skill did **not** increase leakage; if anything it more often induced the leakage-ceiling demo.
+
+Consequences:
+- The five-experiment verdict is **null everywhere, not "harmful on weak models."** Corrected in README.
+- `leak-check` is **removed**. After two false-positive patches it still couldn't tell an intentional leak demo from a real leak — and because the skill induces those demos, it was systematically biased against the `rigor_only` arm. A static syntax check ("is the column in a `features=` list?") cannot capture the domain invariant ("does the *main* model use it?").
+- My exp-005 claim that "the objective check beat the reviewer" was backwards: the checker was wrong and reading the code was right. That is the skill's own thesis — when a measurement contradicts the theory, rebuild the theory; a narrow automated metric is not a substitute for understanding the program.
+
+The original (incorrect) entry is kept below unedited, per the ledger's append-only rule.
+
+---
+
+## 2026-06-15 — exp-005: make the disguised leak bite (Haiku + v2)  *(superseded — see correction above)*
 
 - **Hypothesis (from exp-004's next step):** the v2 disguise didn't bite on Sonnet (both arms caught it 10/10). A weaker model should miss the "when is this value known" inference and actually use the leak, creating leakage-prevention headroom where the skill can finally help.
 - **Setup:** codegen `20260615_142410_77539` → review `20260615_153024_65379`. Codegen **Haiku**, review Opus with v2 rubric, 10 repeats per arm, prompt `ml-experiment-v2`, fixture `make_dataset_v2.py`. (`rigor_only/run_02` was regenerated after a retry-guard bug let it through empty; see the harness fix.)

@@ -74,81 +74,6 @@ def mann_whitney(a: list, b: list):
     return u, z, p
 
 
-DEFAULT_LEAK_COLS = ["account_status", "days_since_last_login"]
-_DROP_RE = re.compile(
-    r"\bdrop\b|exclude|remove|\bdel\b|not in|!=|\.difference|\.pop\(|\bdropna\b"
-)
-
-
-_FEATURE_USE_RE = re.compile(r"df\[\[|features?\s*=|feature_cols|\bX\s*=|\bX\[")
-_HANDLE_ASSIGN_RE = re.compile(r"(leak|exclude|drop)\w*\s*=", re.I)
-
-
-def classify_leak(code: str, leaky_cols: list) -> str:
-    """Objectively classify whether generated code leaks a target-derived column.
-
-    Reviewer-independent cross-check: reads the code, not the review. Per column:
-    - leaked:  the column sits inside an explicit feature-selection construct
-               (df[[...]], X = ..., features = ...) with no drop on that line
-    - handled: it appears with a drop/exclude keyword, or in a leak/drop/exclude
-               list variable (e.g. LEAK_COLS = ["..."]) — including drops routed
-               through a variable, which a line-local check would miss
-    - review:  it appears but neither clearly used nor dropped (needs a glance)
-    - absent:  the column name never appears
-    Worst status wins (leaked > handled > review > absent). This is a heuristic,
-    not full dataflow analysis: it is a fast cross-check on the reviewer, not a
-    replacement. A `leaked` verdict is high-confidence; `review` means look.
-    """
-    statuses = []
-    lines = code.splitlines()
-    for col in leaky_cols:
-        if col not in code:
-            statuses.append("absent")
-            continue
-        used = any(
-            col in ln and _FEATURE_USE_RE.search(ln) and not _DROP_RE.search(ln)
-            for ln in lines
-        )
-        handled = any(
-            col in ln and (_DROP_RE.search(ln) or _HANDLE_ASSIGN_RE.search(ln))
-            for ln in lines
-        )
-        if used:
-            statuses.append("leaked")
-        elif handled:
-            statuses.append("handled")
-        else:
-            statuses.append("review")
-    for level in ("leaked", "handled", "review", "absent"):
-        if level in statuses:
-            return level
-    return "absent"
-
-
-def leak_check(run_dirs: list, leaky_cols: list) -> int:
-    from collections import defaultdict as _dd
-    tallies = _dd(lambda: _dd(int))
-    for run_dir in run_dirs:
-        for ws in sorted(Path(run_dir).glob("*/workspaces/run_*")):
-            arm = ws.parent.parent.name
-            code = "\n".join(
-                p.read_text(errors="replace")
-                for p in ws.rglob("*.py")
-                if ".claude" not in p.parts and ".venv" not in p.parts
-                and p.name != "make_dataset.py"  # the seeded fixture, not agent code
-            )
-            tallies[arm][classify_leak(code, leaky_cols)] += 1
-    leaked_any = False
-    for arm in sorted(tallies):
-        t = tallies[arm]
-        print(
-            f"{arm}: leaked={t['leaked']} handled={t['handled']} "
-            f"review={t['review']} absent={t['absent']}"
-        )
-        if t["leaked"]:
-            leaked_any = True
-    return 1 if leaked_any else 0
-
 
 def validate(paths: list) -> int:
     bad = 0
@@ -288,20 +213,9 @@ def main() -> int:
         "--format", choices=["text", "markdown", "csv"], default="text",
         help="text (default), markdown table, or csv for import into a tracker",
     )
-    lc = sub.add_parser(
-        "leak-check",
-        help="objectively check codegen workspaces for leaked target-derived columns",
-    )
-    lc.add_argument("run_dirs", nargs="+", help="codegen run dir(s)")
-    lc.add_argument(
-        "--cols", nargs="+", default=DEFAULT_LEAK_COLS,
-        help=f"leaky column names (default: {' '.join(DEFAULT_LEAK_COLS)})",
-    )
     args = parser.parse_args()
     if args.cmd == "validate":
         return validate(args.paths)
-    if args.cmd == "leak-check":
-        return leak_check(args.run_dirs, args.cols)
     return report(args.run_dirs, args.format)
 
 
