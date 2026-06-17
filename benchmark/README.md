@@ -47,6 +47,23 @@ python3 analyze.py report runs/review/<run_id> --format csv        # import into
 
 > An automated `leak-check` command existed briefly (exp-005) but was removed: it could not distinguish a real main-pipeline leak from an intentional leakage-ceiling demo, so it produced a wrong "skill leaks 5×" result that re-reading the code overturned. See the exp-005 correction in [EXPERIMENTS.md](EXPERIMENTS.md). Leakage is currently judged from the reviewer's `leakage_findings` and, when it matters, by reading the code.
 
+## Multi-model review (independent reviewers)
+
+A single reviewer (one Opus pass) shares the author's blind spots — exactly the gap that let the exp-005 misread stand longer than it should have. The repo can review each workspace with several independent reviewer models and measure where they disagree:
+
+```bash
+REVIEWERS="claude:opus codex:gpt-5 gemini:gemini-2.5-pro" \
+  RUBRIC=experiment-as-argument-review-v2.md \
+  ./run_multi_review_experiment.sh runs/codegen/<run_id>
+python3 analyze.py agreement runs/multi-review/<run_id>   # per-(arm,run) score spread; flags high disagreement
+```
+
+`agreement` reports the cross-reviewer score spread per workspace and flags high-disagreement runs — those are the most uncertain judgments and the first to inspect. **exp-007 (does a multi-reviewer panel change any conclusion vs the single Opus reviewer?) is implemented but not yet run** — it needs all three CLIs available; pending Codex quota.
+
+For ad-hoc review of a single plan or result (not the benchmark), `scripts/experiment_panel.sh <file>` sends it to several models independently and synthesizes consensus vs disagreement.
+
+The ledger format these experiments follow is in [EXPERIMENTS_TEMPLATE.md](EXPERIMENTS_TEMPLATE.md).
+
 Every run is logged in [EXPERIMENTS.md](EXPERIMENTS.md), an append-only ledger: the human records the hypothesis, what changed, and the honest conclusion; the result table and csv come straight from `analyze.py` so the numbers never drift. The `--format csv` output is the tool-neutral bridge to any experiment tracker — rather than binding the harness to one SaaS, it emits a standard row you can import where you like.
 
 `runs/` is gitignored; curated raw results are published by copying selected run folders into `raw-results/` explicitly.

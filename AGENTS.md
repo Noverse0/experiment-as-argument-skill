@@ -58,6 +58,25 @@ Run these before believing any training loop; they cost minutes and catch most s
 
 Every run records: config (all hyperparameters), seeds, data version or generation command, code version, and resulting metrics — in a file, not in the console scrollback. Failed runs keep their artifacts.
 
+## Experiment Ledger
+
+One run's artifacts are not enough once you iterate. Keep a single append-only ledger (e.g. `EXPERIMENTS.md`), newest entry first, so the series stays auditable and the next step is always visible.
+
+- **One entry per run**, fixed shape: hypothesis → setup (the single variable, seeds, n) → result → honest conclusion → next step.
+- **Human writes the judgment; a script writes the numbers.** Generate the result table with code and paste it verbatim — never hand-type a metric, or the ledger drifts from the data.
+- **The ledger is the progress tracker.** Each entry's "next step" seeds the next experiment; reading top to bottom shows what was tried and what is still open.
+- **Keep null, failed, and corrected results.** A wrong conclusion gets a new correction entry linking the original — never a deletion. Removing a disappointing result is fabrication by omission.
+
+Skip this only for a genuinely one-off experiment; the moment you run a second variant, start the ledger.
+
+## Independent Review
+
+A single reviewer — one model or one person — shares the author's blind spots. For any conclusion that will be reported or acted on, get an independent check.
+
+- Prefer reviewers that fail differently: a second model (e.g. a different provider) or a human, not just another pass by the same model.
+- **Disagreement is the signal, not the noise.** Where independent reviewers diverge is the most uncertain claim and the first place to look. Agreement is weak evidence; divergence is a flag to investigate.
+- Keep authoring and reviewing in separate passes. The author's own confidence is not a review.
+
 ## Verification
 
 - **New experiment:** run the sanity checks above, then the smallest full run that supports the claim.

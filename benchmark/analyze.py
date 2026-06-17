@@ -75,6 +75,62 @@ def mann_whitney(a: list, b: list):
 
 
 
+def review_spread(totals: list) -> float:
+    """Range (max - min) of a single item's weighted scores across reviewers.
+
+    Zero for one (or zero) reviewers. Larger spread = reviewers disagree more =
+    the claim to investigate first (see SKILL.md "Independent Review").
+    """
+    if len(totals) < 2:
+        return 0.0
+    return max(totals) - min(totals)
+
+
+def agreement(run_dirs: list, threshold: float = 10.0) -> int:
+    """For workspaces reviewed by multiple reviewers, report score spread.
+
+    Expects a multi-review layout: <run_dir>/<reviewer>/<arm>/run_*/review.txt.
+    Prints per-(arm,run) spread across reviewers and flags items whose spread
+    exceeds `threshold` — the high-disagreement runs worth a human look.
+    """
+    # key: (arm, run) -> {reviewer: weighted_total}
+    items = defaultdict(dict)
+    failures = []
+    for run_dir in run_dirs:
+        for review in sorted(Path(run_dir).glob("*/*/run_*/review.txt")):
+            reviewer = review.parent.parent.parent.name
+            arm = review.parent.parent.name
+            run = review.parent.name
+            try:
+                d = extract_review(review.read_text(errors="replace"))
+            except ValueError as e:
+                failures.append((str(review), str(e)))
+                continue
+            items[(arm, run)][reviewer] = recompute_weighted(d)
+    if not items:
+        print("no multi-reviewer items found (expect <dir>/<reviewer>/<arm>/run_*/review.txt)")
+        return 1
+    spreads = []
+    flagged = []
+    for (arm, run), by_rev in sorted(items.items()):
+        totals = list(by_rev.values())
+        s = review_spread(totals)
+        spreads.append(s)
+        if s > threshold:
+            detail = " ".join(f"{r}={v:.0f}" for r, v in sorted(by_rev.items()))
+            flagged.append(f"{arm}/{run}: spread={s:.1f}  ({detail})")
+    print(f"items={len(items)} reviewers/item~{statistics.mean(len(v) for v in items.values()):.1f}")
+    print(f"mean spread={statistics.mean(spreads):.1f} max spread={max(spreads):.1f}")
+    print(f"high-disagreement (>{threshold:.0f}): {len(flagged)}")
+    for f in flagged:
+        print(f"  {f}")
+    if failures:
+        print(f"\nUNPARSEABLE ({len(failures)}):")
+        for path, err in failures:
+            print(f"  {path}: {err}")
+    return 1 if failures else 0
+
+
 def validate(paths: list) -> int:
     bad = 0
     for p in paths:
@@ -213,9 +269,20 @@ def main() -> int:
         "--format", choices=["text", "markdown", "csv"], default="text",
         help="text (default), markdown table, or csv for import into a tracker",
     )
+    ag = sub.add_parser(
+        "agreement",
+        help="report reviewer disagreement across a multi-review run",
+    )
+    ag.add_argument("run_dirs", nargs="+", help="multi-review run dir(s)")
+    ag.add_argument(
+        "--threshold", type=float, default=10.0,
+        help="flag items whose cross-reviewer spread exceeds this (default 10)",
+    )
     args = parser.parse_args()
     if args.cmd == "validate":
         return validate(args.paths)
+    if args.cmd == "agreement":
+        return agreement(args.run_dirs, args.threshold)
     return report(args.run_dirs, args.format)
 
 

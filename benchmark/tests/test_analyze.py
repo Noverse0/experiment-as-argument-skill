@@ -11,6 +11,7 @@ from analyze import (
     recompute_weighted,
     render_csv,
     render_markdown,
+    review_spread,
 )
 
 VALID = """Review prose here.
@@ -120,3 +121,16 @@ def test_render_csv_header_and_rows():
 # an intentional leakage-ceiling demo (the skill induces the latter), so it
 # systematically misclassified rigor_only runs. See benchmark/EXPERIMENTS.md
 # exp-005 + correction. Static syntax checks don't capture the domain invariant.
+
+
+def test_review_spread_tight_vs_wide():
+    assert review_spread([80.0, 82.0, 81.0]) == pytest.approx(2.0)
+    assert review_spread([60.0, 90.0]) == pytest.approx(30.0)
+
+
+def test_review_spread_single_reviewer_is_zero():
+    assert review_spread([75.0]) == 0.0
+
+
+def test_review_spread_empty_is_zero():
+    assert review_spread([]) == 0.0

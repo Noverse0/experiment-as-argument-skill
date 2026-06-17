@@ -6,10 +6,12 @@ An ML experiment that runs is not the same as one that proves something. Coding 
 
 ## What the skill enforces
 
-- **Data discipline:** split before transform, target-leak hunting, duplicate-aware splits, time-aware splits for temporal data.
-- **Sanity checks first:** trivial baseline, overfit-a-tiny-subset, label-shuffle test, init-loss check.
-- **Seed and variance discipline:** logged seeds, ≥3 repeats behind any comparison, mean ± sd reporting.
+- **Data discipline:** split before transform, target-leak hunting (a timing test, not the column name), duplicate-aware splits, time-aware splits for temporal data.
+- **Sanity checks first:** trivial baseline, overfit-a-tiny-subset, label-shuffle test, init-loss check — each one must be able to fail.
+- **Seed and variance discipline:** logged seeds, ≥3 repeats behind any comparison, mean ± sd reporting, no fake variance from deterministic pipelines.
 - **Claims discipline:** no winner without variance; "no detectable difference" is a valid result; test set touched once.
+- **Experiment tracking:** an append-only ledger (hypothesis → setup → machine-generated result → honest conclusion → next step); judgment by hand, numbers by script.
+- **Independent review:** cross-check important conclusions with a different model or a human — where reviewers disagree is the signal.
 
 See [skills/experiment-as-argument/SKILL.md](skills/experiment-as-argument/SKILL.md) for the full rules.
 
